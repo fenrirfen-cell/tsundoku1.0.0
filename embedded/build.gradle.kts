@@ -157,7 +157,9 @@ dependencies {
 
     implementation(libs.bundles.serialization)
     implementation(libs.jsoup)
-    implementation("io.github.dokar3:quickjs-kt:1.0.0-alpha13")
+    // Nuvio ships quickjs-kt 1.0.15 and only one version can be in the app, so compile against
+    // that one here (:app still uses 1.0.0-alpha13). Keep in sync with Nuvio's libs.versions.toml.
+    implementation("io.github.dokar3:quickjs-kt:1.0.15")
 
     // Disk
     implementation(libs.diskLruCache)
