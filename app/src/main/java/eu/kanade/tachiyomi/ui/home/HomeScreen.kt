@@ -36,6 +36,7 @@ import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
 import cafe.adriel.voyager.navigator.tab.TabNavigator
 import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.source.service.SourcePreferences
+import eu.kanade.presentation.components.EmbeddedModeSwitchBar
 import eu.kanade.presentation.util.Screen
 import eu.kanade.presentation.util.isTabletUi
 import eu.kanade.tachiyomi.ui.browse.BrowseTab
@@ -107,6 +108,8 @@ object HomeScreen : Screen() {
             // Provide usable navigator to content screen
             CompositionLocalProvider(LocalNavigator provides navigator) {
                 Scaffold(
+                    // Watch / Read switch; only drawn when embedded in Nuvio.
+                    topBar = { EmbeddedModeSwitchBar() },
                     startBar = {
                         if (isTabletUi()) {
                             NavigationRail {

@@ -30,6 +30,7 @@ enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 rootProject.name = "Tsundoku"
 include(":app")
+include(":embedded")
 include(":baseline-profile")
 include(":core-metadata")
 include(":core:archive")

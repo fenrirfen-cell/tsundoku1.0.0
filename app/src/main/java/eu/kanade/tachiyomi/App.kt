@@ -76,7 +76,8 @@ import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 import java.security.Security
 
-class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factory {
+// open: the Nuvio host app subclasses this to run Tsundoku and Nuvio in one process (see EmbeddedHost).
+open class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factory {
 
     private val basePreferences: BasePreferences by injectLazy()
     private val privacyPreferences: PrivacyPreferences by injectLazy()
