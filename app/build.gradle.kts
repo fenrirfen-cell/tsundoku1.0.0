@@ -219,6 +219,7 @@ baselineProfile {
 }
 
 dependencies {
+    implementation("org.nanohttpd:nanohttpd:2.3.1")
     baselineProfile(projects.baselineProfile)
 
     implementation(projects.i18n)

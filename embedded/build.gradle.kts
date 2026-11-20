@@ -97,6 +97,8 @@ kotlin {
 // `api` for the modules the host needs to see (it subclasses App).
 dependencies {
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.26.0")
+    // Fenrir: Aniyomi extensions (local video server used by some of them).
+    implementation("org.nanohttpd:nanohttpd:2.3.1")
     api(projects.i18n)
     api(projects.i18nNovel)
     api(projects.core.archive)
