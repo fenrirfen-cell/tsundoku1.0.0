@@ -23,7 +23,7 @@ val tsundokuVersionCode = 24
 val tsundokuVersionName = "0.3.4"
 
 val hostApplicationIdRelease = providers.gradleProperty("tsundoku.host.applicationId")
-    .getOrElse("com.nuvio.app")
+    .getOrElse("com.fenrirread.app")
 val hostApplicationIdDebug = providers.gradleProperty("tsundoku.host.applicationId.debug")
     .getOrElse("com.nuviodebug.com")
 
