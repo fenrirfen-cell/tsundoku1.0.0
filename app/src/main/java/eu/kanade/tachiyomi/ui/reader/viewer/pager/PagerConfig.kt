@@ -48,6 +48,31 @@ class PagerConfig(
     var landscapeZoom = false
         private set
 
+    var panelByPanel = false
+        private set
+
+    var panelFullPageFirst = true
+        private set
+
+    var bubblePanelLast = false
+        private set
+
+    /** 0 = bubbles pop up over the whole page, 1 = over the zoomed panel. */
+    var bubbleBehind = 0
+        private set
+
+    var panelBubbles = false
+        private set
+
+    var bubblePanelFirst = true
+        private set
+
+    var panelAi = false
+        private set
+
+    var panelMask = 1
+        private set
+
     init {
         readerPreferences.readerTheme
             .register(
@@ -72,6 +97,30 @@ class PagerConfig(
 
         readerPreferences.landscapeZoom
             .register({ landscapeZoom = it }, { imagePropertyChangedListener?.invoke() })
+
+        readerPreferences.pagerPanelByPanel
+            .register({ panelByPanel = it }, { imagePropertyChangedListener?.invoke() })
+
+        readerPreferences.pagerPanelFullPageFirst
+            .register({ panelFullPageFirst = it })
+
+        readerPreferences.pagerBubblePanelLast
+            .register({ bubblePanelLast = it })
+
+        readerPreferences.pagerBubbleBehind
+            .register({ bubbleBehind = it })
+
+        readerPreferences.pagerPanelBubbles
+            .register({ panelBubbles = it }, { imagePropertyChangedListener?.invoke() })
+
+        readerPreferences.pagerBubblePanelFirst
+            .register({ bubblePanelFirst = it })
+
+        readerPreferences.pagerPanelAi
+            .register({ panelAi = it }, { imagePropertyChangedListener?.invoke() })
+
+        readerPreferences.pagerPanelMask
+            .register({ panelMask = it })
 
         readerPreferences.navigationModePager
             .register({ navigationMode = it }, { updateNavigation(navigationMode) })

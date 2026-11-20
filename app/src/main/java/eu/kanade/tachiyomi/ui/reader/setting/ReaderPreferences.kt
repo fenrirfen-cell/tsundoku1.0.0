@@ -310,6 +310,18 @@ class ReaderPreferences(
     val novelPagedSwipeEnabled: Preference<Boolean> =
         preferenceStore.getBoolean("pref_novel_paged_swipe_enabled", true)
 
+    // Page-curl ("Page flip") animation for paged mode's page turns (WebView only).
+    val pagerPanelMask: Preference<Int> = preferenceStore.getInt("pref_pager_panel_mask", 1)
+    val pagerPanelAi: Preference<Boolean> = preferenceStore.getBoolean("pref_pager_panel_ai", false)
+    val pagerPanelBubbles: Preference<Boolean> = preferenceStore.getBoolean("pref_pager_panel_bubbles", false)
+    val pagerBubblePanelFirst: Preference<Boolean> = preferenceStore.getBoolean("pref_pager_bubble_panel_first", true)
+    val pagerBubbleBehind: Preference<Int> = preferenceStore.getInt("pref_pager_bubble_behind", 0)
+    val pagerBubblePanelLast: Preference<Boolean> = preferenceStore.getBoolean("pref_pager_bubble_panel_last", false)
+    val pagerPanelByPanel: Preference<Boolean> = preferenceStore.getBoolean("pref_pager_panel_by_panel", false)
+    val pagerPanelFullPageFirst: Preference<Boolean> = preferenceStore.getBoolean("pref_pager_panel_full_page_first", true)
+    val novelPagedFlipEffect: Preference<Boolean> =
+        preferenceStore.getBoolean("pref_novel_paged_flip_effect", false)
+
     // Swipe distance (percent of width) needed to commit a page turn in paged mode
     val novelPagedDragCommitPercent: Preference<Int> =
         preferenceStore.getInt("pref_novel_paged_drag_commit_percent", 15)

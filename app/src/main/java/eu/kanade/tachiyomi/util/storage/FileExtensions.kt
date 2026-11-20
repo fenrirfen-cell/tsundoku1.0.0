@@ -15,7 +15,7 @@ val Context.cacheImageDir: File
  * @param context context of application
  */
 fun File.getUriCompat(context: Context): Uri {
-    return FileProvider.getUriForFile(context, BuildConfig.APPLICATION_ID + ".provider", this)
+    return FileProvider.getUriForFile(context, eu.kanade.tachiyomi.util.storage.FileProviderAuthority.value, this)
 }
 
 /**

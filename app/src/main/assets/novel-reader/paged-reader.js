@@ -391,6 +391,18 @@
             });
             return;
         }
+        // Page flip mode: let the app play the page-curl animation. It lands the page itself
+        // (via __tdPagedJump) once its snapshot of the current page is ready.
+        if (Math.abs(target - (p.pageIndex || 0)) === 1) {
+            var flipOn = false;
+            try { flipOn = !!Android.isPagedFlipEnabled(); } catch (e) {}
+            if (flipOn) {
+                try {
+                    Android.onPagedFlipRequest(target > (p.pageIndex || 0) ? 1 : -1, p.pageIndex || 0, pc);
+                    return;
+                } catch (e) {}
+            }
+        }
         p.lastRatio = (target + 1) / pc;
         landOnPage(target, pc, true);
     }
@@ -442,6 +454,15 @@
     window.__tdPagedRepaginate = function (ratio) {
         if (!p.restored) return;
         repaginate(ratio);
+    };
+    // Page flip mode: instant (no slide) landing on a page, used underneath the page-curl overlay.
+    window.__tdPagedJump = function (target) {
+        if (!enabled || !p.restored) return false;
+        var pc = p.pageCount || computePageCount();
+        if (target < 0 || target >= pc) return false;
+        p.lastRatio = (target + 1) / pc;
+        landOnPage(target, pc, false);
+        return true;
     };
     // Called from Kotlin's TTS highlight-follow with the highlighted element: turns to the page
     // containing it (animated), clamped within the current pageCount so it can't itself trigger a

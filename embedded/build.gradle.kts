@@ -96,6 +96,7 @@ kotlin {
 // Same dependency list as :app (minus test, baseline-profile and telemetry plugins).
 // `api` for the modules the host needs to see (it subclasses App).
 dependencies {
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.26.0")
     api(projects.i18n)
     api(projects.i18nNovel)
     api(projects.core.archive)

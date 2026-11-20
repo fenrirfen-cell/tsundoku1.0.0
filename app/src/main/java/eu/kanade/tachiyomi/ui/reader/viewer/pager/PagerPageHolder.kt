@@ -62,6 +62,12 @@ class PagerPageHolder(
      */
     private var loadJob: Job? = null
 
+    private var panelResult: PanelDetector.Result? = null
+    private var pageBytes: ByteArray? = null
+    private var panelIndex = -1
+    private var panelEntered = false
+    private var panelEnteredForward = true
+
     init {
         loadJob = scope.launch { loadPageAndProcessStatus() }
     }
@@ -158,6 +164,16 @@ class PagerPageHolder(
                 } else {
                     null
                 }
+                pageBytes = if (viewer.config.panelByPanel && viewer.config.panelBubbles && !isAnimated) source.peek().readByteArray() else null
+                panelResult = if (viewer.config.panelByPanel && !isAnimated) {
+                    try {
+                        PanelDetector.detect({ source.peek().inputStream() }, viewer is R2LPagerViewer, if (viewer.config.panelAi) context.applicationContext else null, if (viewer.config.panelBubbles) context.applicationContext else null)
+                    } catch (e: Throwable) {
+                        null
+                    }
+                } else {
+                    null
+                }
                 Triple(source, isAnimated, background)
             }
             withUIContext {
@@ -176,6 +192,7 @@ class PagerPageHolder(
                     pageBackground = background
                 }
                 removeErrorLayout()
+                onPanelsReady()
             }
         } catch (e: Throwable) {
             logcat(LogPriority.ERROR, e)
@@ -185,6 +202,81 @@ class PagerPageHolder(
         }
     }
 
+    // ---- Panel by panel ------------------------------------------------------------------------
+    private fun panelStartIndex(): Int = if (viewer.config.panelFullPageFirst) -1 else 0
+
+    private fun onPanelsReady() {
+        if (panelEntered) applyPanelEntry()
+    }
+
+    private fun applyPanelEntry() {
+        if (!viewer.config.panelByPanel) return
+        val result = panelResult ?: return
+        panelIndex = if (panelEnteredForward) panelStartIndex() else panelSteps(result).lastIndex
+        whenImageReady { showPanel() }
+    }
+
+    /** Zoom steps: each panel, and (in bubble mode) each of its bubbles. Pair = panel, bubble (-1 = whole panel). */
+    private fun panelSteps(result: PanelDetector.Result): List<Pair<Int, Int>> {
+        val steps = ArrayList<Pair<Int, Int>>()
+        for (i in result.panels.indices) {
+            val bubbles = if (viewer.config.panelBubbles) result.bubbles.getOrNull(i).orEmpty() else emptyList()
+            val pageBehind = viewer.config.panelBubbles && viewer.config.bubbleBehind == 0
+            if (!pageBehind && (bubbles.isEmpty() || viewer.config.bubblePanelFirst)) steps.add(i to -1)
+            for (j in bubbles.indices) steps.add(i to j)
+            if (!pageBehind && bubbles.isNotEmpty() && viewer.config.bubblePanelLast) steps.add(i to -1)
+        }
+        return steps
+    }
+    private fun showPanel() {
+        val result = panelResult ?: return
+        val index = panelIndex
+        if (index < 0) {
+            hideBubblePopup()
+            zoomToFullPage()
+        } else {
+            val step = panelSteps(result).getOrNull(index) ?: return
+            val p = step.first
+            val region = result.panels.getOrNull(p) ?: return
+            panelMaskAlpha = when (viewer.config.panelMask) { 1 -> 190; 2 -> 255; else -> 0 }
+            val content = if (viewer.config.imageCropBorders) result.content else null
+            val bubble = if (step.second >= 0) result.bubbles.getOrNull(p)?.getOrNull(step.second) else null
+            if (bubble == null) hideBubblePopup()
+            if (viewer.config.panelBubbles && viewer.config.bubbleBehind == 0) {
+                zoomToFullPage()
+            } else {
+                zoomToRegion(region, content, shape = result.shapes.getOrNull(p))
+            }
+            if (bubble != null) showBubblePopup(pageBytes, bubble, content)
+        }
+    }
+
+    override fun onPageSelected(forward: Boolean) {
+        super.onPageSelected(forward)
+        panelEntered = true
+        panelEnteredForward = forward
+        applyPanelEntry()
+    }
+
+    /** Moves to the next panel. Returns false when there is none, so the pager turns the page. */
+    fun panelNext(): Boolean {
+        if (!viewer.config.panelByPanel || !isRegionZoomSupported()) return false
+        val result = panelResult ?: return false
+        if (panelIndex >= panelSteps(result).lastIndex) return false
+        panelIndex++
+        showPanel()
+        return true
+    }
+
+    /** Moves to the previous panel (or the full page). Returns false at the start of the page. */
+    fun panelPrev(): Boolean {
+        if (!viewer.config.panelByPanel || !isRegionZoomSupported()) return false
+        if (panelResult == null) return false
+        if (panelIndex <= panelStartIndex()) return false
+        panelIndex--
+        showPanel()
+        return true
+    }
     private fun process(page: ReaderPage, imageSource: BufferedSource): BufferedSource {
         if (viewer.config.dualPageRotateToFit) {
             return rotateDualPage(imageSource)

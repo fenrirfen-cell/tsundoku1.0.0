@@ -29,3 +29,15 @@ tasks {
         }
     }
 }
+// Build Tsundoku against the same Material 3 that Nuvio ships,
+// so the reader doesn't crash (NoSuchMethodError in SliderState).
+subprojects {
+    configurations.configureEach {
+        resolutionStrategy.eachDependency {
+            if (requested.group == "androidx.compose.material3") {
+                useVersion("1.5.0-beta01")
+                because("Must match the Material 3 version packaged in the Nuvio app")
+            }
+        }
+    }
+}

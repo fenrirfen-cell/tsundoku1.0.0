@@ -1,5 +1,6 @@
-package eu.kanade.presentation.manga.components
+﻿package eu.kanade.presentation.manga.components
 
+import androidx.compose.material3.ExposedDropdownMenu
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column

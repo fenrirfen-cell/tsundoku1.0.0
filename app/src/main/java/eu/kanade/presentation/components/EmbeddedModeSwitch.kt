@@ -88,19 +88,19 @@ private fun ModeSegment(
             .then(if (selected) Modifier.background(colors.secondaryContainer) else Modifier)
             .semantics { this.selected = selected }
             .clickable(enabled = !selected, role = Role.Tab, onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 6.dp),
+            .padding(horizontal = 20.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            modifier = Modifier.size(18.dp),
+            modifier = Modifier.size(22.dp),
             tint = if (selected) colors.onSecondaryContainer else colors.onSurfaceVariant,
         )
-        Spacer(Modifier.width(6.dp))
+        Spacer(Modifier.width(8.dp))
         Text(
             text = label,
-            style = MaterialTheme.typography.labelLarge,
+            style = MaterialTheme.typography.titleMedium,
             color = if (selected) colors.onSecondaryContainer else colors.onSurfaceVariant,
         )
     }

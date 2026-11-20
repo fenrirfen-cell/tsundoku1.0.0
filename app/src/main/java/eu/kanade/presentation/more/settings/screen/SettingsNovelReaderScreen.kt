@@ -389,6 +389,13 @@ object SettingsNovelReaderScreen : SearchableSettings {
                         ),
                     )
                     add(
+                        Preference.PreferenceItem.SwitchPreference(
+                            preference = readerPreferences.novelPagedFlipEffect,
+                            title = "Page flip effect",
+                            subtitle = "Turn pages with a page-curl animation, like a real book",
+                        ),
+                    )
+                    add(
                         Preference.PreferenceItem.SliderPreference(
                             value = pagedDragCommitPercent,
                             valueRange = 5..50,

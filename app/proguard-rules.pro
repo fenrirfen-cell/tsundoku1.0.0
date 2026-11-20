@@ -1,4 +1,4 @@
--dontobfuscate
+# (disabled for embedded build) -dontobfuscate
 
 -keep,allowoptimization class eu.kanade.**
 -keep,allowoptimization class tachiyomi.**

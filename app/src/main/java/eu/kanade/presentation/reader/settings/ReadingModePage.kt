@@ -1,6 +1,9 @@
 package eu.kanade.presentation.reader.settings
 
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -8,6 +11,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import eu.kanade.domain.manga.model.readerOrientation
 import eu.kanade.domain.manga.model.readingMode
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderOrientation
@@ -114,6 +119,93 @@ private fun ColumnScope.PagerViewerSettings(viewModel: ReaderSettingsViewModel) 
         label = stringResource(MR.strings.pref_navigate_pan),
         pref = viewModel.preferences.navigateToPan,
     )
+
+    val pagerPanelByPanel by viewModel.preferences.pagerPanelByPanel.collectAsState()
+    CheckboxItem(
+        label = "Panel by panel",
+        pref = viewModel.preferences.pagerPanelByPanel,
+    )
+
+    if (pagerPanelByPanel) {
+        CheckboxItem(
+            label = "Show full page first",
+            pref = viewModel.preferences.pagerPanelFullPageFirst,
+        )
+
+        CheckboxItem(
+            label = "AI panel finder (12 MB download)",
+            pref = viewModel.preferences.pagerPanelAi,
+        )
+        val pagerPanelBubbles by viewModel.preferences.pagerPanelBubbles.collectAsState()
+        Text(
+            text = "Zoom steps",
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+        )
+        Row(
+            modifier = Modifier.padding(horizontal = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            FilterChip(
+                selected = !pagerPanelBubbles,
+                onClick = { viewModel.preferences.pagerPanelBubbles.set(false) },
+                label = { Text("Panels") },
+            )
+            FilterChip(
+                selected = pagerPanelBubbles,
+                onClick = { viewModel.preferences.pagerPanelBubbles.set(true) },
+                label = { Text("Bubbles (11 MB download)") },
+            )
+        }
+        if (pagerPanelBubbles) {
+            val pagerBubbleBehind by viewModel.preferences.pagerBubbleBehind.collectAsState()
+            Text(
+                text = "Behind the bubbles",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+            )
+            Row(
+                modifier = Modifier.padding(horizontal = 24.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                listOf("Whole page", "Panel").forEachIndexed { index, label ->
+                    FilterChip(
+                        selected = pagerBubbleBehind == index,
+                        onClick = { viewModel.preferences.pagerBubbleBehind.set(index) },
+                        label = { Text(label) },
+                    )
+                }
+            }
+            if (pagerBubbleBehind == 1) {
+                CheckboxItem(
+                    label = "Show the whole panel before its bubbles",
+                    pref = viewModel.preferences.pagerBubblePanelFirst,
+                )
+                CheckboxItem(
+                    label = "Show the whole panel after its bubbles",
+                    pref = viewModel.preferences.pagerBubblePanelLast,
+                )
+            }
+        }
+        val pagerPanelMask by viewModel.preferences.pagerPanelMask.collectAsState()
+        Text(
+            text = "Outside the panel",
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+        )
+        Row(
+            modifier = Modifier.padding(horizontal = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            listOf("Show", "Dim", "Black").forEachIndexed { index, label ->
+                FilterChip(
+                    selected = pagerPanelMask == index,
+                    onClick = { viewModel.preferences.pagerPanelMask.set(index) },
+                    label = { Text(label) },
+                )
+            }
+        }
+    }
 
     val dualPageSplitPaged by viewModel.preferences.dualPageSplitPaged.collectAsState()
     CheckboxItem(

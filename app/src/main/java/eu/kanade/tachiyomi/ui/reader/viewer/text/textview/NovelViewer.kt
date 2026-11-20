@@ -214,12 +214,12 @@ class NovelViewer(val activity: ReaderActivity) : Viewer {
                     eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.NavigationRegion.NEXT,
                     eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.NavigationRegion.RIGHT,
                     -> {
-                        scrollView.smoothScrollBy(0, (container.height * 0.8).toInt())
+                        if (isTextPagedMode()) textPageTurner.turn(true) else scrollView.smoothScrollBy(0, (container.height * 0.8).toInt())
                     }
                     eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.NavigationRegion.PREV,
                     eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.NavigationRegion.LEFT,
                     -> {
-                        scrollView.smoothScrollBy(0, -(container.height * 0.8).toInt())
+                        if (isTextPagedMode()) textPageTurner.turn(false) else scrollView.smoothScrollBy(0, -(container.height * 0.8).toInt())
                     }
                 }
 
@@ -241,13 +241,245 @@ class NovelViewer(val activity: ReaderActivity) : Viewer {
         }
         initViews()
         container.addView(scrollView, FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+        scrollView.post { installPageMasks() }
         observePreferences()
         setupScrollListener()
     }
 
+    // ---- Paged reading for TextView ("Sliding" / "Page flip") -------------------------------
+    // One page = one screen of text, cut at a whole line. TextPageTurner animates the turn.
+    private fun isTextPagedMode(): Boolean = preferences.novelPagedMode.get() && !isAutoScrolling
+
+    private val textPageTurner by lazy {
+        TextPageTurner(
+            activity = activity,
+            container = container,
+            target = scrollView,
+            isCurl = { preferences.novelPagedFlipEffect.get() },
+            swipeEnabled = { preferences.novelPagedSwipeEnabled.get() },
+            commitFraction = { preferences.novelPagedDragCommitPercent.get() / 100f },
+            backColor = { textPaperBackColor() },
+            getPos = { scrollView.scrollY },
+            setPos = { y -> scrollView.scrollTo(0, y); updatePageMasks() },
+            nextPos = { forward -> textPageTarget(forward) },
+            onEdge = { forward -> onTextPageEdge(forward) },
+        )
+    }
+
+    private fun textPaperBackColor(): Int {
+        val theme = preferences.novelTheme.get()
+        val customBg = preferences.novelBackgroundColor.get()
+        val (themeBg, _) = getThemeColors(theme)
+        val bg = if (theme == "custom" && customBg != 0) customBg else themeBg
+        return androidx.core.graphics.ColorUtils.blendARGB(bg, android.graphics.Color.BLACK, 0.07f)
+    }
+
+    private fun onTextPageEdge(forward: Boolean) {
+        if (forward) activity.loadNextChapter() else activity.loadPreviousChapter()
+    }
+
+    // Top/bottom (in scroll-content coordinates) of the text line at content y, if any.
+    private fun textLineAt(y: Int): Pair<Int, Int>? {
+        val root = scrollView.getChildAt(0) ?: return null
+        var view: View = root
+        var absTop = 0
+        while (view is android.view.ViewGroup) {
+            val group: android.view.ViewGroup = view
+            var next: View? = null
+            for (i in 0 until group.childCount) {
+                val c = group.getChildAt(i)
+                if (c.visibility != View.VISIBLE) continue
+                val t = absTop + c.top
+                if (y >= t && y < t + c.height) {
+                    next = c
+                    absTop = t
+                    break
+                }
+            }
+            view = next ?: return null
+        }
+        val tv = view as? TextView ?: return null
+        val layout = tv.layout ?: return null
+        val base = absTop + tv.totalPaddingTop
+        val local = y - base
+        if (local < 0 || local >= layout.height) return null
+        val line = layout.getLineForVertical(local)
+        return (base + layout.getLineTop(line)) to (base + layout.getLineBottom(line))
+    }
+
+    // Scroll position of the next/previous page, or null at the end/start of the loaded text.
+    private fun textPageTarget(forward: Boolean): Int? {
+        applyPagedPadding(true)
+        val child = scrollView.getChildAt(0) ?: return null
+        val vh = scrollView.height - scrollView.paddingTop - scrollView.paddingBottom
+        if (vh <= 0) return null
+        val range = (child.height - vh).coerceAtLeast(0)
+        val cur = scrollView.scrollY
+        return if (forward) {
+            if (cur >= range) return null
+            val bottom = cur + vh
+            var to = bottom
+            // A line cut by the bottom edge starts the next page instead.
+            textLineAt(bottom - 1)?.let { (top, lineBottom) ->
+                if (lineBottom > bottom && top > cur) to = top
+            }
+            to.coerceAtMost(range).takeIf { it > cur }
+        } else {
+            if (cur <= 0) return null
+            var to = cur - vh
+            if (to > 0) {
+                // Don't start the previous page with a half-cut line.
+                textLineAt(to)?.let { (top, lineBottom) ->
+                    if (top < to && lineBottom < cur) to = lineBottom
+                }
+            }
+            to.coerceAtLeast(0).takeIf { it < cur }
+        }
+    }
+    // ---- Page masks for TextView paging -----------------------------------------------------
+    // Cover a half-cut line at the top/bottom edge with the page color, so each page shows only
+    // whole lines (the cut line starts the next page anyway).
+    private var pageMaskTop: View? = null
+    private var pageMaskBottom: View? = null
+
+    private fun installPageMasks() {
+        if (pageMaskTop != null) return
+        val top = View(activity).apply {
+            visibility = View.GONE
+            isClickable = false
+            isFocusable = false
+        }
+        val bottom = View(activity).apply {
+            visibility = View.GONE
+            isClickable = false
+            isFocusable = false
+        }
+        container.addView(top, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, 0))
+        container.addView(bottom, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, 0))
+        pageMaskTop = top
+        pageMaskBottom = bottom
+        scrollView.viewTreeObserver.addOnScrollChangedListener { updatePageMasks() }
+        scrollView.viewTreeObserver.addOnGlobalLayoutListener { updatePageMasks() }
+        updatePageMasks()
+    }
+
+    private fun pageMaskColor(): Int {
+        val theme = preferences.novelTheme.get()
+        val customBg = preferences.novelBackgroundColor.get()
+        val (themeBg, _) = getThemeColors(theme)
+        return if (theme == "custom" && customBg != 0) customBg else themeBg
+    }
+
+    private fun setPageMask(v: View, top: Int, height: Int) {
+        val show = height > 0
+        if (show) {
+            val lp = v.layoutParams as FrameLayout.LayoutParams
+            // Only touch layout when something changed, so the layout listener can't loop.
+            if (lp.topMargin != top || lp.height != height) {
+                lp.topMargin = top
+                lp.height = height
+                v.layoutParams = lp
+            }
+        }
+        val vis = if (show) View.VISIBLE else View.GONE
+        if (v.visibility != vis) v.visibility = vis
+    }
+
+    private fun updatePageMasks() {
+        applyPagedPadding(isTextPagedMode())
+        val topMask = pageMaskTop ?: return
+        val bottomMask = pageMaskBottom ?: return
+        if (!isTextPagedMode()) {
+            setPageMask(topMask, 0, 0)
+            setPageMask(bottomMask, 0, 0)
+            return
+        }
+        val vh = scrollView.height - scrollView.paddingTop - scrollView.paddingBottom
+        if (vh <= 0) return
+        val cur = scrollView.scrollY
+        val bottom = cur + vh
+        val screenTop = scrollView.top + scrollView.paddingTop
+        var topH = 0
+        textLineAt(cur)?.let { (lineTop, lineBottom) ->
+            if (lineTop < cur && lineBottom > cur) topH = lineBottom - cur
+        }
+        var bottomH = 0
+        textLineAt(bottom - 1)?.let { (lineTop, lineBottom) ->
+            if (lineBottom > bottom && lineTop > cur) bottomH = bottom - lineTop
+        }
+        // Never hide a big part of the page (e.g. a tall image straddling the edge).
+        if (topH > vh / 4) topH = 0
+        if (bottomH > vh / 4) bottomH = 0
+        val color = pageMaskColor()
+        topMask.setBackgroundColor(color)
+        bottomMask.setBackgroundColor(color)
+        setPageMask(topMask, screenTop, topH)
+        setPageMask(bottomMask, screenTop + vh - bottomH, bottomH)
+    }
+    // ---- Safe area for TextView paging -------------------------------------------------------
+    // In Sliding / Page flip, pad the scroll view so pages start below the camera cutout / status
+    // bar and end above the navigation bar. Scroll mode keeps its original padding.
+    private var basePadTop = -1
+    private var basePadBottom = -1
+    private var baseClipToPadding: Boolean? = null
+
+    private fun applyPagedPadding(paged: Boolean) {
+        if (basePadTop < 0) {
+            basePadTop = scrollView.paddingTop
+            basePadBottom = scrollView.paddingBottom
+            baseClipToPadding = scrollView.clipToPadding
+        }
+        var top = basePadTop
+        var bottom = basePadBottom
+        if (paged) {
+            val density = activity.resources.displayMetrics.density
+            val gap = (6 * density).toInt()
+            var insetTop = 0
+            var insetBottom = 0
+            val insets = androidx.core.view.ViewCompat.getRootWindowInsets(scrollView)
+            if (insets != null) {
+                val cut = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.displayCutout())
+                val status = insets.getInsetsIgnoringVisibility(androidx.core.view.WindowInsetsCompat.Type.statusBars())
+                val nav = insets.getInsetsIgnoringVisibility(androidx.core.view.WindowInsetsCompat.Type.navigationBars())
+                insetTop = maxOf(cut.top, status.top)
+                insetBottom = maxOf(cut.bottom, nav.bottom)
+            }
+            // Only the part of those bars that actually overlaps this view.
+            val loc = IntArray(2)
+            scrollView.getLocationInWindow(loc)
+            val windowH = scrollView.rootView.height
+            val overlapTop = (insetTop - loc[1]).coerceAtLeast(0)
+            val overlapBottom = (insetBottom - (windowH - (loc[1] + scrollView.height))).coerceAtLeast(0)
+            top = maxOf(basePadTop, overlapTop + gap)
+            bottom = maxOf(basePadBottom, overlapBottom + gap)
+        }
+        if (scrollView.paddingTop != top || scrollView.paddingBottom != bottom) {
+            scrollView.setPadding(scrollView.paddingLeft, top, scrollView.paddingRight, bottom)
+        }
+        val clip = if (paged) true else (baseClipToPadding ?: true)
+        if (scrollView.clipToPadding != clip) scrollView.clipToPadding = clip
+    }
     private fun initViews() {
         scrollView = object : NestedScrollView(activity) {
             override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+                if (isTextPagedMode()) {
+                    val wasTracking = textPageTurner.isTracking
+                    if (textPageTurner.onTouch(ev)) {
+                        if (!wasTracking) {
+                            // The page turn just took over this touch: cancel taps, long-press and selection.
+                            val cancel = MotionEvent.obtain(ev)
+                            cancel.action = MotionEvent.ACTION_CANCEL
+                            gestureDetector.onTouchEvent(cancel)
+                            super.dispatchTouchEvent(cancel)
+                            cancel.recycle()
+                        }
+                        return true
+                    }
+                    gestureDetector.onTouchEvent(ev)
+                    // Paged: no free scrolling - only taps, long-press and page turns.
+                    if (ev.actionMasked == MotionEvent.ACTION_MOVE) return true
+                    return super.dispatchTouchEvent(ev)
+                }
                 gestureDetector.onTouchEvent(ev)
                 return super.dispatchTouchEvent(ev)
             }

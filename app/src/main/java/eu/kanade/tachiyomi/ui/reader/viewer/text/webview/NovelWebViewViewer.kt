@@ -823,7 +823,11 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
 
             setOnTouchListener { view, event ->
                 if (isPagedModeActive() && preferences.novelPagedSwipeEnabled.get() && !isEditingMode) {
-                    handlePagedDragTouch(event, view.width)
+                    if (preferences.novelPagedFlipEffect.get()) {
+                        if (handlePageFlipTouch(event, view)) return@setOnTouchListener true
+                    } else {
+                        handlePagedDragTouch(event, view.width)
+                    }
                 }
                 gestureDetector.onTouchEvent(event)
                 false
@@ -2097,9 +2101,25 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
         }
 
         @JavascriptInterface
+        fun isPagedFlipEnabled(): Boolean = preferences.novelPagedFlipEffect.get() && !isEditingMode
+
+        @JavascriptInterface
+        fun onPagedFlipRequest(direction: Int, pageIndex: Int, pageCount: Int) {
+            activity.runOnUiThread {
+                if (flipState != 0) return@runOnUiThread
+                if (pageCount > 0) lastKnownPagedPageCount = pageCount
+                lastKnownPagedPageIndex = pageIndex
+                val forward = direction > 0
+                val target = if (forward) pageIndex + 1 else pageIndex - 1
+                if (target < 0 || target >= pageCount) return@runOnUiThread
+                startFlip(forward, pageIndex, cornerTop = false, interactive = false)
+            }
+        }
+        @JavascriptInterface
         fun onPageInfoChanged(pageIndex: Int, pageCount: Int) {
             activity.runOnUiThread {
                 if (pageCount > 0) lastKnownPagedPageCount = pageCount
+                lastKnownPagedPageIndex = pageIndex
                 activity.onNovelPageInfoChanged(pageIndex, pageCount)
                 // Prefetch the neighbor chapter(s) once the reader nears an edge, so a chapter-switch
                 // triggered by paging past it (always a full switch now, never an append) is fast.
@@ -2801,6 +2821,232 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
     // Live finger-follow for paged mode: forwards each touch move as a fraction of the WebView's
     // own width to paged-reader.js's __tdPagedDragTo, which drives the transform in real time
     // (LNReader-style, instead of only reacting after a completed fling).
+    // ---- Page flip (page-curl) mode ----------------------------------------------------------
+    // A snapshot of the current page is curled away by PageCurlView while paged-reader.js has
+    // already jumped (without its slide) to the target page underneath. Page numbers, progress
+    // and chapter switching all stay with the existing paged-mode code.
+    private var lastKnownPagedPageIndex = 0
+    private var flipView: PageCurlView? = null
+    private var flipState = 0 // 0 idle, 1 capturing, 2 dragging, 3 animating
+    private var flipForward = true
+    private var flipBaseIndex = 0
+    private var flipStartX = 0f
+    private var flipStartY = 0f
+    private var flipLastX = 0f
+    private var flipLastY = 0f
+    private var flipDetermined = false
+    private var flipDelegating = false
+    private var flipPendingCommit: Boolean? = null
+    private var flipDownEvent: MotionEvent? = null
+
+    private fun flipPaperBackColor(): Int {
+        val theme = preferences.novelTheme.get()
+        val customBg = preferences.novelBackgroundColor.get()
+        val (themeBg, _) = getThemeColors(theme)
+        val bg = if (theme == "custom" && customBg != 0) customBg else themeBg
+        return androidx.core.graphics.ColorUtils.blendARGB(bg, android.graphics.Color.BLACK, 0.07f)
+    }
+
+    private fun ensureFlipView(): PageCurlView {
+        flipView?.let { return it }
+        val v = PageCurlView(activity)
+        v.visibility = android.view.View.INVISIBLE
+        container.addView(v, FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+        flipView = v
+        return v
+    }
+
+    private fun captureWebView(onResult: (android.graphics.Bitmap?) -> Unit) {
+        val w = webView.width
+        val h = webView.height
+        if (w <= 0 || h <= 0) {
+            onResult(null)
+            return
+        }
+        val bmp = try {
+            android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+        } catch (e: Throwable) {
+            onResult(null)
+            return
+        }
+        val loc = IntArray(2)
+        webView.getLocationInWindow(loc)
+        val rect = android.graphics.Rect(loc[0], loc[1], loc[0] + w, loc[1] + h)
+        try {
+            android.view.PixelCopy.request(
+                activity.window,
+                rect,
+                bmp,
+                { result ->
+                    if (result == android.view.PixelCopy.SUCCESS) {
+                        onResult(bmp)
+                    } else {
+                        bmp.recycle()
+                        onResult(null)
+                    }
+                },
+                android.os.Handler(android.os.Looper.getMainLooper()),
+            )
+        } catch (e: Throwable) {
+            bmp.recycle()
+            onResult(null)
+        }
+    }
+
+    private fun startFlip(forward: Boolean, baseIndex: Int, cornerTop: Boolean, interactive: Boolean) {
+        flipState = 1
+        flipForward = forward
+        flipBaseIndex = baseIndex
+        flipPendingCommit = null
+        val target = if (forward) baseIndex + 1 else baseIndex - 1
+        captureWebView { bmp ->
+            if (flipState != 1) {
+                bmp?.recycle()
+                return@captureWebView
+            }
+            if (bmp == null) {
+                // Couldn't take a snapshot - just change the page without the animation.
+                flipState = 0
+                evaluateJavascriptSafe("if (window.__tdPagedJump) window.__tdPagedJump($target);")
+                return@captureWebView
+            }
+            val v = ensureFlipView()
+            v.backColor = flipPaperBackColor()
+            val w = bmp.width.toFloat()
+            val h = bmp.height.toFloat()
+            val sx = if (interactive) flipLastX else if (forward) w - 1f else -w
+            val sy = if (interactive) flipLastY else if (cornerTop) 1f else h - 1f
+            v.begin(bmp, forward, cornerTop, sx, sy)
+            v.visibility = android.view.View.VISIBLE
+            flipState = 2
+            evaluateJavascriptSafe("if (window.__tdPagedJump) window.__tdPagedJump($target);")
+            val pending = flipPendingCommit
+            if (!interactive) {
+                finishFlip(true)
+            } else if (pending != null) {
+                finishFlip(pending)
+            }
+        }
+    }
+
+    private fun finishFlip(commit: Boolean) {
+        val v = flipView
+        if (v == null) {
+            flipState = 0
+            return
+        }
+        flipState = 3
+        val w = v.pageWidth
+        val turnedAway = if (flipForward) commit else !commit
+        val tx = if (turnedAway) -w else w
+        val lift = v.pageHeight * 0.12f
+        val arc = if (!commit) 0f else if (v.cornerY == 0f) -lift else lift
+        v.animateTo(tx, v.cornerY, arc, if (commit) 420L else 260L) {
+            if (commit) {
+                endFlip()
+            } else {
+                evaluateJavascriptSafe("if (window.__tdPagedJump) window.__tdPagedJump($flipBaseIndex);")
+                v.postDelayed({ endFlip() }, 90)
+            }
+        }
+    }
+
+    private fun endFlip() {
+        flipView?.let {
+            it.visibility = android.view.View.INVISIBLE
+            it.clear()
+        }
+        flipState = 0
+    }
+
+    private fun cancelTouchForOthers(event: MotionEvent, view: android.view.View) {
+        val cancel = MotionEvent.obtain(event)
+        cancel.action = MotionEvent.ACTION_CANCEL
+        gestureDetector.onTouchEvent(cancel)
+        view.onTouchEvent(cancel)
+        cancel.recycle()
+    }
+
+    // Returns true when the page flip has taken over this touch.
+    private fun handlePageFlipTouch(event: MotionEvent, view: android.view.View): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                if (flipState != 0) return true
+                flipStartX = event.x
+                flipStartY = event.y
+                flipLastX = event.x
+                flipLastY = event.y
+                flipDetermined = false
+                flipDelegating = false
+                flipDownEvent?.recycle()
+                flipDownEvent = MotionEvent.obtain(event)
+                return false
+            }
+            MotionEvent.ACTION_MOVE -> {
+                flipLastX = event.x
+                flipLastY = event.y
+                if (flipDelegating) {
+                    handlePagedDragTouch(event, view.width)
+                    return false
+                }
+                when (flipState) {
+                    1, 3 -> return true
+                    2 -> {
+                        flipView?.dragTo(event.x, event.y)
+                        return true
+                    }
+                }
+                if (!flipDetermined) {
+                    val dx = event.x - flipStartX
+                    val dy = event.y - flipStartY
+                    val slop = android.view.ViewConfiguration.get(activity).scaledTouchSlop
+                    if (kotlin.math.abs(dx) > slop || kotlin.math.abs(dy) > slop) {
+                        flipDetermined = true
+                        if (kotlin.math.abs(dx) <= kotlin.math.abs(dy)) return false
+                        val forward = dx < 0
+                        val count = lastKnownPagedPageCount
+                        val idx = lastKnownPagedPageIndex
+                        val canTurn = count > 1 && (if (forward) idx < count - 1 else idx > 0)
+                        if (!canTurn) {
+                            // First/last page: keep the existing pull-to-switch-chapter behavior.
+                            flipDelegating = true
+                            flipDownEvent?.let { handlePagedDragTouch(it, view.width) }
+                            handlePagedDragTouch(event, view.width)
+                            return false
+                        }
+                        cancelTouchForOthers(event, view)
+                        startFlip(forward, idx, cornerTop = flipStartY < view.height / 2f, interactive = true)
+                        return true
+                    }
+                }
+                return false
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                if (flipDelegating) {
+                    handlePagedDragTouch(event, view.width)
+                    flipDelegating = false
+                    return false
+                }
+                val cancelled = event.actionMasked == MotionEvent.ACTION_CANCEL
+                val commitDist = view.width * (preferences.novelPagedDragCommitPercent.get() / 100f)
+                val dx = event.x - flipStartX
+                val commit = !cancelled && (if (flipForward) dx < -commitDist else dx > commitDist)
+                when (flipState) {
+                    1 -> {
+                        flipPendingCommit = commit
+                        return true
+                    }
+                    2 -> {
+                        finishFlip(commit)
+                        return true
+                    }
+                    3 -> return true
+                }
+                return false
+            }
+        }
+        return false
+    }
     private fun handlePagedDragTouch(event: MotionEvent, viewWidthPx: Int) {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {

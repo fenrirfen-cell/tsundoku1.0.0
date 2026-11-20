@@ -1,5 +1,6 @@
 package eu.kanade.presentation.reader.settings
 
+import androidx.compose.material3.ExposedDropdownMenu
 import android.speech.tts.TextToSpeech
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -724,34 +725,62 @@ internal fun ColumnScope.NovelControlsTab(viewModel: ReaderSettingsViewModel, re
         }
     }
 
-    // Infinite Scroll - gated on isWebviewPaged (see Swipe Navigation above): stays fully
-    // functional, and visible, for a textview-rendered novel regardless of the paged-mode pref.
+    // Reading mode: Sliding / Infinite scroll / Page flip as one row of three.
+    // WebView turns pages through paged-reader.js; TextView turns one screen of text at a time.
     val infiniteScrollEnabled by viewModel.preferences.novelInfiniteScroll.collectAsState()
-    if (!isWebviewPaged) {
-        CheckboxItem(
-            label = stringResource(TDMR.strings.pref_novel_infinite_scroll),
-            checked = infiniteScrollEnabled,
-            onClick = { viewModel.preferences.novelInfiniteScroll.set(!infiniteScrollEnabled) },
-        )
+    val flipEnabled by viewModel.preferences.novelPagedFlipEffect.collectAsState()
+    val readingMode = when {
+        pagedMode && flipEnabled -> "flip"
+        pagedMode -> "sliding"
+        else -> "scroll"
     }
-
-    // Paged Mode (WebView only, experimental) - swipe/tap turns a page instead of scrolling.
-    // The page-number display only means anything once this is on, so it's shown right here
-    // rather than in the unrelated Display group.
-    if (renderingMode == "webview") {
-        CheckboxItem(
-            label = "Paged mode (experimental)",
-            checked = pagedMode,
-            onClick = { viewModel.preferences.novelPagedMode.set(!pagedMode) },
+    androidx.compose.foundation.layout.Column(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Text(
+            text = "Reading mode",
+            style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
         )
-        if (pagedMode) {
-            CheckboxItem(
-                label = "Swipe to turn pages",
-                pref = viewModel.preferences.novelPagedSwipeEnabled,
+        androidx.compose.foundation.layout.Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+        ) {
+            FilterChip(
+                modifier = Modifier.weight(1f),
+                selected = readingMode == "sliding",
+                onClick = {
+                    viewModel.preferences.novelPagedMode.set(true)
+                    viewModel.preferences.novelPagedFlipEffect.set(false)
+                },
+                label = { Text("Sliding") },
+            )
+            FilterChip(
+                modifier = Modifier.weight(1f),
+                selected = readingMode == "scroll",
+                onClick = {
+                    viewModel.preferences.novelPagedMode.set(false)
+                    viewModel.preferences.novelPagedFlipEffect.set(false)
+                    viewModel.preferences.novelInfiniteScroll.set(true)
+                },
+                label = { Text("Infinite scroll") },
+            )
+            FilterChip(
+                modifier = Modifier.weight(1f),
+                selected = readingMode == "flip",
+                onClick = {
+                    viewModel.preferences.novelPagedMode.set(true)
+                    viewModel.preferences.novelPagedFlipEffect.set(true)
+                },
+                label = { Text("Page flip") },
             )
         }
     }
-
+    if (pagedMode) {
+        CheckboxItem(
+            label = "Swipe to turn pages",
+            pref = viewModel.preferences.novelPagedSwipeEnabled,
+        )
+    }
     // Auto-load next chapter at percentage (only relevant when infinite scroll is enabled)
     val autoLoadAt by viewModel.preferences.novelAutoLoadNextChapterAt.collectAsState()
     LaunchedEffect(autoLoadAt) {

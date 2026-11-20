@@ -332,6 +332,7 @@ abstract class PagerViewer(val activity: ReaderActivity) : Viewer {
      * Moves to the page at the right.
      */
     protected open fun moveRight() {
+        if (handlePanelMove(this !is R2LPagerViewer)) return
         if (pager.currentItem != adapter.count - 1) {
             val holder = (currentPage as? ReaderPage)?.let(::getPageHolder)
             if (holder != null && config.navigateToPan && holder.canPanRight()) {
@@ -346,6 +347,7 @@ abstract class PagerViewer(val activity: ReaderActivity) : Viewer {
      * Moves to the page at the left.
      */
     protected open fun moveLeft() {
+        if (handlePanelMove(this is R2LPagerViewer)) return
         if (pager.currentItem != 0) {
             val holder = (currentPage as? ReaderPage)?.let(::getPageHolder)
             if (holder != null && config.navigateToPan && holder.canPanLeft()) {
@@ -444,6 +446,15 @@ abstract class PagerViewer(val activity: ReaderActivity) : Viewer {
         return false
     }
 
+    /**
+     * Panel by panel: lets the current page step through its panels before the pager turns the page.
+     * Returns true when the move was used for a panel.
+     */
+    private fun handlePanelMove(forward: Boolean): Boolean {
+        if (!config.panelByPanel) return false
+        val holder = (currentPage as? ReaderPage)?.let(::getPageHolder) ?: return false
+        return if (forward) holder.panelNext() else holder.panelPrev()
+    }
     fun onPageSplit(currentPage: ReaderPage, newPage: InsertPage) {
         activity.runOnUiThread {
             // Need to insert on UI thread else images will go blank
