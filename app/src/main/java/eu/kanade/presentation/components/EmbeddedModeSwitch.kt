@@ -150,29 +150,56 @@ private fun FenrirReadHeader(modifier: Modifier, openWatch: (Activity) -> Unit) 
             .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = "FENRIR",
-            color = androidx.compose.ui.graphics.Color.White,
-            fontSize = androidx.compose.ui.unit.TextUnit(22f, androidx.compose.ui.unit.TextUnitType.Sp),
-            letterSpacing = androidx.compose.ui.unit.TextUnit(6f, androidx.compose.ui.unit.TextUnitType.Sp),
-            modifier = Modifier.weight(1f),
-        )
+        androidx.compose.foundation.layout.Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(
+                    text = "FENRIR",
+                    color = androidx.compose.ui.graphics.Color.White,
+                    fontSize = androidx.compose.ui.unit.TextUnit(22f, androidx.compose.ui.unit.TextUnitType.Sp),
+                    letterSpacing = androidx.compose.ui.unit.TextUnit(5f, androidx.compose.ui.unit.TextUnitType.Sp),
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                    maxLines = 1,
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = "READ",
+                    color = androidx.compose.ui.graphics.Color(0xFFFF4D57),
+                    fontSize = androidx.compose.ui.unit.TextUnit(13f, androidx.compose.ui.unit.TextUnitType.Sp),
+                    letterSpacing = androidx.compose.ui.unit.TextUnit(4f, androidx.compose.ui.unit.TextUnitType.Sp),
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                    maxLines = 1,
+                    modifier = Modifier.padding(bottom = 3.dp),
+                )
+            }
+            Text(
+                text = "Compatible with Tsundoku",
+                color = androidx.compose.ui.graphics.Color(0xFF8E8E99),
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
         Box {
             Row(
                 modifier = Modifier
                     .clip(CircleShape)
                     .background(androidx.compose.ui.graphics.Color(0xFF1C1D26))
                     .clickable(role = Role.Button) { open = true }
-                    .padding(start = 14.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
+                    .padding(start = 18.dp, end = 12.dp, top = 11.dp, bottom = 11.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(EmbeddedHost.readLabel, style = MaterialTheme.typography.labelLarge, color = androidx.compose.ui.graphics.Color.White, maxLines = 1)
-                Spacer(Modifier.width(4.dp))
+                Text(
+                    EmbeddedHost.readLabel,
+                    fontSize = androidx.compose.ui.unit.TextUnit(16f, androidx.compose.ui.unit.TextUnitType.Sp),
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                    color = androidx.compose.ui.graphics.Color.White,
+                    maxLines = 1,
+                )
+                Spacer(Modifier.width(6.dp))
                 Icon(
                     imageVector = Icons.Outlined.KeyboardArrowDown,
                     contentDescription = "Switch side",
                     tint = androidx.compose.ui.graphics.Color.White,
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(22.dp),
                 )
             }
             androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
