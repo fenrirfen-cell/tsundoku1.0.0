@@ -17,6 +17,13 @@ object EmbeddedHost {
     @Volatile
     var openWatch: ((Activity) -> Unit)? = null
 
+    /**
+     * Opens the host app's Ani-drama browser. When set, the switch shows three options:
+     * Watch / Ani-drama / Read.
+     */
+    @Volatile
+    var openAniDrama: ((Activity) -> Unit)? = null
+
     /** Label for the host side of the switch. */
     @Volatile
     var watchLabel: String = "Watch"

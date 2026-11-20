@@ -171,6 +171,13 @@ class LibraryUpdateNotifier(
      * @param updates a list of manga with new updates.
      */
     fun showUpdateNotifications(updates: List<Pair<Manga, Array<Chapter>>>) {
+        // Fenrir Read: optionally say the new chapters out loud.
+        eu.kanade.tachiyomi.data.notification.SpokenChapterAlerts.announce(
+            context,
+            updates,
+            hideTitles = securityPreferences.hideNotificationContent.get(),
+        )
+
         // Parent group notification
         context.notify(
             Notifications.ID_NEW_CHAPTERS,

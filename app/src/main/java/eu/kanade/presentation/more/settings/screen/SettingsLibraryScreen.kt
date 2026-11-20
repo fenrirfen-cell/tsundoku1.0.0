@@ -66,6 +66,28 @@ object SettingsLibraryScreen : SearchableSettings {
             getCategoriesGroup(LocalNavigator.currentOrThrow, allCategories, libraryPreferences),
             getGlobalUpdateGroup(allCategories, libraryPreferences),
             getBehaviorGroup(libraryPreferences, sourcePreferences, isJoined),
+            getSpokenAlertsGroup(),
+        )
+    }
+
+    /** Fenrir Read: say new chapters out loud after a library update. */
+    @Composable
+    private fun getSpokenAlertsGroup(): Preference.PreferenceGroup {
+        val context = LocalContext.current
+        val preference = remember { eu.kanade.tachiyomi.data.notification.SpokenChapterAlerts.enabledPreference() }
+        return Preference.PreferenceGroup(
+            title = "New chapter alerts",
+            preferenceItems = listOf(
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = preference,
+                    title = "Say new chapters out loud",
+                    subtitle = "After each library update. Stays quiet on silent or Do Not Disturb",
+                ),
+                Preference.PreferenceItem.TextPreference(
+                    title = "Test voice",
+                    onClick = { eu.kanade.tachiyomi.data.notification.SpokenChapterAlerts.test(context) },
+                ),
+            ),
         )
     }
 

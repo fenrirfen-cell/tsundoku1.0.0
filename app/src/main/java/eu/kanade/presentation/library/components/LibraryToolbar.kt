@@ -3,6 +3,7 @@ package eu.kanade.presentation.library.components
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.FlipToBack
 import androidx.compose.material.icons.outlined.SelectAll
@@ -115,6 +116,7 @@ private fun LibraryRegularToolbar(
         onClickCloseSearch = onSearchClear,
         actions = {
             val filterTint = if (hasFilters) MaterialTheme.colorScheme.active else LocalContentColor.current
+            val navigator = cafe.adriel.voyager.navigator.LocalNavigator.current
             val actions = mutableListOf(
                 AppBar.Action(
                     title = stringResource(MR.strings.action_filter),
@@ -168,6 +170,18 @@ private fun LibraryRegularToolbar(
                     AppBar.OverflowAction(
                         title = stringResource(MR.strings.action_clear_category),
                         onClick = onClickCategoryActions,
+                    ),
+                )
+            }
+
+            // Fenrir Read: calendar of expected new chapters.
+            if (eu.kanade.tachiyomi.EmbeddedHost.openWatch != null && navigator != null) {
+                actions.add(
+                    0,
+                    AppBar.Action(
+                        title = "Upcoming chapters",
+                        icon = Icons.Outlined.CalendarMonth,
+                        onClick = { navigator.push(mihon.feature.upcoming.UpcomingScreen()) },
                     ),
                 )
             }

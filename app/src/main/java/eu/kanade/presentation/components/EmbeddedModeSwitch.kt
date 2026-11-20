@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material.icons.outlined.Tv
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -51,24 +52,42 @@ fun EmbeddedModeSwitchBar(modifier: Modifier = Modifier) {
             .padding(top = 8.dp, bottom = 4.dp),
         contentAlignment = Alignment.Center,
     ) {
+        val openAniDrama = EmbeddedHost.openAniDrama
+        val threeWay = openAniDrama != null
         Row(
             modifier = Modifier
+                .then(if (threeWay) Modifier.fillMaxWidth().padding(horizontal = 12.dp) else Modifier)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 .padding(3.dp),
             horizontalArrangement = Arrangement.spacedBy(2.dp),
         ) {
+            val segmentModifier = if (threeWay) Modifier.weight(1f) else Modifier
             ModeSegment(
                 label = EmbeddedHost.watchLabel,
                 icon = Icons.Outlined.PlayArrow,
                 selected = false,
                 onClick = { context.findActivity()?.let(openWatch) },
+                compact = threeWay,
+                modifier = segmentModifier,
             )
+            if (openAniDrama != null) {
+                ModeSegment(
+                    label = "Ani-drama",
+                    icon = Icons.Outlined.Tv,
+                    selected = false,
+                    onClick = { context.findActivity()?.let(openAniDrama) },
+                    compact = true,
+                    modifier = segmentModifier,
+                )
+            }
             ModeSegment(
                 label = EmbeddedHost.readLabel,
                 icon = Icons.AutoMirrored.Outlined.MenuBook,
                 selected = true,
                 onClick = {},
+                compact = threeWay,
+                modifier = segmentModifier,
             )
         }
     }
@@ -80,28 +99,33 @@ private fun ModeSegment(
     icon: ImageVector,
     selected: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    compact: Boolean = false,
 ) {
     val colors = MaterialTheme.colorScheme
     Row(
-        modifier = Modifier
+        modifier = modifier
             .clip(CircleShape)
             .then(if (selected) Modifier.background(colors.secondaryContainer) else Modifier)
             .semantics { this.selected = selected }
             .clickable(enabled = !selected, role = Role.Tab, onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 10.dp),
+            .padding(horizontal = if (compact) 8.dp else 20.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            modifier = Modifier.size(22.dp),
+            modifier = Modifier.size(if (compact) 18.dp else 22.dp),
             tint = if (selected) colors.onSecondaryContainer else colors.onSurfaceVariant,
         )
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(if (compact) 6.dp else 8.dp))
         Text(
             text = label,
-            style = MaterialTheme.typography.titleMedium,
+            style = if (compact) MaterialTheme.typography.labelLarge else MaterialTheme.typography.titleMedium,
             color = if (selected) colors.onSecondaryContainer else colors.onSurfaceVariant,
+            maxLines = 1,
+            softWrap = false,
         )
     }
 }
