@@ -57,6 +57,11 @@ private fun BaseTachiyomiTheme(
 ) {
     val context = LocalContext.current
     val isDark = isSystemInDarkTheme()
+    // Fenrir Read: match the Watch side's near-black and coral red look.
+    if (eu.kanade.tachiyomi.EmbeddedHost.isFenrirStyle) {
+        MaterialExpressiveTheme(colorScheme = FenrirReadColorScheme, content = content)
+        return
+    }
     MaterialExpressiveTheme(
         colorScheme = remember(appTheme, isDark, isAmoled) {
             getThemeColorScheme(
@@ -103,4 +108,35 @@ private val colorSchemes: Map<AppTheme, BaseColorScheme> = mapOf(
     AppTheme.TIDAL_WAVE to TidalWaveColorScheme,
     AppTheme.YINYANG to YinYangColorScheme,
     AppTheme.YOTSUBA to YotsubaColorScheme,
+)
+
+
+/** Fenrir Read colors (same as the Watch side's Fenrir theme). */
+private val FenrirReadColorScheme = androidx.compose.material3.darkColorScheme(
+    primary = androidx.compose.ui.graphics.Color(0xFFFF4D57),
+    onPrimary = androidx.compose.ui.graphics.Color.White,
+    primaryContainer = androidx.compose.ui.graphics.Color(0xFF3A1A1E),
+    onPrimaryContainer = androidx.compose.ui.graphics.Color(0xFFFFB3B7),
+    secondary = androidx.compose.ui.graphics.Color(0xFFFF6B73),
+    onSecondary = androidx.compose.ui.graphics.Color.White,
+    secondaryContainer = androidx.compose.ui.graphics.Color(0xFF3A1A1E),
+    onSecondaryContainer = androidx.compose.ui.graphics.Color(0xFFFF6B73),
+    tertiary = androidx.compose.ui.graphics.Color(0xFFFF8A91),
+    onTertiary = androidx.compose.ui.graphics.Color.White,
+    tertiaryContainer = androidx.compose.ui.graphics.Color(0xFF3A1A1E),
+    onTertiaryContainer = androidx.compose.ui.graphics.Color(0xFFFFB3B7),
+    background = androidx.compose.ui.graphics.Color(0xFF0B0B0F),
+    onBackground = androidx.compose.ui.graphics.Color.White,
+    surface = androidx.compose.ui.graphics.Color(0xFF0B0B0F),
+    onSurface = androidx.compose.ui.graphics.Color.White,
+    surfaceVariant = androidx.compose.ui.graphics.Color(0xFF20212A),
+    onSurfaceVariant = androidx.compose.ui.graphics.Color(0xFFA7A7B2),
+    surfaceTint = androidx.compose.ui.graphics.Color(0xFFFF4D57),
+    surfaceContainerLowest = androidx.compose.ui.graphics.Color(0xFF070709),
+    surfaceContainerLow = androidx.compose.ui.graphics.Color(0xFF121218),
+    surfaceContainer = androidx.compose.ui.graphics.Color(0xFF16161C),
+    surfaceContainerHigh = androidx.compose.ui.graphics.Color(0xFF1C1D26),
+    surfaceContainerHighest = androidx.compose.ui.graphics.Color(0xFF20212A),
+    outline = androidx.compose.ui.graphics.Color(0xFF3A3A44),
+    outlineVariant = androidx.compose.ui.graphics.Color(0xFF24252E),
 )

@@ -9,12 +9,16 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
+import androidx.compose.material.icons.automirrored.outlined.VolumeOff
+import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material3.Badge
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import tachiyomi.presentation.core.util.collectAsState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -101,6 +105,9 @@ private fun UpcomingToolbar(
 ) {
     val navigator = LocalNavigator.currentOrThrow
     val uriHandler = LocalUriHandler.current
+    // Fenrir: say new chapters out loud (same switch as Settings → Library).
+    val spokenPref = androidx.compose.runtime.remember { eu.kanade.tachiyomi.data.notification.SpokenChapterAlerts.enabledPreference() }
+    val spokenOn by spokenPref.collectAsState()
 
     AppBar(
         title = stringResource(MR.strings.label_upcoming),
@@ -108,6 +115,12 @@ private fun UpcomingToolbar(
         actions = {
             AppBarActions(
                 listOf(
+                    AppBar.Action(
+                        title = if (spokenOn) "Stop saying new chapters out loud" else "Say new chapters out loud",
+                        icon = if (spokenOn) Icons.AutoMirrored.Outlined.VolumeUp else Icons.AutoMirrored.Outlined.VolumeOff,
+                        iconTint = if (spokenOn) MaterialTheme.colorScheme.primary else LocalContentColor.current,
+                        onClick = { spokenPref.set(!spokenOn) },
+                    ),
                     AppBar.Action(
                         title = stringResource(MR.strings.action_filter),
                         icon = Icons.Outlined.FilterList,

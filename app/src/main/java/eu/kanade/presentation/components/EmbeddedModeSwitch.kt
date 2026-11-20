@@ -19,12 +19,15 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Tv
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,6 +47,10 @@ import eu.kanade.tachiyomi.EmbeddedHost
 fun EmbeddedModeSwitchBar(modifier: Modifier = Modifier) {
     val openWatch = EmbeddedHost.openWatch ?: return
     val context = LocalContext.current
+    if (EmbeddedHost.isFenrirStyle) {
+        FenrirReadHeader(modifier, openWatch)
+        return
+    }
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -127,6 +134,67 @@ private fun ModeSegment(
             maxLines = 1,
             softWrap = false,
         )
+    }
+}
+
+/** Fenrir style: "FENRIR" on the left and a "Read ▾" pill that switches sides. */
+@Composable
+private fun FenrirReadHeader(modifier: Modifier, openWatch: (Activity) -> Unit) {
+    val context = LocalContext.current
+    var open by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.background)
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "FENRIR",
+            color = androidx.compose.ui.graphics.Color.White,
+            fontSize = androidx.compose.ui.unit.TextUnit(22f, androidx.compose.ui.unit.TextUnitType.Sp),
+            letterSpacing = androidx.compose.ui.unit.TextUnit(6f, androidx.compose.ui.unit.TextUnitType.Sp),
+            modifier = Modifier.weight(1f),
+        )
+        Box {
+            Row(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(androidx.compose.ui.graphics.Color(0xFF1C1D26))
+                    .clickable(role = Role.Button) { open = true }
+                    .padding(start = 14.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(EmbeddedHost.readLabel, style = MaterialTheme.typography.labelLarge, color = androidx.compose.ui.graphics.Color.White, maxLines = 1)
+                Spacer(Modifier.width(4.dp))
+                Icon(
+                    imageVector = Icons.Outlined.KeyboardArrowDown,
+                    contentDescription = "Switch side",
+                    tint = androidx.compose.ui.graphics.Color.White,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                androidx.compose.material3.DropdownMenuItem(
+                    text = { Text(EmbeddedHost.watchLabel) },
+                    leadingIcon = { Icon(Icons.Outlined.PlayArrow, contentDescription = null) },
+                    onClick = { open = false; context.findActivity()?.let(openWatch) },
+                )
+                EmbeddedHost.openAniDrama?.let { openAniDrama ->
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text("Ani-drama") },
+                        leadingIcon = { Icon(Icons.Outlined.Tv, contentDescription = null) },
+                        onClick = { open = false; context.findActivity()?.let(openAniDrama) },
+                    )
+                }
+                androidx.compose.material3.DropdownMenuItem(
+                    text = { Text(EmbeddedHost.readLabel) },
+                    leadingIcon = { Icon(Icons.AutoMirrored.Outlined.MenuBook, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                    onClick = { open = false },
+                )
+            }
+        }
     }
 }
 

@@ -1,6 +1,8 @@
 package eu.kanade.tachiyomi
 
 import android.app.Activity
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 
 /**
  * Hooks for when Tsundoku runs inside another app (the Nuvio "Read" mode).
@@ -31,4 +33,23 @@ object EmbeddedHost {
     /** Label for the Tsundoku side of the switch. */
     @Volatile
     var readLabel: String = "Read"
+
+    /**
+     * Fenrir style (Zangetsu-like look) from the host: when it returns true, the Read side uses
+     * the Fenrir colors, the wordmark + mode pill header and the pill bottom bar.
+     */
+    @Volatile
+    var fenrirStyle: (() -> Boolean)? = null
+
+    val isFenrirStyle: Boolean get() = openWatch != null && fenrirStyle?.invoke() == true
+
+    /** Installed manga extensions (for the host's Settings → Sources). */
+    fun mangaExtensionCount(): Int = runCatching {
+        Injekt.get<eu.kanade.tachiyomi.extension.ExtensionManager>().installedExtensionsFlow.value.size
+    }.getOrDefault(0)
+
+    /** Installed novel (JS) plugins (for the host's Settings → Sources). */
+    fun novelPluginCount(): Int = runCatching {
+        Injekt.get<eu.kanade.tachiyomi.jsplugin.JsPluginManager>().installedPlugins.value.size
+    }.getOrDefault(0)
 }
