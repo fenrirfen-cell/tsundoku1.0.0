@@ -182,9 +182,9 @@ fun FenrirNovelBottomPanel(
         }
         Spacer(Modifier.height(4.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            PanelButton(Icons.AutoMirrored.Outlined.FormatListBulleted, "Chapters", false, onChapters)
-            PanelButton(Icons.AutoMirrored.Outlined.MenuBook, "Read mode", false, onReadMode)
-            PanelButton(Icons.Outlined.TextFields, "Text", false, onText)
+            PanelButton(Icons.AutoMirrored.Outlined.FormatListBulleted, "Chapters", false, onChapters, Modifier.weight(1f))
+            PanelButton(Icons.AutoMirrored.Outlined.MenuBook, "Read mode", false, onReadMode, Modifier.weight(1f))
+            PanelButton(Icons.Outlined.TextFields, "Text", false, onText, Modifier.weight(1f))
             // Listen: read aloud, and auto-scroll (both play the chapter for you).
             Box(Modifier.weight(1f)) {
                 var menu by remember { mutableStateOf(false) }
@@ -252,12 +252,12 @@ private fun RoundIconButton(icon: ImageVector, label: String, enabled: Boolean, 
 }
 
 @Composable
-private fun androidx.compose.foundation.layout.RowScope.PanelButton(
+private fun PanelButton(
     icon: ImageVector,
     label: String,
     active: Boolean,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier.weight(1f),
+    modifier: Modifier,
 ) {
     Column(
         modifier = modifier
