@@ -29,6 +29,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import logcat.LogPriority
 import logcat.logcat
+import uy.kohesive.injekt.api.get
 import coil3.size.Dimension as CoilDimension
 import coil3.size.Size as CoilSize
 
@@ -209,7 +210,9 @@ internal class CoilImageGetter(
                     .size(CoilSize(CoilDimension.Pixels(capturedContentWidth), CoilDimension.Undefined))
                     .build()
                 val result = activity.imageLoader.execute(request)
-                val drawable = result.image?.asDrawable(activity.resources) ?: return@launch
+                val drawable = result.image?.asDrawable(activity.resources)
+                    ?: fetchWithSourceClient(imageUrl) // retry through the plugin's own connection
+                    ?: return@launch
                 fitToWidthAndInvalidate(drawable, wrapper)
             } catch (e: Exception) {
                 logcat(LogPriority.DEBUG) { "Failed to load image in novel reader: $imageUrl - ${e.message}" }
@@ -217,6 +220,40 @@ internal class CoilImageGetter(
                 withContext(kotlinx.coroutines.NonCancellable + Dispatchers.Main) { onLoadFinished() }
             }
         }
+    }
+
+    /**
+     * Fallback when the normal picture loader fails: download through the plugin's own connection
+     * (its cookies, Cloudflare clearance and headers), trying the chapter page, the site and no
+     * referer in turn, since sites differ in which one they accept.
+     */
+    private suspend fun fetchWithSourceClient(imageUrl: String): Drawable? = withContext(Dispatchers.IO) {
+        val source = activity.viewModel.getSource()
+        val client = (source as? HttpSource)?.client
+            ?: runCatching { uy.kohesive.injekt.Injekt.get<eu.kanade.tachiyomi.network.NetworkHelper>().client }.getOrNull()
+            ?: return@withContext null
+        val referers = listOfNotNull(pageBaseUrl, refererUrl, "").distinct()
+        for (referer in referers) {
+            try {
+                val builder = okhttp3.Request.Builder().url(imageUrl)
+                sourceHeaders?.let { builder.headers(it) }
+                builder.header("Accept", "image/avif,image/webp,image/apng,image/*,*/*;q=0.8")
+                if (referer.isNotEmpty()) builder.header("Referer", referer) else builder.removeHeader("Referer")
+                client.newCall(builder.build()).execute().use { response ->
+                    if (!response.isSuccessful) return@use
+                    val bytes = response.body.bytes()
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                    if (bounds.outWidth <= 0) return@use
+                    val opts = BitmapFactory.Options().apply { inSampleSize = sampleSizeForWidth(bounds.outWidth) }
+                    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts) ?: return@use
+                    return@withContext bitmap.toDrawable(activity.resources)
+                }
+            } catch (e: Exception) {
+                logcat(LogPriority.DEBUG) { "Picture retry failed ($referer): ${e.message}" }
+            }
+        }
+        null
     }
 
     private fun onLoadFinished() {

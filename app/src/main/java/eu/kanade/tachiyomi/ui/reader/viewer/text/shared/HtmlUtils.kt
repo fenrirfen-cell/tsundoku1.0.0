@@ -152,7 +152,9 @@ object HtmlUtils {
                 val src = img.attr("src")
                 val real = lazyImageAttrs.firstNotNullOfOrNull { a -> img.attr(a).takeIf { it.isNotBlank() && !isPlaceholderSrc(it) } }
                     ?: lazySrcsetAttrs.firstNotNullOfOrNull { a -> img.attr(a).takeIf { it.isNotBlank() }?.let(::bestFromSrcset) }
-                if (real != null && (isPlaceholderSrc(src) || src != real && img.hasAttr("data-src"))) {
+                // A site that keeps a real address in a lazy attribute uses `src` only as a
+                // stand-in (often its own logo), so the lazy one always wins when it differs.
+                if (real != null && real.trim() != src.trim()) {
                     img.attr("src", real.trim())
                     img.removeAttr("srcset")
                     changed = true
