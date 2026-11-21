@@ -103,14 +103,116 @@ object HtmlUtils {
         val normalized = content.replace("\u0000", "")
         if (isPlainTextChapter(chapterUrl)) {
             logcat(LogPriority.DEBUG) { "HtmlUtils.normalizeContentForHtml: PLAIN_TEXT (forced by extension)" }
-            return plainTextToHtml(normalized)
+            return stripSiteNotices(plainTextToHtml(normalized))
         }
         val kind = detectTextKind(chapterUrl, normalized)
         logcat(LogPriority.DEBUG) { "HtmlUtils.normalizeContentForHtml: $kind len=${normalized.length}" }
         return when (kind) {
-            ChapterTextKind.HTML -> normalized
+            ChapterTextKind.HTML -> stripSiteNotices(fixLazyImages(normalized))
             ChapterTextKind.MARKDOWN -> markdownToHtml(stripFrontMatter(normalized))
-            ChapterTextKind.PLAIN_TEXT -> plainTextToHtml(normalized)
+            ChapterTextKind.PLAIN_TEXT -> stripSiteNotices(plainTextToHtml(normalized))
+        }
+    }
+
+    // Attributes where lazy-loading sites keep the real picture address.
+    private val lazyImageAttrs = listOf(
+        "data-src", "data-lazy-src", "data-original", "data-lazy", "data-url", "data-echo",
+        "data-orig-file", "data-large-file", "data-full-url", "data-hi-res-src", "lazy-src",
+    )
+    private val lazySrcsetAttrs = listOf("data-srcset", "data-lazy-srcset", "srcset")
+
+    private fun isPlaceholderSrc(src: String): Boolean {
+        val s = src.trim().lowercase()
+        if (s.isEmpty() || s == "#" || s == "about:blank") return true
+        if (s.startsWith("data:image/gif") || s.startsWith("data:image/svg")) return true
+        if (s.startsWith("data:") && s.length < 400) return true
+        return listOf("placeholder", "lazy", "blank.", "loading.", "spacer.", "pixel.", "1x1", "transparent.")
+            .any { s.substringAfterLast('/').contains(it) }
+    }
+
+    private fun bestFromSrcset(srcset: String): String? =
+        srcset.split(',')
+            .map { it.trim().split(Regex("\\s+")) }
+            .filter { it.isNotEmpty() && it[0].isNotBlank() }
+            .maxByOrNull { part -> part.getOrNull(1)?.dropLast(1)?.toFloatOrNull() ?: 0f }
+            ?.get(0)
+
+    /**
+     * Light novels with pictures: many sites lazy-load them, putting a blank placeholder in `src`
+     * and the real address in `data-src` (or a `<noscript>` copy). The reader drops `<noscript>`
+     * later and never runs the site's script, so swap the real address in now and keep the
+     * `<noscript>` picture when there's no other way to get it.
+     */
+    fun fixLazyImages(html: String): String {
+        if (!html.contains("<img", ignoreCase = true) && !html.contains("<noscript", ignoreCase = true)) return html
+        return try {
+            val doc = org.jsoup.Jsoup.parseBodyFragment(html)
+            var changed = false
+            for (img in doc.select("img")) {
+                val src = img.attr("src")
+                val real = lazyImageAttrs.firstNotNullOfOrNull { a -> img.attr(a).takeIf { it.isNotBlank() && !isPlaceholderSrc(it) } }
+                    ?: lazySrcsetAttrs.firstNotNullOfOrNull { a -> img.attr(a).takeIf { it.isNotBlank() }?.let(::bestFromSrcset) }
+                if (real != null && (isPlaceholderSrc(src) || src != real && img.hasAttr("data-src"))) {
+                    img.attr("src", real.trim())
+                    img.removeAttr("srcset")
+                    changed = true
+                }
+            }
+            // <noscript><img src="real"></noscript> next to a placeholder: keep the real one.
+            for (ns in doc.select("noscript")) {
+                val inner = org.jsoup.Jsoup.parseBodyFragment(ns.html()).select("img").firstOrNull() ?: continue
+                val innerSrc = inner.attr("src").takeIf { it.isNotBlank() && !isPlaceholderSrc(it) } ?: continue
+                val prev = ns.previousElementSibling()
+                if (prev != null && prev.tagName() == "img" && isPlaceholderSrc(prev.attr("src"))) {
+                    prev.attr("src", innerSrc)
+                    ns.remove()
+                } else if (prev != null && prev.tagName() == "img" && prev.attr("src").isNotBlank()) {
+                    ns.remove()
+                } else {
+                    ns.after(inner.outerHtml())
+                    ns.remove()
+                }
+                changed = true
+            }
+            if (changed) doc.body().html() else html
+        } catch (e: Exception) {
+            logcat(LogPriority.DEBUG) { "fixLazyImages failed: ${e.message}" }
+            html
+        }
+    }
+
+    // Site notices that aren't part of the story ("report chapter", "broken links", ...).
+    private val siteNoticeRegex = Regex(
+        // Only clear site markers; story lines like "please let us know" alone are left alone.
+        "(report\\s*(this\\s*)?chapter|broken\\s*links?|non-standard\\s*content|" +
+            "read\\s+(the\\s+)?latest\\s+chapters?\\s+(at|on)|" +
+            "this\\s+chapter\\s+(is\\s+)?(updated|upload(ed)?)\\s+(by|at|on)|" +
+            "visit\\s+\\S+\\.(com|net|org)\\s+for)",
+        RegexOption.IGNORE_CASE,
+    )
+
+    /**
+     * Removes the site's own notices (e.g. "If you find any errors ( broken links, non-standard
+     * content, etc.. ), Please let us know < report chapter >") wherever they sit in a chapter.
+     * Only short paragraphs are touched, so story text that mentions these words stays.
+     */
+    fun stripSiteNotices(html: String): String {
+        if (!siteNoticeRegex.containsMatchIn(html)) return html
+        return try {
+            val doc = org.jsoup.Jsoup.parseBodyFragment(html)
+            var changed = false
+            for (el in doc.select("p, div, span, center, small, em, i, strong, b")) {
+                if (el.select("img, p, div").isNotEmpty() && el.tagName() != "p") continue
+                val text = el.text()
+                if (text.length in 1..320 && siteNoticeRegex.containsMatchIn(text) && el.select("img").isEmpty()) {
+                    el.remove()
+                    changed = true
+                }
+            }
+            if (changed) doc.body().html() else html
+        } catch (e: Exception) {
+            logcat(LogPriority.DEBUG) { "stripSiteNotices failed: ${e.message}" }
+            html
         }
     }
 

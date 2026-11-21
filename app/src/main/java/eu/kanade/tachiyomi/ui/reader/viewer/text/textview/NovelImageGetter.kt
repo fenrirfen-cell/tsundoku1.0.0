@@ -93,7 +93,14 @@ internal class CoilImageGetter(
         ) {
             pendingLoads.add(PendingLoad(source, wrapper))
         } else {
-            logcat(LogPriority.DEBUG) { "Skipping non-URL image source: $source" }
+            // Relative address (e.g. /uploads/pic.jpg): resolve it against the chapter's page,
+            // like a browser would, instead of skipping the picture.
+            val absolute = resolveRelative(source)
+            if (absolute != null) {
+                pendingLoads.add(PendingLoad(absolute, wrapper))
+            } else {
+                logcat(LogPriority.DEBUG) { "Skipping non-URL image source: $source" }
+            }
         }
         return wrapper
     }
@@ -151,6 +158,35 @@ internal class CoilImageGetter(
         }
     }
 
+    private val pageBaseUrl: String? by lazy {
+        val source = activity.viewModel.getSource()
+        val sourceBase = when (source) {
+            is JsSource -> source.baseUrl.takeIf { it.isNotBlank() }
+            is HttpSource -> source.baseUrl.takeIf { it.isNotBlank() }
+            else -> null
+        }
+        eu.kanade.tachiyomi.ui.reader.viewer.text.webview.NovelWebViewChapterMeta.resolveWebViewBaseUrl(
+            activity.viewModel.state.value.viewerChapters?.currChapter?.chapter?.url,
+            activity.viewModel.manga?.url,
+            sourceBase,
+        )
+    }
+
+    private fun resolveRelative(src: String): String? {
+        val base = pageBaseUrl ?: return null
+        return try {
+            java.net.URI(base).resolve(src.trim().replace(" ", "%20")).toString()
+                .takeIf { it.startsWith("http://") || it.startsWith("https://") }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    // The plugin's own headers (user agent, cookies some sites need for pictures).
+    private val sourceHeaders: okhttp3.Headers? by lazy {
+        (activity.viewModel.getSource() as? HttpSource)?.let { runCatching { it.headers }.getOrNull() }
+    }
+
     private val refererUrl: String? by lazy {
         when (val source = activity.viewModel.getSource()) {
             is JsSource -> source.baseUrl.takeIf { it.isNotBlank() }?.let { "$it/" }
@@ -163,8 +199,9 @@ internal class CoilImageGetter(
         scope.launch {
             try {
                 val headers = NetworkHeaders.Builder().apply {
+                    sourceHeaders?.forEach { (name, value) -> set(name, value) }
                     set("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
-                    refererUrl?.let { set("Referer", it) }
+                    (pageBaseUrl ?: refererUrl)?.let { set("Referer", it) }
                 }.build()
                 val request = ImageRequest.Builder(activity)
                     .data(imageUrl)
