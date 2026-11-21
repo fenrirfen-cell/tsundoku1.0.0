@@ -166,7 +166,14 @@ fun NovelReaderAppBars(
     // transient reader menu bars.
     onTopBarHeight: (Int) -> Unit = {},
     onBottomBarHeight: (Int) -> Unit = {},
+
+    // Fenrir: the new floating panel (Chapters / Read mode / Text / Listen / Translate). When
+    // set, it replaces the old bottom bar and progress slider; the rarer buttons move to ⋮.
+    onClickChapters: (() -> Unit)? = null,
+    onClickReadMode: (() -> Unit)? = null,
+    chapterPositionLabel: String? = null,
 ) {
+    val fenrirPanel = onClickChapters != null && onClickReadMode != null
     val backgroundColor = MaterialTheme.colorScheme
         .surfaceColorAtElevation(3.dp)
         .copy(alpha = if (isSystemInDarkTheme()) 0.9f else 0.95f)
@@ -206,6 +213,16 @@ fun NovelReaderAppBars(
                     onReloadSource = onReloadSource,
                     onEditBottomBar = onEditBottomBar,
                     onRetranslate = onRetranslate,
+                    fenrirExtras = if (fenrirPanel) {
+                        FenrirTopBarExtras(
+                            onScrollToTop = onScrollToTop,
+                            onQuotes = onQuotes,
+                            isEditing = isEditing,
+                            onToggleEdit = onToggleEdit.takeIf { isWebView },
+                        )
+                    } else {
+                        null
+                    },
                 )
             }
 
@@ -214,7 +231,7 @@ fun NovelReaderAppBars(
                     .weight(1f)
                     .fillMaxWidth(),
             ) {
-                if (visible && showProgressSlider &&
+                if (visible && showProgressSlider && !fenrirPanel &&
                     (
                         progressSliderMode == PROGRESS_SLIDER_MODE_VERTICAL_LEFT ||
                             progressSliderMode == PROGRESS_SLIDER_MODE_VERTICAL_RIGHT
@@ -263,7 +280,35 @@ fun NovelReaderAppBars(
                 exit = slideOutVertically(targetOffsetY = { it }, animationSpec = readerBarsSlideAnimationSpec) +
                     fadeOut(animationSpec = readerBarsFadeAnimationSpec),
             ) {
-                Column(
+                if (fenrirPanel) {
+                    eu.kanade.presentation.reader.FenrirNovelBottomPanel(
+                        modifier = Modifier.onSizeChanged { onBottomBarHeight(it.height) },
+                        chapterLabel = chapterPositionLabel,
+                        progress = currentProgress,
+                        progressLabel = if (pagedPageCount > 0) {
+                            "Page ${pagedPageIndex + 1} of $pagedPageCount"
+                        } else {
+                            "$currentProgress% of chapter"
+                        },
+                        onProgressChange = onProgressChange,
+                        onPrevious = onPreviousChapter,
+                        enabledPrevious = enabledPrevious,
+                        onNext = onNextChapter,
+                        enabledNext = enabledNext,
+                        onChapters = onClickChapters!!,
+                        onReadMode = onClickReadMode!!,
+                        onText = onClickSettings,
+                        isTtsActive = isTtsActive,
+                        ttsControlsVisible = ttsControlsVisible,
+                        onToggleTts = onToggleTtsControls,
+                        isAutoScrolling = isAutoScrolling,
+                        onToggleAutoScroll = onToggleAutoScroll,
+                        hideAutoScroll = hideAutoScroll,
+                        isTranslating = isTranslating,
+                        onToggleTranslation = onToggleTranslation,
+                        onLongPressTranslation = onLongPressTranslation,
+                    )
+                } else Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .onSizeChanged { onBottomBarHeight(it.height) }
@@ -332,6 +377,7 @@ private fun NovelReaderTopBar(
     onEditBottomBar: () -> Unit,
     onRetranslate: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    fenrirExtras: FenrirTopBarExtras? = null,
 ) {
     AppBar(
         modifier = modifier,
@@ -359,6 +405,13 @@ private fun NovelReaderTopBar(
                             onClick = onToggleBookmarked,
                         ),
                     )
+                    fenrirExtras?.let { extras ->
+                        add(AppBar.OverflowAction(title = "Scroll to top", onClick = extras.onScrollToTop))
+                        add(AppBar.OverflowAction(title = "Quotes", onClick = extras.onQuotes))
+                        extras.onToggleEdit?.let {
+                            add(AppBar.OverflowAction(title = if (extras.isEditing) "Stop editing text" else "Edit text", onClick = it))
+                        }
+                    }
                     add(
                         AppBar.OverflowAction(
                             title = stringResource(TDMR.strings.action_reload_local),
@@ -371,12 +424,14 @@ private fun NovelReaderTopBar(
                             onClick = onReloadSource,
                         ),
                     )
-                    add(
-                        AppBar.OverflowAction(
-                            title = stringResource(TDMR.strings.action_edit_appbar),
-                            onClick = onEditBottomBar,
-                        ),
-                    )
+                    if (fenrirExtras == null) {
+                        add(
+                            AppBar.OverflowAction(
+                                title = stringResource(TDMR.strings.action_edit_appbar),
+                                onClick = onEditBottomBar,
+                            ),
+                        )
+                    }
                     onOpenInWebView?.let {
                         add(
                             AppBar.OverflowAction(
@@ -875,3 +930,11 @@ private fun NovelVerticalProgressSlider(
         }
     }
 }
+
+/** Fenrir: buttons that moved from the old bottom bar into the ⋮ menu. */
+internal data class FenrirTopBarExtras(
+    val onScrollToTop: () -> Unit,
+    val onQuotes: () -> Unit,
+    val isEditing: Boolean,
+    val onToggleEdit: (() -> Unit)?,
+)

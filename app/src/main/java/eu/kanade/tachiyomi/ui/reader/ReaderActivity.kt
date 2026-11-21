@@ -563,15 +563,10 @@ class ReaderActivity : BaseActivity() {
                 )
             }
             is ReaderViewModel.Dialog.ReadingModeSelect -> {
-                ReadingModeSelectDialog(
-                    onDismissRequest = onDismissRequest,
+                // Fenrir: one "How to read" sheet with page layout, panel by panel and screen.
+                eu.kanade.presentation.reader.FenrirMangaModeSheet(
                     viewModel = settingsviewModel,
-                    onChange = { stringRes ->
-                        menuToggleToast?.cancel()
-                        if (!readerPreferences.showReadingMode.get()) {
-                            menuToggleToast = toast(stringRes)
-                        }
-                    },
+                    onDismissRequest = onDismissRequest,
                 )
             }
             is ReaderViewModel.Dialog.OrientationModeSelect -> {
@@ -947,11 +942,57 @@ class ReaderActivity : BaseActivity() {
 
             val bottomBarItems by viewModel.bottomBarItems.collectAsState()
             var showBottomBarEditor by remember { mutableStateOf(false) }
+
+            // Fenrir: Chapters picker and How-to-read sheet.
+            var showChapterPicker by remember { mutableStateOf(false) }
+            var showNovelMode by remember { mutableStateOf(false) }
+            var chapterItems by remember { mutableStateOf<List<eu.kanade.presentation.reader.FenrirChapterItem>>(emptyList()) }
+            val currentChapterId = state.currentChapter?.chapter?.id
+            LaunchedEffect(state.manga?.id) {
+                if (state.manga != null) chapterItems = viewModel.chapterPickItems()
+            }
+            val chapterPositionLabel = remember(chapterItems, currentChapterId) {
+                val index = chapterItems.indexOfFirst { it.id == currentChapterId }
+                if (index < 0) null else "Ch ${index + 1} of ${chapterItems.size}"
+            }
+            if (showChapterPicker) {
+                LaunchedEffect(Unit) { chapterItems = viewModel.chapterPickItems() }
+                eu.kanade.presentation.reader.FenrirChaptersSheet(
+                    chapters = chapterItems,
+                    currentId = currentChapterId,
+                    onPick = { id ->
+                        showChapterPicker = false
+                        if (id != currentChapterId) {
+                            // Reopen the reader at that chapter (progress is saved on the way out).
+                            val intent = newIntent(this@ReaderActivity, state.manga?.id, id)
+                            finish()
+                            startActivity(intent)
+                        }
+                    },
+                    onDismissRequest = { showChapterPicker = false },
+                )
+            }
+            val fenrirSettingsViewModel = remember {
+                ReaderSettingsViewModel(
+                    readerState = viewModel.state,
+                    onChangeReadingMode = viewModel::setMangaReadingMode,
+                    onChangeOrientation = viewModel::setMangaOrientationType,
+                )
+            }
+            if (showNovelMode) {
+                eu.kanade.presentation.reader.FenrirNovelModeSheet(
+                    viewModel = fenrirSettingsViewModel,
+                    onDismissRequest = { showNovelMode = false },
+                )
+            }
             var showEditSaveDialog by remember { mutableStateOf(false) }
             var isEditing by remember { mutableStateOf(false) }
 
             NovelReaderAppBars(
                 visible = state.menuVisible,
+                onClickChapters = { showChapterPicker = true },
+                onClickReadMode = { showNovelMode = true },
+                chapterPositionLabel = chapterPositionLabel,
 
                 novelTitle = state.manga?.title,
                 chapterTitle = formattedChapterTitle,

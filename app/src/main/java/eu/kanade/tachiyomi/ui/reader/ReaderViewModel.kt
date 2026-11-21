@@ -1104,6 +1104,20 @@ class ReaderViewModel @JvmOverloads constructor(
 
     fun getSource() = manga?.source?.let { sourceManager.getOrStub(it) }
 
+    /** Fenrir: every chapter of the book in reading order, for the Chapters picker. */
+    suspend fun chapterPickItems(): List<eu.kanade.presentation.reader.FenrirChapterItem> = withIOContext {
+        chapterList.map {
+            val c = it.chapter
+            eu.kanade.presentation.reader.FenrirChapterItem(
+                id = c.id ?: -1L,
+                name = c.name,
+                number = c.chapter_number,
+                read = c.read,
+                bookmark = c.bookmark,
+            )
+        }
+    }
+
     fun getMangaUrl(): String? {
         val manga = manga ?: return null
         val source = getSource() ?: return null
