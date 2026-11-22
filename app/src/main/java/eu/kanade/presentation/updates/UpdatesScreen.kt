@@ -1,5 +1,7 @@
 package eu.kanade.presentation.updates
 
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.collectAsState
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -87,6 +89,12 @@ fun UpdateScreen(
 
     Scaffold(
         topBar = { scrollBehavior ->
+            val fenrirTopShown by eu.kanade.presentation.components.FenrirBars.shown.collectAsState()
+            androidx.compose.animation.AnimatedVisibility(
+                visible = fenrirTopShown || state.selected.isNotEmpty(),
+                enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
+                exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut(),
+            ) {
             UpdatesAppBar(
                 onCalendarClicked = { onCalendarClicked() },
                 onUpdateLibrary = { onUpdateLibrary() },
@@ -100,6 +108,7 @@ fun UpdateScreen(
                 onCancelActionMode = { onSelectAll(false) },
                 scrollBehavior = scrollBehavior,
             )
+            }
         },
         bottomBar = {
             UpdatesBottomBar(
@@ -112,6 +121,8 @@ fun UpdateScreen(
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
     ) { contentPadding ->
+        val fenrirBarsShown by eu.kanade.presentation.components.FenrirBars.shown.collectAsState()
+        androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
         when {
             state.isLoading -> LoadingScreen(Modifier.padding(contentPadding))
             else -> {
@@ -237,6 +248,13 @@ fun UpdateScreen(
                     }
                 }
             }
+        }
+            eu.kanade.presentation.components.FenrirScrollPill(
+            label = "Updates",
+            visible = !fenrirBarsShown && state.selected.isEmpty(),
+            modifier = Modifier.align(androidx.compose.ui.Alignment.TopCenter),
+            actions = listOf(androidx.compose.material.icons.Icons.Outlined.CalendarMonth to { onCalendarClicked() }, androidx.compose.material.icons.Icons.Outlined.Refresh to { onUpdateLibrary(); Unit }),
+        )
         }
     }
 }

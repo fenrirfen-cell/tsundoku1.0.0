@@ -1,5 +1,9 @@
 package eu.kanade.presentation.history
 
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.runtime.getValue
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -80,6 +84,12 @@ fun HistoryScreen(
 ) {
     Scaffold(
         topBar = { scrollBehavior ->
+            val fenrirTopShown by eu.kanade.presentation.components.FenrirBars.shown.collectAsState()
+            androidx.compose.animation.AnimatedVisibility(
+                visible = fenrirTopShown || state.searchQuery != null,
+                enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
+                exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut(),
+            ) {
             SearchToolbar(
                 titleContent = { AppBarTitle(stringResource(MR.strings.history)) },
                 searchQuery = state.searchQuery,
@@ -104,9 +114,12 @@ fun HistoryScreen(
                 },
                 scrollBehavior = scrollBehavior,
             )
+            }
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
     ) { contentPadding ->
+        val fenrirBarsShown by eu.kanade.presentation.components.FenrirBars.shown.collectAsState()
+        androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier.padding(contentPadding),
         ) {
@@ -162,6 +175,13 @@ fun HistoryScreen(
                     )
                 }
             }
+        }
+            eu.kanade.presentation.components.FenrirScrollPill(
+            label = stringResource(MR.strings.history),
+            visible = !fenrirBarsShown && state.searchQuery == null,
+            modifier = Modifier.align(androidx.compose.ui.Alignment.TopCenter),
+            actions = listOf(androidx.compose.material.icons.Icons.Outlined.Search to { eu.kanade.presentation.components.FenrirBars.shown.value = true; onSearchQueryChange("") }),
+        )
         }
     }
 }

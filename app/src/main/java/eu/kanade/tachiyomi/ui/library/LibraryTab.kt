@@ -1,5 +1,8 @@
 package eu.kanade.tachiyomi.ui.library
 
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material.icons.outlined.FilterList
+import androidx.compose.material.icons.outlined.Search
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.graphics.res.animatedVectorResource
 import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
@@ -135,6 +138,13 @@ data object LibraryTab : Tab {
                     defaultCategoryTitle = stringResource(MR.strings.label_default),
                     page = state.coercedActiveCategoryIndex,
                 )
+                // Fenrir: the title row tucks away while scrolling down (a small pill shows instead).
+                val fenrirBarsShown by eu.kanade.presentation.components.FenrirBars.shown.collectAsState()
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = fenrirBarsShown || state.selectionMode || state.toolbarQuery != null,
+                    enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
+                    exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut(),
+                ) {
                 LibraryToolbar(
                     hasActiveFilters = state.hasActiveFilters,
                     selectedCount = state.selection.size,
@@ -169,6 +179,7 @@ data object LibraryTab : Tab {
                         state.activeCategory?.let(viewModel::openCategoryActionsDialog)
                     },
                 )
+                }
             },
             bottomBar = {
                 LibraryBottomActionMenu(
@@ -197,6 +208,8 @@ data object LibraryTab : Tab {
             },
             snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         ) { contentPadding ->
+            val fenrirPillShown by eu.kanade.presentation.components.FenrirBars.shown.collectAsState()
+            androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
             when {
                 state.isLoading -> {
                     LoadingScreen(Modifier.padding(contentPadding))
@@ -262,6 +275,19 @@ data object LibraryTab : Tab {
                         isCategoryLoading = { state.paginationLoadingCategories.contains(it.id) },
                     )
                 }
+            }
+            eu.kanade.presentation.components.FenrirScrollPill(
+                label = state.getToolbarTitle(defaultTitle = "Library", defaultCategoryTitle = "Default", page = state.coercedActiveCategoryIndex).text,
+                visible = !fenrirPillShown && !state.selectionMode && state.toolbarQuery == null && !state.isLoading,
+                modifier = Modifier.align(androidx.compose.ui.Alignment.TopCenter),
+                actions = listOf(
+                    androidx.compose.material.icons.Icons.Outlined.Search to {
+                        eu.kanade.presentation.components.FenrirBars.shown.value = true
+                        viewModel.search("")
+                    },
+                    androidx.compose.material.icons.Icons.Outlined.FilterList to { viewModel.showSettingsDialog() },
+                ),
+            )
             }
         }
 

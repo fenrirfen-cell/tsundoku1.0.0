@@ -28,6 +28,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -265,3 +267,86 @@ fun FenrirKindToggle(
         }
     }
 }
+
+/** Whether the Read side's bars are showing (scrolling down hides them, up brings them back). */
+object FenrirBars {
+    val shown = kotlinx.coroutines.flow.MutableStateFlow(true)
+}
+
+/** Round glass icon button (title rows: search, filter, ⋮…). */
+@Composable
+fun FenrirGlassIconButton(
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    size: androidx.compose.ui.unit.Dp = 38.dp,
+    content: @Composable () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .padding(horizontal = 3.dp)
+            .size(size)
+            .fenrirReadGlass(CircleShape)
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        androidx.compose.runtime.CompositionLocalProvider(
+            androidx.compose.material3.LocalContentColor provides Color(0xFFE4E4EA),
+        ) {
+            Box(Modifier.size(20.dp), contentAlignment = Alignment.Center) { content() }
+        }
+    }
+}
+
+/**
+ * B: while scrolling down, a small floating glass pill: "Light novel | 🔍 ≡".
+ * Tapping the name brings the full title row back.
+ */
+@Composable
+fun FenrirScrollPill(
+    label: String,
+    visible: Boolean,
+    modifier: Modifier = Modifier,
+    actions: List<Pair<ImageVector, () -> Unit>> = emptyList(),
+) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible = visible,
+        modifier = modifier,
+        enter = androidx.compose.animation.slideInVertically { -it } + androidx.compose.animation.fadeIn(),
+        exit = androidx.compose.animation.slideOutVertically { -it } + androidx.compose.animation.fadeOut(),
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(top = 10.dp)
+                .height(44.dp)
+                .androidxShadowPill()
+                .fenrirReadGlass(RoundedCornerShape(22.dp))
+                .padding(start = 16.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                label,
+                color = Color.White,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .widthIn(max = 160.dp)
+                    .clickable { FenrirBars.shown.value = true }
+                    .padding(end = 6.dp),
+            )
+            actions.forEach { (icon, onClick) ->
+                Box(Modifier.padding(horizontal = 2.dp).width(1.dp).height(18.dp).background(Color.White.copy(alpha = 0.15f)))
+                Box(
+                    Modifier.size(36.dp).clip(CircleShape).clickable(onClick = onClick),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(icon, contentDescription = null, tint = Color(0xFFE4E4EA), modifier = Modifier.size(18.dp))
+                }
+            }
+        }
+    }
+}
+
+private fun Modifier.androidxShadowPill(): Modifier =
+    this.then(Modifier.shadow(12.dp, RoundedCornerShape(22.dp)))

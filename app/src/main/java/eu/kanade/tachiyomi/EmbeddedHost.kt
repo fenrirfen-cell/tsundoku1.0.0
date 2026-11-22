@@ -48,6 +48,25 @@ object EmbeddedHost {
     @Volatile
     var checkAppUpdate: ((onFound: (String) -> Unit) -> Unit)? = null
 
+    /** A new host app version, mirrored for the Read side's small update pill (null = none). */
+    data class AppUpdateInfo(
+        val version: String,
+        val progress: Float?,
+        val downloading: Boolean,
+        val ready: Boolean,
+        val error: String?,
+    )
+
+    val appUpdate = kotlinx.coroutines.flow.MutableStateFlow<AppUpdateInfo?>(null)
+
+    /** Download the update (or install it once downloaded). */
+    @Volatile
+    var startAppUpdate: (() -> Unit)? = null
+
+    /** Close the update pill. */
+    @Volatile
+    var dismissAppUpdate: (() -> Unit)? = null
+
     val isFenrirStyle: Boolean get() = openWatch != null && fenrirStyle?.invoke() == true
 
     /** Installed manga extensions (for the host's Settings → Sources). */

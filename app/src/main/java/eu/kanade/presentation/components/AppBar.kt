@@ -5,6 +5,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -205,7 +206,7 @@ fun AppBarActions(
             state = rememberTooltipState(),
             focusable = false,
         ) {
-            IconButton(
+            FenrirGlassIconButton(
                 onClick = it.onClick,
                 enabled = it.enabled,
             ) {
@@ -213,6 +214,7 @@ fun AppBarActions(
                     imageVector = it.icon,
                     tint = it.iconTint ?: LocalContentColor.current,
                     contentDescription = it.title,
+                    modifier = Modifier.size(20.dp),
                 )
             }
         }
@@ -230,12 +232,13 @@ fun AppBarActions(
             state = rememberTooltipState(),
             focusable = false,
         ) {
-            IconButton(
+            FenrirGlassIconButton(
                 onClick = { showMenu = !showMenu },
             ) {
                 Icon(
                     Icons.Outlined.MoreVert,
                     contentDescription = stringResource(MR.strings.action_menu_overflow_description),
+                    modifier = Modifier.size(20.dp),
                 )
             }
         }
@@ -359,12 +362,13 @@ fun SearchToolbar(
                         state = rememberTooltipState(),
                         focusable = false,
                     ) {
-                        IconButton(
+                        FenrirGlassIconButton(
                             onClick = onClick,
                         ) {
                             Icon(
                                 Icons.Outlined.Search,
                                 contentDescription = stringResource(MR.strings.action_search),
+                                modifier = Modifier.size(20.dp),
                             )
                         }
                     }

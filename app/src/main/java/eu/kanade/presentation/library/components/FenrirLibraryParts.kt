@@ -4,6 +4,8 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.layout.aspectRatio
@@ -347,17 +349,82 @@ private fun Modifier.androidxShadow(shape: androidx.compose.ui.graphics.Shape): 
     this.then(Modifier.shadow(6.dp, shape))
 
 
-/** Pull to refresh on the Read side: ask the host app for a new version, say so only if found. */
-internal fun fenrirCheckAppUpdate(context: android.content.Context) {
-    val check = eu.kanade.tachiyomi.EmbeddedHost.checkAppUpdate ?: return
-    val app = context.applicationContext
-    check { version ->
-        android.os.Handler(android.os.Looper.getMainLooper()).post {
-            android.widget.Toast.makeText(
-                app,
-                "Fenrir Read update available ($version). Switch to Watch to install it.",
-                android.widget.Toast.LENGTH_LONG,
-            ).show()
+/** Pull to refresh on the Read side: ask the host app for a new version (a pill shows if found). */
+internal fun fenrirCheckAppUpdate(@Suppress("UNUSED_PARAMETER") context: android.content.Context) {
+    eu.kanade.tachiyomi.EmbeddedHost.checkAppUpdate?.invoke { }
+}
+
+/** Small glass pill at the top: "Update available · r72  [Update] ×", fills red while downloading. */
+@Composable
+fun FenrirUpdatePill(modifier: Modifier = Modifier) {
+    val info by eu.kanade.tachiyomi.EmbeddedHost.appUpdate.collectAsState()
+    androidx.compose.animation.AnimatedVisibility(
+        visible = info != null,
+        modifier = modifier,
+        enter = androidx.compose.animation.slideInVertically { -it } + androidx.compose.animation.fadeIn(),
+        exit = androidx.compose.animation.slideOutVertically { -it } + androidx.compose.animation.fadeOut(),
+    ) {
+        val u = info ?: return@AnimatedVisibility
+        val shape = RoundedCornerShape(24.dp)
+        val progress = if (u.downloading) (u.progress ?: 0f).coerceIn(0f, 1f) else 0f
+        Row(
+            Modifier
+                .padding(top = 8.dp, start = 16.dp, end = 16.dp)
+                .height(46.dp)
+                .shadow(12.dp, shape)
+                .clip(shape)
+                .background(Color(0xF21C1C22))
+                .drawBehind {
+                    if (progress > 0f) {
+                        drawRect(FenrirRed.copy(alpha = 0.35f), size = size.copy(width = size.width * progress))
+                    }
+                }
+                .border(1.dp, Color.White.copy(alpha = 0.22f), shape)
+                .padding(start = 14.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column {
+                Text(
+                    when {
+                        u.error != null -> "Update failed"
+                        u.downloading && u.progress != null -> "Downloading ${(u.progress * 100).toInt().coerceIn(0, 100)}%"
+                        u.downloading -> "Starting download…"
+                        u.ready -> "Update ready"
+                        else -> "Update available"
+                    },
+                    color = Color.White,
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                )
+                Text(u.error ?: u.version, color = FenrirMuted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Spacer(Modifier.width(10.dp))
+            if (!u.downloading) {
+                Text(
+                    when {
+                        u.ready -> "Install"
+                        u.error != null -> "Retry"
+                        else -> "Update"
+                    },
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(FenrirRed)
+                        .clickable { eu.kanade.tachiyomi.EmbeddedHost.startAppUpdate?.invoke() }
+                        .padding(horizontal = 14.dp, vertical = 7.dp),
+                )
+                Box(
+                    Modifier.size(34.dp).clip(CircleShape).clickable { eu.kanade.tachiyomi.EmbeddedHost.dismissAppUpdate?.invoke() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("✕", color = Color(0xFFC9C9D2), fontSize = 14.sp)
+                }
+            } else {
+                Spacer(Modifier.width(10.dp))
+            }
         }
     }
 }

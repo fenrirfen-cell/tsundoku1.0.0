@@ -34,6 +34,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -124,15 +125,16 @@ object HomeScreen : Screen() {
             CompositionLocalProvider(LocalNavigator provides navigator) {
                 // Fenrir: like the Watch side, scrolling down tucks away the FENRIR READ header
                 // and the glass bar; scrolling up brings them back.
-                var barsShown by remember { mutableStateOf(true) }
-                LaunchedEffect(tabNavigator.current) { barsShown = true }
+                val barsShown by eu.kanade.presentation.components.FenrirBars.shown.collectAsState()
+                LaunchedEffect(tabNavigator.current) { eu.kanade.presentation.components.FenrirBars.shown.value = true }
                 val barsScroll = remember {
                     object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
                         override fun onPreScroll(
                             available: androidx.compose.ui.geometry.Offset,
                             source: androidx.compose.ui.input.nestedscroll.NestedScrollSource,
                         ): androidx.compose.ui.geometry.Offset {
-                            if (available.y < -4f) barsShown = false else if (available.y > 4f) barsShown = true
+                            val bars = eu.kanade.presentation.components.FenrirBars.shown
+                            if (available.y < -4f) bars.value = false else if (available.y > 4f) bars.value = true
                             return androidx.compose.ui.geometry.Offset.Zero
                         }
                     }
@@ -183,6 +185,8 @@ object HomeScreen : Screen() {
                                 it.Content()
                             }
                         }
+                        // Fenrir: small update pill (only when a new version was found).
+                        eu.kanade.presentation.library.components.FenrirUpdatePill(Modifier.align(Alignment.TopCenter))
                         if (!isTabletUi()) {
                             AnimatedVisibility(
                                 visible = bottomNavVisible && barsShown,
