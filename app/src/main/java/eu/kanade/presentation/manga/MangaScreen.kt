@@ -31,6 +31,9 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.animateFloatingActionButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.height
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -357,6 +360,14 @@ private fun MangaScreenSmallImpl(
         onAllChapterSelected(false)
     }
 
+    // Fenrir: Chapters / Pages / Bookmarks in the bottom pill.
+    var fenrirTab by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(FenrirBookTab.Chapters) }
+    val fenrirOrdered = remember(chapters, state.manga) {
+        val list = chapters.map { it.chapter }
+        if (state.manga.sortDescending()) list.reversed() else list
+    }
+    val fenrirTarget = remember(state.chapters, state.manga) { state.chapters.getNextUnread(state.manga) }
+
     Scaffold(
         topBar = {
             val selectedChapterCount = remember(chapters) {
@@ -411,7 +422,29 @@ private fun MangaScreenSmallImpl(
             val selectedChapters = remember(chapters) {
                 chapters.filter { it.selected }
             }
-            SharedMangaBottomActionMenu(
+            if (!isAnySelected) {
+                val anyRead = remember(state.chapters) { state.chapters.fastAny { it.chapter.read } }
+                FenrirBookPillBar(
+                    tab = fenrirTab,
+                    onTab = { fenrirTab = it },
+                    continueLabel = when {
+                        fenrirTarget != null && anyRead -> "Continue · Ch. ${fenrirChapterNumber(fenrirTarget)}"
+                        fenrirTarget != null -> "Start · Ch. ${fenrirChapterNumber(fenrirTarget)}"
+                        fenrirOrdered.isNotEmpty() -> "Read again"
+                        else -> null
+                    },
+                    onContinue = {
+                        if (fenrirTarget != null) onContinueReading() else fenrirOrdered.firstOrNull()?.let(onChapterClicked)
+                    },
+                    onIncognito = {
+                        runCatching { Injekt.get<eu.kanade.domain.base.BasePreferences>().incognitoMode.set(true) }
+                        if (fenrirTarget != null) onContinueReading() else fenrirOrdered.firstOrNull()?.let(onChapterClicked)
+                    },
+                    onFromStart = { fenrirOrdered.firstOrNull()?.let(onChapterClicked) },
+                    onDownloadNext5 = onDownloadActionClicked?.let { dl -> { dl(DownloadAction.NEXT_5_CHAPTERS) } },
+                )
+            }
+            if (isAnySelected) SharedMangaBottomActionMenu(
                 selected = selectedChapters,
                 onMultiBookmarkClicked = onMultiBookmarkClicked,
                 onMultiMarkAsReadClicked = onMultiMarkAsReadClicked,
@@ -427,28 +460,6 @@ private fun MangaScreenSmallImpl(
             )
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
-        floatingActionButton = {
-            val isFABVisible = remember(chapters) {
-                chapters.fastAny { !it.chapter.read } && !isAnySelected
-            }
-            SmallExtendedFloatingActionButton(
-                text = {
-                    val isReading = remember(state.chapters) {
-                        state.chapters.fastAny { it.chapter.read }
-                    }
-                    Text(
-                        text = stringResource(if (isReading) MR.strings.action_resume else MR.strings.action_start),
-                    )
-                },
-                icon = { Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = null) },
-                onClick = onContinueReading,
-                expanded = chapterListState.shouldExpandFAB(),
-                modifier = Modifier.animateFloatingActionButton(
-                    visible = isFABVisible,
-                    alignment = Alignment.BottomEnd,
-                ),
-            )
-        },
     ) { contentPadding ->
         val topPadding = contentPadding.calculateTopPadding()
 
@@ -490,6 +501,23 @@ private fun MangaScreenSmallImpl(
                         )
                     }
 
+                    // Fenrir: ♡ Library chip and the info card (source, language, reading time, progress).
+                    item(key = "fenrir-library-chip", contentType = "fenrir-library-chip") {
+                        FenrirLibraryChip(
+                            favorite = state.manga.favorite,
+                            onClick = onAddToLibraryClicked,
+                            onLongClick = onEditCategoryClicked,
+                        )
+                    }
+                    item(key = "fenrir-info-card", contentType = "fenrir-info-card") {
+                        FenrirBookInfoCard(
+                            manga = state.manga,
+                            source = state.source,
+                            chapters = remember(state.chapters) { state.chapters.map { it.chapter } },
+                            isNovel = state.isNovel,
+                        )
+                    }
+
                     item(
                         key = MangaScreenItem.ACTION_ROW,
                         contentType = MangaScreenItem.ACTION_ROW,
@@ -506,6 +534,7 @@ private fun MangaScreenSmallImpl(
                             onTrackingClicked = onTrackingClicked,
                             onEditIntervalClicked = onEditIntervalClicked,
                             onEditCategory = onEditCategoryClicked,
+                            showLibraryButton = false,
                         )
                     }
 
@@ -544,6 +573,15 @@ private fun MangaScreenSmallImpl(
                         )
                     }
 
+                    when (fenrirTab) {
+                        FenrirBookTab.Chapters -> {
+                    item(key = "fenrir-skipped", contentType = "fenrir-skipped") {
+                        FenrirSkippedChip(
+                            mangaId = state.manga.id,
+                            ordered = fenrirOrdered,
+                            onMarkRead = { onMultiMarkAsReadClicked(it, true) },
+                        )
+                    }
                     item(
                         key = MangaScreenItem.CHAPTER_HEADER,
                         contentType = MangaScreenItem.CHAPTER_HEADER,
@@ -571,6 +609,26 @@ private fun MangaScreenSmallImpl(
                         onChapterSwipe = onChapterSwipe,
                         isNovel = state.isNovel,
                     )
+                        }
+                        FenrirBookTab.Pages -> item(key = "fenrir-pages", contentType = "fenrir-pages") {
+                            FenrirPagesTab(
+                                manga = state.manga,
+                                source = state.source,
+                                ordered = fenrirOrdered,
+                                startChapterId = fenrirTarget?.id,
+                                isNovel = state.isNovel,
+                                onOpenChapter = onChapterClicked,
+                            )
+                        }
+                        FenrirBookTab.Bookmarks -> item(key = "fenrir-bookmarks", contentType = "fenrir-bookmarks") {
+                            FenrirBookmarksTab(
+                                manga = state.manga,
+                                ordered = fenrirOrdered,
+                                onOpenChapter = onChapterClicked,
+                            )
+                        }
+                    }
+                    item(key = "fenrir-bottom-space") { androidx.compose.foundation.layout.Spacer(Modifier.height(96.dp)) }
                 }
             }
         }
@@ -1097,3 +1155,7 @@ private fun onChapterItemClick(
         else -> onChapterClicked(chapterItem.chapter)
     }
 }
+
+
+private fun fenrirChapterNumber(chapter: Chapter): String =
+    chapter.chapterNumber.let { if (it % 1.0 == 0.0) it.toLong().toString() else it.toString() }.let { if (it == "-1") "?" else it }

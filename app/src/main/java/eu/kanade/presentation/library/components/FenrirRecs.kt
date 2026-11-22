@@ -1,5 +1,8 @@
 package eu.kanade.presentation.library.components
 
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -113,7 +116,16 @@ object FenrirRecs {
         .replace(Regex("""\s+"""), " ")
         .trim()
 
-    private fun sameTitle(a: String, b: String) = a.trim().equals(b.trim(), ignoreCase = true)
+    /** Same book (also when one title is cut short with "…" or differs only in punctuation). */
+    private fun sameTitle(a: String, b: String): Boolean {
+        fun norm(t: String) = t.lowercase().filter { it.isLetterOrDigit() }
+        val cutA = a.trim().endsWith("…") || a.trim().endsWith("...")
+        val cutB = b.trim().endsWith("…") || b.trim().endsWith("...")
+        val na = norm(a.trim().removeSuffix("…").removeSuffix("..."))
+        val nb = norm(b.trim().removeSuffix("…").removeSuffix("..."))
+        if (na.isEmpty() || nb.isEmpty()) return false
+        return na == nb || (cutA && nb.startsWith(na)) || (cutB && na.startsWith(nb))
+    }
 
     /** Book page: sequels / side stories (same title), more from the author, popular on the source. */
     suspend fun forBook(manga: Manga): List<FenrirRecRow> = kotlinx.coroutines.coroutineScope {
@@ -121,15 +133,15 @@ object FenrirRecs {
         val author = manga.author?.split(",", "/", "&")?.firstOrNull()?.trim().orEmpty()
         val related = async {
             if (stem.length < 3) emptyList() else search(manga.source, stem)
-                .filter { !sameTitle(it.title, manga.title) && titleStem(it.title).contains(stem) }
+                .filter { !sameTitle(it.title, manga.title) && it.url != manga.url && titleStem(it.title).contains(stem) }
                 .map { FenrirRec(manga.source, it, tagFor(it.title)) }
         }
         val byAuthor = async {
             if (author.length < 3) emptyList() else search(manga.source, author)
-                .filter { !sameTitle(it.title, manga.title) }
+                .filter { !sameTitle(it.title, manga.title) && it.url != manga.url }
                 .map { FenrirRec(manga.source, it) }
         }
-        val popular = async { popular(manga.source).filter { !sameTitle(it.title, manga.title) }.map { FenrirRec(manga.source, it) } }
+        val popular = async { popular(manga.source).filter { !sameTitle(it.title, manga.title) && it.url != manga.url }.map { FenrirRec(manga.source, it) } }
         val rel = related.await()
         val relUrls = rel.map { it.manga.url }.toSet()
         listOfNotNull(
@@ -265,15 +277,35 @@ fun FenrirReadForYouHost(onOpenManga: (Long) -> Unit) {
             Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)).clickable { FenrirReadForYou.open.value = false },
             contentAlignment = Alignment.BottomCenter,
         ) {
+            // Fenrir: swipe the top down to close, up for full screen.
+            var dragY by androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+            var full by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .fillMaxHeight(0.8f)
+                    .fillMaxHeight(if (full) 0.95f else 0.8f)
+                    .offset { androidx.compose.ui.unit.IntOffset(0, dragY.coerceAtLeast(0f).toInt()) }
                     .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
                     .background(Color(0xFF15151B))
                     .clickable(enabled = false) {}
                     .padding(top = 12.dp),
             ) {
+                Column(
+                    Modifier.fillMaxWidth().pointerInput(Unit) {
+                        detectVerticalDragGestures(
+                            onDragEnd = {
+                                when {
+                                    dragY > 260f -> FenrirReadForYou.open.value = false
+                                    dragY > 90f && full -> full = false
+                                    dragY < -90f -> full = true
+                                }
+                                dragY = 0f
+                            },
+                            onDragCancel = { dragY = 0f },
+                            onVerticalDrag = { _, dy -> dragY += dy },
+                        )
+                    },
+                ) {
                 Box(Modifier.align(Alignment.CenterHorizontally).size(width = 40.dp, height = 4.dp).clip(CircleShape).background(Color(0xFF3A3A44)))
                 Row(Modifier.padding(start = 18.dp, top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = RecRed, modifier = Modifier.size(22.dp))
@@ -286,6 +318,7 @@ fun FenrirReadForYouHost(onOpenManga: (Long) -> Unit) {
                     fontSize = 12.5.sp,
                     modifier = Modifier.padding(start = 18.dp, top = 2.dp, bottom = 6.dp),
                 )
+                }
                 when {
                     loading && rows.isEmpty() -> Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = RecRed)

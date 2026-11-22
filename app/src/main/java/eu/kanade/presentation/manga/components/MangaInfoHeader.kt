@@ -192,6 +192,8 @@ fun MangaActionRow(
     onEditIntervalClicked: (() -> Unit)?,
     onEditCategory: (() -> Unit)?,
     modifier: Modifier = Modifier,
+    // Fenrir: the book page shows its own ♡ Library chip under the title instead.
+    showLibraryButton: Boolean = true,
 ) {
     val defaultActionButtonColor = MaterialTheme.colorScheme.onSurface.copy(alpha = DISABLED_ALPHA)
 
@@ -206,7 +208,7 @@ fun MangaActionRow(
     }
 
     Row(modifier = modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp)) {
-        MangaActionButton(
+        if (showLibraryButton) MangaActionButton(
             title = if (favorite) {
                 stringResource(MR.strings.in_library)
             } else {

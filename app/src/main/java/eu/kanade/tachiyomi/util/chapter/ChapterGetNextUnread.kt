@@ -5,13 +5,16 @@ import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.ui.manga.ChapterList
 import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.manga.model.Manga
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 
 /**
  * Gets next unread chapter with filters and sorting applied
  */
 fun List<Chapter>.getNextUnread(manga: Manga, downloadManager: DownloadManager): Chapter? {
     return applyFilters(manga, downloadManager).let { chapters ->
-        val ordered = if (manga.sortDescending()) chapters.reversed() else chapters
+        val list = chapters.toList()
+        val ordered = if (manga.sortDescending()) list.reversed() else list
         FenrirContinue.pick(manga.id, ordered)
     }
 }
@@ -21,7 +24,8 @@ fun List<Chapter>.getNextUnread(manga: Manga, downloadManager: DownloadManager):
  */
 fun List<ChapterList.Item>.getNextUnread(manga: Manga): Chapter? {
     return applyFilters(manga).let { chapters ->
-        val ordered = (if (manga.sortDescending()) chapters.reversed() else chapters).map { it.chapter }
+        val list = chapters.toList()
+        val ordered = (if (manga.sortDescending()) list.reversed() else list).map { it.chapter }
         FenrirContinue.pick(manga.id, ordered)
     }
 }
@@ -39,7 +43,7 @@ object FenrirContinue {
     /** Remembers the most recently read chapter of [mangaId] (from History). */
     suspend fun refresh(mangaId: Long) {
         val history = runCatching {
-            uy.kohesive.injekt.Injekt.get<tachiyomi.domain.history.repository.HistoryRepository>()
+            Injekt.get<tachiyomi.domain.history.repository.HistoryRepository>()
                 .getHistoryByMangaId(mangaId)
         }.getOrNull() ?: return
         val latest = history.filter { it.readAt != null }.maxByOrNull { it.readAt!!.time } ?: return
