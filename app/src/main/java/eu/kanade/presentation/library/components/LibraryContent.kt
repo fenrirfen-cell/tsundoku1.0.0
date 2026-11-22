@@ -60,6 +60,7 @@ fun LibraryContent(
     // Fenrir: the category bar and Continue reading card scroll away with the books and
     // come back when you scroll back to the top.
     val headerCollapse = remember { FenrirCollapsingHeader() }
+    val context = androidx.compose.ui.platform.LocalContext.current
     Column(
         modifier = Modifier
             .padding(
@@ -118,6 +119,8 @@ fun LibraryContent(
             refreshing = isRefreshing,
             enabled = selection.isEmpty(),
             onRefresh = {
+                // Fenrir: also check quietly for a new app version (only says something if there is one).
+                fenrirCheckAppUpdate(context)
                 val started = onRefresh()
                 if (!started) return@PullRefresh
                 scope.launch {

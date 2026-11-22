@@ -36,6 +36,16 @@ internal fun LibraryCompactGrid(
             contentType = { "library_compact_grid_item" },
         ) { libraryItem ->
             val manga = libraryItem.libraryManga.manga
+            if (showTitle) {
+                // Fenrir: cover like the preview (title under the cover, progress, % read).
+                FenrirLibraryGridItem(
+                    item = libraryItem,
+                    isSelected = manga.id in selection,
+                    onClick = { onClick(libraryItem.libraryManga) },
+                    onLongClick = { onLongClick(libraryItem.libraryManga) },
+                )
+                return@items
+            }
             MangaCompactGridItem(
                 isSelected = manga.id in selection,
                 title = manga.title.takeIf { showTitle },

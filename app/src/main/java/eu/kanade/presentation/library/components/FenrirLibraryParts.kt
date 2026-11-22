@@ -4,6 +4,10 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.alpha
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -220,4 +224,140 @@ internal class FenrirCollapsingHeader {
                 placeable.place(0, offsetPx.toInt().coerceAtLeast(-placeable.height))
             }
         }
+}
+
+/**
+ * Library cover like the preview: rounded cover, red unread badge, reading progress line,
+ * title under the cover and "18% read" / "Done" / "New" under the title.
+ */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+internal fun FenrirLibraryGridItem(
+    item: eu.kanade.tachiyomi.ui.library.LibraryItem,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    titleMaxLines: Int = 2,
+) {
+    val lm = item.libraryManga
+    val manga = lm.manga
+    val total = lm.totalChapters
+    val read = lm.readCount.coerceAtMost(total.coerceAtLeast(0))
+    val progress = if (total > 0) read.toFloat() / total else 0f
+    val status = when {
+        total > 0 && read >= total -> "Done"
+        read <= 0 -> "New"
+        else -> "${(progress * 100).toInt().coerceIn(1, 99)}% read"
+    }
+    val shape = RoundedCornerShape(14.dp)
+    Column(
+        Modifier
+            .padding(5.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(MangaCover.Book.ratio)
+                .then(
+                    if (isSelected) {
+                        Modifier.border(3.dp, FenrirRed, shape)
+                    } else {
+                        Modifier
+                    },
+                )
+                .androidxShadow(shape)
+                .clip(shape),
+        ) {
+            MangaCover.Book(
+                modifier = Modifier.fillMaxWidth().then(if (isSelected) Modifier.alpha(0.76f) else Modifier),
+                data = tachiyomi.domain.manga.model.MangaCover(
+                    mangaId = manga.id,
+                    sourceId = manga.source,
+                    isMangaFavorite = manga.favorite,
+                    url = manga.thumbnailUrl,
+                    lastModified = manga.coverLastModified,
+                ),
+            )
+            val unread = item.badges.unreadCount
+            if (unread > 0) {
+                Text(
+                    "$unread",
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(7.dp)
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(FenrirRed)
+                        .padding(horizontal = 7.dp, vertical = 2.dp),
+                )
+            }
+            if (item.badges.downloadCount > 0) {
+                Text(
+                    "↓${item.badges.downloadCount}",
+                    color = Color.White,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(7.dp)
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(Color(0xCC1C1C22))
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                )
+            }
+            if (total > 0 && read > 0) {
+                Box(
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 8.dp)
+                        .height(3.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.28f)),
+                ) {
+                    Box(Modifier.fillMaxWidth(progress).height(3.dp).clip(CircleShape).background(FenrirRed))
+                }
+            }
+        }
+        Text(
+            manga.title,
+            color = Color.White,
+            fontSize = 12.5.sp,
+            fontWeight = FontWeight.SemiBold,
+            lineHeight = 16.sp,
+            maxLines = titleMaxLines.coerceIn(1, 2),
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = 2.dp, end = 2.dp, top = 7.dp),
+        )
+        Text(
+            status,
+            color = if (status == "New") FenrirRed else FenrirMuted,
+            fontSize = 11.sp,
+            maxLines = 1,
+            modifier = Modifier.padding(start = 2.dp, top = 1.dp, bottom = 4.dp),
+        )
+    }
+}
+
+private fun Modifier.androidxShadow(shape: androidx.compose.ui.graphics.Shape): Modifier =
+    this.then(Modifier.shadow(6.dp, shape))
+
+
+/** Pull to refresh on the Read side: ask the host app for a new version, say so only if found. */
+internal fun fenrirCheckAppUpdate(context: android.content.Context) {
+    val check = eu.kanade.tachiyomi.EmbeddedHost.checkAppUpdate ?: return
+    val app = context.applicationContext
+    check { version ->
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            android.widget.Toast.makeText(
+                app,
+                "Fenrir Read update available ($version). Switch to Watch to install it.",
+                android.widget.Toast.LENGTH_LONG,
+            ).show()
+        }
+    }
 }

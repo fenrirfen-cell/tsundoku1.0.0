@@ -41,6 +41,13 @@ object EmbeddedHost {
     @Volatile
     var fenrirStyle: (() -> Boolean)? = null
 
+    /**
+     * Quietly checks the host app for a new version (pull to refresh on the Read side).
+     * Calls back with the new version's name only when there is one.
+     */
+    @Volatile
+    var checkAppUpdate: ((onFound: (String) -> Unit) -> Unit)? = null
+
     val isFenrirStyle: Boolean get() = openWatch != null && fenrirStyle?.invoke() == true
 
     /** Installed manga extensions (for the host's Settings → Sources). */

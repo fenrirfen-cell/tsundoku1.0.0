@@ -117,10 +117,13 @@ fun UpdateScreen(
             else -> {
                 val scope = rememberCoroutineScope()
                 var isRefreshing by remember { mutableStateOf(false) }
+                val fenrirContext = androidx.compose.ui.platform.LocalContext.current
 
                 PullRefresh(
                     refreshing = isRefreshing,
                     onRefresh = {
+                        // Fenrir: also check quietly for a new app version.
+                        eu.kanade.presentation.library.components.fenrirCheckAppUpdate(fenrirContext)
                         val started = onUpdateLibrary()
                         if (!started) return@PullRefresh
                         scope.launch {

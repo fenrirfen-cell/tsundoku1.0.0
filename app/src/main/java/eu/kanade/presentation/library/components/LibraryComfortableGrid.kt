@@ -36,6 +36,15 @@ internal fun LibraryComfortableGrid(
             contentType = { "library_comfortable_grid_item" },
         ) { libraryItem ->
             val manga = libraryItem.libraryManga.manga
+            // Fenrir: cover like the preview (title under the cover, progress, % read).
+            FenrirLibraryGridItem(
+                item = libraryItem,
+                isSelected = manga.id in selection,
+                onClick = { onClick(libraryItem.libraryManga) },
+                onLongClick = { onLongClick(libraryItem.libraryManga) },
+                titleMaxLines = titleMaxLines,
+            )
+            return@items
             MangaComfortableGridItem(
                 isSelected = manga.id in selection,
                 title = manga.title,
