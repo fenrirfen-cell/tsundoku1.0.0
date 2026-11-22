@@ -1,5 +1,21 @@
 package eu.kanade.presentation.components
 
+import androidx.compose.material.icons.outlined.Check
+
+import androidx.compose.ui.unit.sp
+
+import androidx.compose.ui.text.font.FontWeight
+
+import androidx.compose.ui.graphics.Brush
+
+import androidx.compose.ui.draw.shadow
+
+import androidx.compose.foundation.shape.RoundedCornerShape
+
+import androidx.compose.foundation.layout.height
+
+import androidx.compose.foundation.border
+
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -137,93 +153,147 @@ private fun ModeSegment(
     }
 }
 
-/** Fenrir style: "FENRIR" on the left and a "Read ▾" pill that switches sides. */
+/**
+ * Fenrir style, matching the Watch side: FENRIR READ (bigger, on one baseline) centred on the
+ * glass "📖 Read ▾" pill at the right, with "Compatible with Tsundoku" as a small subtitle, and
+ * the same glass Watch / Ani-drama / Read menu.
+ */
 @Composable
 private fun FenrirReadHeader(modifier: Modifier, openWatch: (Activity) -> Unit) {
     val context = LocalContext.current
+    val accent = eu.kanade.presentation.reader.FenrirAccent
+    val white = androidx.compose.ui.graphics.Color.White
     var open by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-    Row(
+    androidx.compose.foundation.layout.Column(
         modifier = modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background)
             .windowInsetsPadding(WindowInsets.statusBars)
-            .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 8.dp),
     ) {
-        androidx.compose.foundation.layout.Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.Bottom) {
+        Row(
+            modifier = Modifier.fillMaxWidth().height(46.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "FENRIR",
-                    color = androidx.compose.ui.graphics.Color.White,
-                    fontSize = androidx.compose.ui.unit.TextUnit(22f, androidx.compose.ui.unit.TextUnitType.Sp),
-                    letterSpacing = androidx.compose.ui.unit.TextUnit(5f, androidx.compose.ui.unit.TextUnitType.Sp),
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                    color = white,
+                    fontSize = 25.sp,
+                    letterSpacing = 5.75.sp,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
+                    modifier = Modifier.alignByBaseline(),
                 )
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(7.dp))
                 Text(
                     text = "READ",
-                    color = androidx.compose.ui.graphics.Color(0xFFFF4D57),
-                    fontSize = androidx.compose.ui.unit.TextUnit(13f, androidx.compose.ui.unit.TextUnitType.Sp),
-                    letterSpacing = androidx.compose.ui.unit.TextUnit(4f, androidx.compose.ui.unit.TextUnitType.Sp),
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                    color = accent,
+                    fontSize = 15.sp,
+                    letterSpacing = 4.6.sp,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
-                    modifier = Modifier.padding(bottom = 3.dp),
+                    modifier = Modifier.alignByBaseline(),
                 )
             }
-            Text(
-                text = "Compatible with Tsundoku",
-                color = androidx.compose.ui.graphics.Color(0xFF8E8E99),
-                style = MaterialTheme.typography.labelSmall,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-        }
-        Box {
-            Row(
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .background(androidx.compose.ui.graphics.Color(0xFF1C1D26))
-                    .clickable(role = Role.Button) { open = true }
-                    .padding(start = 18.dp, end = 12.dp, top = 11.dp, bottom = 11.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    EmbeddedHost.readLabel,
-                    fontSize = androidx.compose.ui.unit.TextUnit(16f, androidx.compose.ui.unit.TextUnitType.Sp),
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                    color = androidx.compose.ui.graphics.Color.White,
-                    maxLines = 1,
-                )
-                Spacer(Modifier.width(6.dp))
-                Icon(
-                    imageVector = Icons.Outlined.KeyboardArrowDown,
-                    contentDescription = "Switch side",
-                    tint = androidx.compose.ui.graphics.Color.White,
-                    modifier = Modifier.size(22.dp),
-                )
-            }
-            androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-                androidx.compose.material3.DropdownMenuItem(
-                    text = { Text(EmbeddedHost.watchLabel) },
-                    leadingIcon = { Icon(Icons.Outlined.PlayArrow, contentDescription = null) },
-                    onClick = { open = false; context.findActivity()?.let(openWatch) },
-                )
-                EmbeddedHost.openAniDrama?.let { openAniDrama ->
-                    androidx.compose.material3.DropdownMenuItem(
-                        text = { Text("Ani-drama") },
-                        leadingIcon = { Icon(Icons.Outlined.Tv, contentDescription = null) },
-                        onClick = { open = false; context.findActivity()?.let(openAniDrama) },
+            Box {
+                Row(
+                    modifier = Modifier
+                        .height(42.dp)
+                        .fenrirReaderGlassPill()
+                        .clickable(role = Role.Button) { open = true }
+                        .padding(start = 12.dp, end = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.MenuBook,
+                        contentDescription = null,
+                        tint = accent,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(EmbeddedHost.readLabel, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = white, maxLines = 1)
+                    Spacer(Modifier.width(4.dp))
+                    Icon(
+                        imageVector = Icons.Outlined.KeyboardArrowDown,
+                        contentDescription = "Switch side",
+                        tint = white,
+                        modifier = Modifier.size(20.dp),
                     )
                 }
-                androidx.compose.material3.DropdownMenuItem(
-                    text = { Text(EmbeddedHost.readLabel) },
-                    leadingIcon = { Icon(Icons.AutoMirrored.Outlined.MenuBook, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                    onClick = { open = false },
-                )
+                androidx.compose.material3.DropdownMenu(
+                    expanded = open,
+                    onDismissRequest = { open = false },
+                    modifier = Modifier.width(224.dp).padding(horizontal = 6.dp),
+                    shape = RoundedCornerShape(26.dp),
+                    containerColor = androidx.compose.ui.graphics.Color(0xFF1C1C22).copy(alpha = 0.96f),
+                    tonalElevation = 0.dp,
+                    shadowElevation = 18.dp,
+                    border = androidx.compose.foundation.BorderStroke(
+                        0.8.dp,
+                        Brush.verticalGradient(listOf(white.copy(alpha = 0.32f), white.copy(alpha = 0.05f), white.copy(alpha = 0.12f))),
+                    ),
+                ) {
+                    FenrirModeItem(EmbeddedHost.watchLabel, Icons.Outlined.PlayArrow, false) {
+                        open = false
+                        context.findActivity()?.let(openWatch)
+                    }
+                    EmbeddedHost.openAniDrama?.let { openAniDrama ->
+                        FenrirModeItem("Ani-drama", Icons.Outlined.Tv, false) {
+                            open = false
+                            context.findActivity()?.let(openAniDrama)
+                        }
+                    }
+                    FenrirModeItem(EmbeddedHost.readLabel, Icons.AutoMirrored.Outlined.MenuBook, true) { open = false }
+                }
             }
         }
+        Text(
+            text = "Compatible with Tsundoku",
+            color = androidx.compose.ui.graphics.Color(0xFF8E8E99),
+            fontSize = 12.sp,
+            maxLines = 1,
+            modifier = Modifier.padding(start = 2.dp),
+        )
     }
 }
+
+@Composable
+private fun FenrirModeItem(label: String, icon: ImageVector, selected: Boolean, onClick: () -> Unit) {
+    val accent = eu.kanade.presentation.reader.FenrirAccent
+    val white = androidx.compose.ui.graphics.Color.White
+    androidx.compose.material3.DropdownMenuItem(
+        text = { Text(label, color = white, fontSize = 15.sp, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium) },
+        leadingIcon = { Icon(icon, contentDescription = null, tint = if (selected) accent else white) },
+        trailingIcon = if (selected) {
+            { Icon(Icons.Outlined.Check, contentDescription = null, tint = accent) }
+        } else {
+            null
+        },
+        onClick = onClick,
+        modifier = Modifier
+            .padding(vertical = 2.dp)
+            .height(48.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(if (selected) accent.copy(alpha = 0.14f) else androidx.compose.ui.graphics.Color.Transparent),
+    )
+}
+
+/** Same glass as the Watch side's buttons: see-through tint, top sheen, light rim, soft shadow. */
+private fun Modifier.fenrirReaderGlassPill(): Modifier = this
+    .shadow(12.dp, CircleShape, ambientColor = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.4f), spotColor = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.4f))
+    .clip(CircleShape)
+    .background(androidx.compose.ui.graphics.Color(0xFF26262E).copy(alpha = 0.92f))
+    .background(Brush.verticalGradient(0f to androidx.compose.ui.graphics.Color.White.copy(alpha = 0.12f), 0.55f to androidx.compose.ui.graphics.Color.Transparent))
+    .border(
+        1.dp,
+        Brush.linearGradient(
+            0f to androidx.compose.ui.graphics.Color.White.copy(alpha = 0.6f),
+            0.4f to androidx.compose.ui.graphics.Color.White.copy(alpha = 0.08f),
+            1f to androidx.compose.ui.graphics.Color.White.copy(alpha = 0.35f),
+        ),
+        CircleShape,
+    )
 
 private tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
