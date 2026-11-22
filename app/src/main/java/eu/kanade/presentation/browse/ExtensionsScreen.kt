@@ -1,5 +1,8 @@
 package eu.kanade.presentation.browse
 
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -357,6 +360,30 @@ private fun ExtensionItem(
                         .matchParentSize()
                         .padding(padding),
                 )
+                // Fenrir: health dot from the daily source check (green working, yellow slow, red off).
+                if (extension is Extension.Installed) {
+                    val healthStatus by FenrirReadHealth.status.collectAsState()
+                    val healthOff by FenrirReadHealth.turnedOff.collectAsState()
+                    val ids = extension.sources.map { it.id }
+                    val dot = when {
+                        ids.any { id -> healthOff.any { it.id == id } } -> androidx.compose.ui.graphics.Color(0xFFFF4D57)
+                        ids.any { healthStatus[it] == FenrirReadHealth.Status.Slow } -> androidx.compose.ui.graphics.Color(0xFFFFB547)
+                        ids.any { healthStatus[it] == FenrirReadHealth.Status.Working } -> androidx.compose.ui.graphics.Color(0xFF4CD787)
+                        else -> null
+                    }
+                    if (dot != null) {
+                        Box(
+                            Modifier
+                                .align(Alignment.BottomEnd)
+                                .size(11.dp)
+                                .clip(androidx.compose.foundation.shape.CircleShape)
+                                .background(androidx.compose.ui.graphics.Color(0xFF0B0B0F))
+                                .padding(2.dp)
+                                .clip(androidx.compose.foundation.shape.CircleShape)
+                                .background(dot),
+                        )
+                    }
+                }
             }
         },
         action = {

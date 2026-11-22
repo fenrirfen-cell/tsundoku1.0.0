@@ -175,6 +175,17 @@ fun FenrirRepoHealthCard() {
                             )
                         } else {
                             Text(
+                                "Uninstall",
+                                color = Color(0xFFC9C9D2),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .clickable { FenrirReadHealth.uninstall(o.id) }
+                                    .padding(horizontal = 8.dp, vertical = 5.dp),
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
                                 "Turn on",
                                 color = Color.White,
                                 fontSize = 12.sp,

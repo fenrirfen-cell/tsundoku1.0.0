@@ -41,6 +41,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withTimeoutOrNull
@@ -225,6 +226,25 @@ object FenrirReadHealth {
         lastRun.update { list -> list.filterNot { it.id == id } }
         status.update { it - id }
         save()
+    }
+
+    /** Removes the extension or novel plugin a broken source comes from. */
+    fun uninstall(id: Long) {
+        scope.launch {
+            val ext = runCatching { Injekt.get<eu.kanade.tachiyomi.extension.ExtensionManager>().installedExtensionsFlow.value }
+                .getOrDefault(emptyList()).firstOrNull { e -> e.sources.any { it.id == id } }
+            if (ext != null) {
+                withContext(Dispatchers.Main) { Injekt.get<eu.kanade.tachiyomi.extension.ExtensionManager>().uninstallExtension(ext) }
+            } else {
+                val plugins = Injekt.get<eu.kanade.tachiyomi.jsplugin.JsPluginManager>()
+                val plugin = plugins.installedPlugins.value.firstOrNull { p ->
+                    runCatching { plugins.getSource(id) }.getOrNull()?.name == p.plugin.name
+                }
+                if (plugin != null) plugins.uninstallPlugin(plugin.plugin.id)
+            }
+            turnedOff.update { list -> list.filterNot { it.id == id } }
+            save()
+        }
     }
 
     fun undo() {

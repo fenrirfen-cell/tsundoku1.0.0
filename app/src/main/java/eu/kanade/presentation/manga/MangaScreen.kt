@@ -732,6 +732,14 @@ fun MangaScreenLargeImpl(
         onAllChapterSelected(false)
     }
 
+    // Fenrir: same book page as on phones — Chapters / Pages / Bookmarks in the bottom pill.
+    var fenrirTab by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(FenrirBookTab.Chapters) }
+    val fenrirOrdered = remember(chapters, state.manga) {
+        val list = chapters.map { it.chapter }
+        if (state.manga.sortDescending()) list.reversed() else list
+    }
+    val fenrirTarget = remember(state.chapters, state.manga) { state.chapters.getNextUnread(state.manga) }
+
     Scaffold(
         topBar = {
             val selectedChapterCount = remember(chapters) {
@@ -777,7 +785,31 @@ fun MangaScreenLargeImpl(
                 val selectedChapters = remember(chapters) {
                     chapters.filter { it.selected }
                 }
-                SharedMangaBottomActionMenu(
+                if (!isAnySelected) {
+                    val anyRead = remember(state.chapters) { state.chapters.fastAny { it.chapter.read } }
+                    Box(Modifier.fillMaxWidth(0.5f)) {
+                        FenrirBookPillBar(
+                            tab = fenrirTab,
+                            onTab = { fenrirTab = it },
+                            continueLabel = when {
+                                fenrirTarget != null && anyRead -> "Continue · Ch. ${fenrirChapterNumber(fenrirTarget)}"
+                                fenrirTarget != null -> "Start · Ch. ${fenrirChapterNumber(fenrirTarget)}"
+                                fenrirOrdered.isNotEmpty() -> "Read again"
+                                else -> null
+                            },
+                            onContinue = {
+                                if (fenrirTarget != null) onContinueReading() else fenrirOrdered.firstOrNull()?.let(onChapterClicked)
+                            },
+                            onIncognito = {
+                                runCatching { Injekt.get<eu.kanade.domain.base.BasePreferences>().incognitoMode.set(true) }
+                                if (fenrirTarget != null) onContinueReading() else fenrirOrdered.firstOrNull()?.let(onChapterClicked)
+                            },
+                            onFromStart = { fenrirOrdered.firstOrNull()?.let(onChapterClicked) },
+                            onDownloadNext5 = onDownloadActionClicked?.let { dl -> { dl(DownloadAction.NEXT_5_CHAPTERS) } },
+                        )
+                    }
+                }
+                if (isAnySelected) SharedMangaBottomActionMenu(
                     selected = selectedChapters,
                     onMultiBookmarkClicked = onMultiBookmarkClicked,
                     onMultiMarkAsReadClicked = onMultiMarkAsReadClicked,
@@ -794,30 +826,6 @@ fun MangaScreenLargeImpl(
             }
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
-        floatingActionButton = {
-            val isFABVisible = remember(chapters) {
-                chapters.fastAny { !it.chapter.read } && !isAnySelected
-            }
-            SmallExtendedFloatingActionButton(
-                text = {
-                    val isReading = remember(state.chapters) {
-                        state.chapters.fastAny { it.chapter.read }
-                    }
-                    Text(
-                        text = stringResource(
-                            if (isReading) MR.strings.action_resume else MR.strings.action_start,
-                        ),
-                    )
-                },
-                icon = { Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = null) },
-                onClick = onContinueReading,
-                expanded = chapterListState.shouldExpandFAB(),
-                modifier = Modifier.animateFloatingActionButton(
-                    visible = isFABVisible,
-                    alignment = Alignment.BottomEnd,
-                ),
-            )
-        },
     ) { contentPadding ->
         PullRefresh(
             refreshing = state.isRefreshingData,
@@ -851,6 +859,17 @@ fun MangaScreenLargeImpl(
                             onCoverClick = onCoverClicked,
                             doSearch = onSearch,
                         )
+                        FenrirLibraryChip(
+                            favorite = state.manga.favorite,
+                            onClick = onAddToLibraryClicked,
+                            onLongClick = onEditCategoryClicked,
+                        )
+                        FenrirBookInfoCard(
+                            manga = state.manga,
+                            source = state.source,
+                            chapters = remember(state.chapters) { state.chapters.map { it.chapter } },
+                            isNovel = state.isNovel,
+                        )
                         MangaActionRow(
                             favorite = state.manga.favorite,
                             trackingCount = state.trackingCount,
@@ -863,6 +882,7 @@ fun MangaScreenLargeImpl(
                             onTrackingClicked = onTrackingClicked,
                             onEditIntervalClicked = onEditIntervalClicked,
                             onEditCategory = onEditCategoryClicked,
+                            showLibraryButton = false,
                         )
                         val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
                         val sortMangaTags by libraryPreferences.sortMangaTags.changes().collectAsState(
@@ -884,6 +904,12 @@ fun MangaScreenLargeImpl(
                             onCopyTagToClipboard = onCopyTagToClipboard,
                             onEditNotes = onEditNotesClicked,
                         )
+                        val fenrirNavigator = cafe.adriel.voyager.navigator.LocalNavigator.current
+                        eu.kanade.presentation.library.components.FenrirYouMayLike(
+                            manga = state.manga,
+                            onOpenManga = { id -> fenrirNavigator?.push(eu.kanade.tachiyomi.ui.manga.MangaScreen(id)) },
+                        )
+                        androidx.compose.foundation.layout.Spacer(Modifier.height(96.dp))
                     }
                 },
                 endContent = {
@@ -899,6 +925,15 @@ fun MangaScreenLargeImpl(
                                 bottom = contentPadding.calculateBottomPadding(),
                             ),
                         ) {
+                            when (fenrirTab) {
+                                FenrirBookTab.Chapters -> {
+                            item(key = "fenrir-skipped", contentType = "fenrir-skipped") {
+                                FenrirSkippedChip(
+                                    mangaId = state.manga.id,
+                                    ordered = fenrirOrdered,
+                                    onMarkRead = { onMultiMarkAsReadClicked(it, true) },
+                                )
+                            }
                             item(
                                 key = MangaScreenItem.CHAPTER_HEADER,
                                 contentType = MangaScreenItem.CHAPTER_HEADER,
@@ -926,6 +961,26 @@ fun MangaScreenLargeImpl(
                                 onChapterSwipe = onChapterSwipe,
                                 isNovel = state.isNovel,
                             )
+                                }
+                                FenrirBookTab.Pages -> item(key = "fenrir-pages", contentType = "fenrir-pages") {
+                                    FenrirPagesTab(
+                                        manga = state.manga,
+                                        source = state.source,
+                                        ordered = fenrirOrdered,
+                                        startChapterId = fenrirTarget?.id,
+                                        isNovel = state.isNovel,
+                                        onOpenChapter = onChapterClicked,
+                                    )
+                                }
+                                FenrirBookTab.Bookmarks -> item(key = "fenrir-bookmarks", contentType = "fenrir-bookmarks") {
+                                    FenrirBookmarksTab(
+                                        manga = state.manga,
+                                        ordered = fenrirOrdered,
+                                        onOpenChapter = onChapterClicked,
+                                    )
+                                }
+                            }
+                            item(key = "fenrir-bottom-space") { androidx.compose.foundation.layout.Spacer(Modifier.height(96.dp)) }
                         }
                     }
                 },
