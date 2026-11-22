@@ -225,3 +225,43 @@ fun FenrirGroupSwitchRow(
         )
     }
 }
+
+
+/** Small "Novel | Manga" toggle under a switch. */
+@Composable
+fun FenrirKindToggle(
+    labels: List<String>,
+    selected: Int,
+    onSelect: (Int) -> Unit,
+    badges: List<Int?> = emptyList(),
+) {
+    Row(
+        modifier = Modifier.padding(start = 18.dp, top = 2.dp, bottom = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        labels.forEachIndexed { i, label ->
+            val on = i == selected
+            Row(
+                modifier = Modifier
+                    .height(32.dp)
+                    .clip(CircleShape)
+                    .background(if (on) Color.White.copy(alpha = 0.12f) else Color.Transparent)
+                    .border(1.dp, if (on) Color.White.copy(alpha = 0.22f) else Color(0xFF2C2C36), CircleShape)
+                    .clickable { onSelect(i) }
+                    .padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(label, color = if (on) Color.White else Color(0xFF9A9AA6), fontSize = 13.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium)
+                badges.getOrNull(i)?.takeIf { it > 0 }?.let { n ->
+                    Spacer(Modifier.width(6.dp))
+                    Box(
+                        Modifier.size(18.dp).clip(CircleShape).background(FenrirReadUi.Accent),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("$n", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}

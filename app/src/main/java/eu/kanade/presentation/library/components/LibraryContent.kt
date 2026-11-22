@@ -16,6 +16,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalLayoutDirection
 import eu.kanade.core.preference.PreferenceMutableState
 import eu.kanade.tachiyomi.ui.library.LibraryItem
@@ -56,17 +57,24 @@ fun LibraryContent(
     getLoadMoreKey: (Category) -> Long = { 0 },
     isCategoryLoading: (Category) -> Boolean = { false },
 ) {
+    // Fenrir: the category bar and Continue reading card scroll away with the books and
+    // come back when you scroll back to the top.
+    val headerCollapse = remember { FenrirCollapsingHeader() }
     Column(
-        modifier = Modifier.padding(
-            top = contentPadding.calculateTopPadding(),
-            start = contentPadding.calculateStartPadding(LocalLayoutDirection.current),
-            end = contentPadding.calculateEndPadding(LocalLayoutDirection.current),
-        ),
+        modifier = Modifier
+            .padding(
+                top = contentPadding.calculateTopPadding(),
+                start = contentPadding.calculateStartPadding(LocalLayoutDirection.current),
+                end = contentPadding.calculateEndPadding(LocalLayoutDirection.current),
+            )
+            .nestedScroll(headerCollapse.connection),
     ) {
         val pagerState = rememberPagerState(currentPage) { categories.size }
 
         val scope = rememberCoroutineScope()
         var isRefreshing by remember(pagerState.currentPage) { mutableStateOf(false) }
+
+        Column(Modifier.then(headerCollapse.modifier)) {
 
         if (showPageTabs && categories.isNotEmpty() && (categories.size > 1 || !categories.first().isSystemCategory)) {
             LaunchedEffect(categories) {
@@ -102,6 +110,8 @@ fun LibraryContent(
                     onClickCover = { onClickManga(lastRead.manga.id) },
                 )
             }
+        }
+
         }
 
         PullRefresh(

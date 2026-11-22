@@ -104,6 +104,15 @@ data object BrowseTab : Tab {
             titleRes = MR.strings.browse,
             tabs = tabs,
             state = state,
+            sectionOf = { index ->
+                // Fenrir: Sources / Extensions / Migrate, each with Novel and Manga.
+                if (hideMangaBrowseTabs) {
+                    listOf("Sources", "Extensions", "Migrate")[index.coerceIn(0, 2)] to "Novel"
+                } else {
+                    listOf("Sources", "Sources", "Extensions", "Extensions", "Migrate", "Migrate")[index.coerceIn(0, 5)] to
+                        (if (index % 2 == 0) "Novel" else "Manga")
+                }
+            },
             searchQuery = when (state.currentPage) {
                 novelExtensionsTabIndex -> novelExtensionsState.searchQuery
                 mangaExtensionsTabIndex -> extensionsState.searchQuery

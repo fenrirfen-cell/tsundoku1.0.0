@@ -28,6 +28,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.layout.layout
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -171,4 +174,50 @@ internal fun FenrirContinueReadingCard(
             Icon(Icons.AutoMirrored.Outlined.MenuBook, contentDescription = "Continue reading", tint = Color.White, modifier = Modifier.size(22.dp))
         }
     }
+}
+
+
+/**
+ * A header that slides up out of the way as the list below scrolls up, and slides back
+ * once the list is scrolled back to its top (like a collapsing toolbar).
+ */
+internal class FenrirCollapsingHeader {
+    private var heightPx by androidx.compose.runtime.mutableIntStateOf(0)
+    private var offsetPx by androidx.compose.runtime.mutableFloatStateOf(0f)
+
+    val connection = object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+        override fun onPreScroll(
+            available: androidx.compose.ui.geometry.Offset,
+            source: androidx.compose.ui.input.nestedscroll.NestedScrollSource,
+        ): androidx.compose.ui.geometry.Offset {
+            // Scrolling the books up: hide the header first.
+            if (available.y >= 0f || heightPx == 0) return androidx.compose.ui.geometry.Offset.Zero
+            val old = offsetPx
+            offsetPx = (offsetPx + available.y).coerceIn(-heightPx.toFloat(), 0f)
+            return androidx.compose.ui.geometry.Offset(0f, offsetPx - old)
+        }
+
+        override fun onPostScroll(
+            consumed: androidx.compose.ui.geometry.Offset,
+            available: androidx.compose.ui.geometry.Offset,
+            source: androidx.compose.ui.input.nestedscroll.NestedScrollSource,
+        ): androidx.compose.ui.geometry.Offset {
+            // Back at the top and still pulling down: bring the header back.
+            if (available.y <= 0f || heightPx == 0) return androidx.compose.ui.geometry.Offset.Zero
+            val old = offsetPx
+            offsetPx = (offsetPx + available.y).coerceIn(-heightPx.toFloat(), 0f)
+            return androidx.compose.ui.geometry.Offset(0f, offsetPx - old)
+        }
+    }
+
+    val modifier: Modifier = Modifier
+        .clipToBounds()
+        .layout { measurable, constraints ->
+            val placeable = measurable.measure(constraints.copy(minHeight = 0, maxHeight = androidx.compose.ui.unit.Constraints.Infinity))
+            heightPx = placeable.height
+            val visible = (placeable.height + offsetPx.toInt()).coerceIn(0, placeable.height)
+            layout(placeable.width, visible) {
+                placeable.place(0, offsetPx.toInt().coerceAtLeast(-placeable.height))
+            }
+        }
 }
