@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.ui.browse.source
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.TravelExplore
@@ -8,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
@@ -33,9 +35,15 @@ fun Screen.novelSourcesTab(): TabContent {
     val screenModel = viewModel<NovelSourcesViewModel>()
     val state by screenModel.state.collectAsState()
 
+    var fenrirShowAdd by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     return TabContent(
         titleRes = TDMR.strings.label_novel_sources,
         actions = listOf(
+            AppBar.Action(
+                title = "Add sources",
+                icon = Icons.Outlined.Add,
+                onClick = { fenrirShowAdd = true },
+            ),
             AppBar.Action(
                 title = stringResource(MR.strings.action_global_search),
                 icon = Icons.Outlined.TravelExplore,
@@ -53,6 +61,9 @@ fun Screen.novelSourcesTab(): TabContent {
             ),
         ),
         content = { contentPadding, snackbarHostState ->
+            if (fenrirShowAdd) {
+                eu.kanade.presentation.browse.FenrirReadAddSheet(novelSide = true, onDismiss = { fenrirShowAdd = false })
+            }
             val mappedDialog = when (val d = state.dialog) {
                 is NovelSourcesViewModel.Dialog.SourceOptions -> SourcesViewModel.Dialog.SourceOptions(d.source)
                 is NovelSourcesViewModel.Dialog.PinGroups -> SourcesViewModel.Dialog.PinGroups(d.source)

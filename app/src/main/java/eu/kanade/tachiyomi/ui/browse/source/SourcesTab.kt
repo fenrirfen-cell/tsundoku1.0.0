@@ -1,12 +1,14 @@
 package eu.kanade.tachiyomi.ui.browse.source
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.TravelExplore
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
@@ -31,9 +33,15 @@ fun Screen.sourcesTab(): TabContent {
     val viewModel = viewModel<SourcesViewModel>()
     val state by viewModel.state.collectAsState()
 
+    var fenrirShowAdd by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     return TabContent(
         titleRes = TDMR.strings.label_manga_sources,
         actions = listOf(
+            AppBar.Action(
+                title = "Add sources",
+                icon = Icons.Outlined.Add,
+                onClick = { fenrirShowAdd = true },
+            ),
             AppBar.Action(
                 title = stringResource(MR.strings.action_global_search),
                 icon = Icons.Outlined.TravelExplore,
@@ -46,6 +54,9 @@ fun Screen.sourcesTab(): TabContent {
             ),
         ),
         content = { contentPadding, snackbarHostState ->
+            if (fenrirShowAdd) {
+                eu.kanade.presentation.browse.FenrirReadAddSheet(novelSide = false, onDismiss = { fenrirShowAdd = false })
+            }
             SourcesScreen(
                 state = state,
                 contentPadding = contentPadding,

@@ -29,6 +29,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -75,11 +76,71 @@ fun SourcesScreen(
             modifier = Modifier.padding(contentPadding),
         )
         else -> {
+            // Fenrir: "Continue browsing" card + compact pinned grid instead of the plain lists.
+            val open: (Source, Listing) -> Unit = { source, listing ->
+                FenrirPinPrefs.recordUse(source.id)
+                onClickItem(source, listing)
+            }
+            val pinOrder by FenrirPinPrefs.orderFlow().collectAsState()
+            val lastUsed = remember(state.items) {
+                state.items.firstNotNullOfOrNull { (it as? SourceUiModel.Item)?.source?.takeIf { s -> s.isUsedLast } }
+            }
+            val pinnedRaw = remember(state.items) {
+                state.items.mapNotNull { m ->
+                    (m as? SourceUiModel.Item)?.takeIf { it.sectionKey.isEmpty() && !it.source.isUsedLast && Pin.Actual in it.source.pin }?.source
+                }
+            }
+            val pinned = remember(pinnedRaw, pinOrder) { FenrirPinPrefs.sorted(pinnedRaw, pinOrder) }
+            val rest = remember(state.items) {
+                state.items.filter { m ->
+                    when (m) {
+                        is SourceUiModel.Header -> m.isGroup || (m.language != "pinned" && m.language != "last_used")
+                        is SourceUiModel.Item -> m.sectionKey.isNotEmpty() || (!m.source.isUsedLast && Pin.Actual !in m.source.pin)
+                    }
+                }
+            }
+            val unpinned = remember(state.items) {
+                state.items.mapNotNull { (it as? SourceUiModel.Item)?.source }
+                    .filter { !it.isUsedLast && Pin.Pinned !in it.pin }
+                    .distinctBy { it.id }
+            }
+            var editOrder by remember { mutableStateOf(false) }
+            var addPin by remember { mutableStateOf(false) }
+            if (editOrder) FenrirPinOrderDialog(pinned = pinned, onDismiss = { editOrder = false })
+            if (addPin) FenrirAddPinDialog(unpinned = unpinned, onPin = { onClickPin(it) }, onDismiss = { addPin = false })
+
             ScrollbarLazyColumn(
                 contentPadding = contentPadding + topSmallPaddingValues,
             ) {
+                if (lastUsed != null) {
+                    item(key = "fenrir-continue", contentType = "continue") {
+                        FenrirContinueBrowsingCard(lastUsed, onOpen = { open(lastUsed, Listing.Popular) })
+                    }
+                }
+                item(key = "fenrir-pinned", contentType = "pinned") {
+                    if (pinned.isNotEmpty()) {
+                        FenrirPinnedGrid(
+                            sources = pinned,
+                            onPopular = { open(it, Listing.Popular) },
+                            onLatest = { open(it, Listing.Latest) },
+                            onLongClick = onLongClickItem,
+                            onEditOrder = { editOrder = true },
+                            onAddPin = { addPin = true },
+                        )
+                    } else {
+                        Text(
+                            "+ Pin your favourite sources",
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier
+                                .padding(horizontal = 18.dp, vertical = 6.dp)
+                                .clickable { addPin = true }
+                                .padding(vertical = 4.dp),
+                        )
+                    }
+                }
                 items(
-                    items = state.items,
+                    items = rest,
                     contentType = {
                         when (it) {
                             is SourceUiModel.Header -> "header"
@@ -106,7 +167,7 @@ fun SourcesScreen(
                             source = model.source,
                             hasDefaultPreset = model.hasDefaultPreset,
                             groupSection = model.sectionKey.ifEmpty { null },
-                            onClickItem = onClickItem,
+                            onClickItem = open,
                             onLongClickItem = onLongClickItem,
                             onClickPin = onClickPin,
                             onLongClickPin = onLongClickPin,
