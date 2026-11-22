@@ -99,7 +99,7 @@ class JsPluginManager(
     init {
         cacheDir.mkdirs()
         loadRepositoriesFromPrefs()
-        addFenrirRepoOnce()
+        removeBuiltInFenrirRepoOnce()
         scope.launch {
             loadInstalledPlugins()
             loadCachedPluginList()
@@ -612,20 +612,18 @@ class JsPluginManager(
     }
 
     /**
-     * Fenrir's own novel plugins (J-Novel Club…) are added once, so they show up without
-     * pasting a link. Removing the repo afterwards keeps it removed.
+     * r63–r64 added Fenrir's novel repo by itself; the user didn't want it built in.
+     * Take it out once (it can still be added by pasting its link).
      */
-    private fun addFenrirRepoOnce() {
+    private fun removeBuiltInFenrirRepoOnce() {
         runCatching {
             val prefs = uy.kohesive.injekt.Injekt.get<android.app.Application>()
                 .getSharedPreferences("fenrir_browse", android.content.Context.MODE_PRIVATE)
-            if (prefs.getBoolean("fenrir_novel_repo_added", false)) return
-            if (_repositories.value.none { it.url == FENRIR_NOVEL_REPO }) {
-                _repositories.update { it + JsPluginRepository("Fenrir Read", FENRIR_NOVEL_REPO) }
-                saveRepositories()
-            }
-            prefs.edit().putBoolean("fenrir_novel_repo_added", true).apply()
-            scope.launch { refreshAvailablePlugins(forceRefresh = true) }
+            if (!prefs.getBoolean("fenrir_novel_repo_added", false)) return
+            if (prefs.getBoolean("fenrir_novel_repo_unbundled", false)) return
+            _repositories.update { list -> list.filterNot { it.url == FENRIR_NOVEL_REPO && it.name == "Fenrir Read" } }
+            saveRepositories()
+            prefs.edit().putBoolean("fenrir_novel_repo_unbundled", true).apply()
         }
     }
 
