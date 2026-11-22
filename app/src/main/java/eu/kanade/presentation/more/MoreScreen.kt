@@ -38,6 +38,7 @@ import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.GetApp
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.QueryStats
+import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material3.HorizontalDivider
@@ -66,6 +67,7 @@ fun MoreScreen(
     onIncognitoModeChange: (Boolean) -> Unit,
     onClickDownloadQueue: () -> Unit,
     onClickCategories: () -> Unit,
+    onClickSources: () -> Unit,
     onClickStats: () -> Unit,
     onClickDataAndStorage: () -> Unit,
     onClickSettings: () -> Unit,
@@ -127,6 +129,19 @@ fun MoreScreen(
                         )
                         QuickButton("Backup", onClickDataAndStorage, Modifier.weight(1f))
                     }
+                }
+            }
+
+            // Fenrir: Sources one tap away (opens Browse → Extensions).
+            item { FenrirSectionLabel("Sources") }
+            item {
+                FenrirCardGroup {
+                    FenrirGroupRow(
+                        title = "Sources",
+                        subtitle = "Extensions, plugins and repos · works with Tsundoku extensions",
+                        icon = Icons.Outlined.Extension,
+                        onClick = onClickSources,
+                    )
                 }
             }
 

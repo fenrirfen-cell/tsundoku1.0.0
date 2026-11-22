@@ -137,6 +137,8 @@ private fun JsPluginsScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {
+                // Fenrir: "Works with Tsundoku…" and the repo check (broken repos turned off and hidden).
+                item(key = "fenrir-repo-health") { eu.kanade.presentation.browse.FenrirRepoHealthCard() }
                 // Update all button if updates available
                 val updateCount = plugins.count { it.hasUpdate }
                 if (updateCount > 0) {

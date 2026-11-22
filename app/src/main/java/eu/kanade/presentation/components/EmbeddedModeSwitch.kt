@@ -155,8 +155,8 @@ private fun ModeSegment(
 
 /**
  * Fenrir style, matching the Watch side: FENRIR READ (bigger, on one baseline) centred on the
- * glass "📖 Read ▾" pill at the right, with "Compatible with Tsundoku" as a small subtitle, and
- * the same glass Watch / Ani-drama / Read menu.
+ * glass "📖 Read ▾" pill at the right, and the same glass Watch / Ani-drama / Read menu. When a new
+ * version is out, a round download button sits before the pill.
  */
 @Composable
 private fun FenrirReadHeader(modifier: Modifier, openWatch: (Activity) -> Unit) {
@@ -196,6 +196,7 @@ private fun FenrirReadHeader(modifier: Modifier, openWatch: (Activity) -> Unit) 
                     modifier = Modifier.alignByBaseline(),
                 )
             }
+            if (eu.kanade.presentation.library.components.FenrirUpdateButton()) Spacer(Modifier.width(10.dp))
             Box {
                 Row(
                     modifier = Modifier
@@ -248,13 +249,6 @@ private fun FenrirReadHeader(modifier: Modifier, openWatch: (Activity) -> Unit) 
                 }
             }
         }
-        Text(
-            text = "Compatible with Tsundoku",
-            color = androidx.compose.ui.graphics.Color(0xFF8E8E99),
-            fontSize = 12.sp,
-            maxLines = 1,
-            modifier = Modifier.padding(start = 2.dp),
-        )
     }
 }
 

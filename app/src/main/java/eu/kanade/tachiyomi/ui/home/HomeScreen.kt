@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
@@ -154,15 +155,7 @@ object HomeScreen : Screen() {
                         }
                         }
                     },
-                    startBar = {
-                        if (isTabletUi()) {
-                            NavigationRail {
-                                tabs.fastForEach {
-                                    NavigationRailItem(it)
-                                }
-                            }
-                        }
-                    },
+                    // Fenrir: the glass island on every screen size (no side rail on tablets and folds).
                     // Fenrir: no bottomBar slot (it drew a black strip); the glass island floats over the content.
                     contentWindowInsets = WindowInsets(0),
                 ) { contentPadding ->
@@ -187,16 +180,9 @@ object HomeScreen : Screen() {
                                 it.Content()
                             }
                         }
-                        // Fenrir: small update pill floating just above the island (never covers buttons).
-                        eu.kanade.presentation.library.components.FenrirUpdatePill(
-                            Modifier
-                                .align(Alignment.BottomCenter)
-                                .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.Companion.navigationBars)
-                                .padding(bottom = 92.dp),
-                        )
                         // Fenrir: "may not work · Install anyway?" for novel plugins whose site is down.
                         eu.kanade.presentation.browse.FenrirInstallCheckDialog()
-                        if (!isTabletUi()) {
+                        run {
                             AnimatedVisibility(
                                 visible = bottomNavVisible && barsShown,
                                 modifier = Modifier.align(Alignment.BottomCenter),
@@ -258,9 +244,11 @@ object HomeScreen : Screen() {
                 .fillMaxWidth()
                 .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.Companion.navigationBars)
                 .padding(start = 22.dp, end = 22.dp, top = 6.dp, bottom = 12.dp),
+            contentAlignment = Alignment.Center,
         ) {
             androidx.compose.foundation.layout.Row(
                 Modifier
+                    .widthIn(max = 440.dp)
                     .fillMaxWidth()
                     .height(68.dp)
                     .shadow(18.dp, shape)

@@ -24,6 +24,8 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -429,4 +431,87 @@ fun FenrirUpdatePill(modifier: Modifier = Modifier) {
         }
         }
     }
+}
+
+
+/**
+ * Round button beside the Read pill when a new Fenrir Read version is out: a red dot, a progress
+ * ring while downloading, and a small menu (Update / Not now). Returns true when it's shown.
+ */
+@Composable
+fun FenrirUpdateButton(): Boolean {
+    val info by eu.kanade.tachiyomi.EmbeddedHost.appUpdate.collectAsState()
+    val u = info ?: return false
+    var menu by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    Box {
+        Box(
+            Modifier
+                .size(42.dp)
+                .shadow(12.dp, CircleShape)
+                .clip(CircleShape)
+                .background(Color(0xF22A2A32))
+                .border(1.dp, Color.White.copy(alpha = 0.26f), CircleShape)
+                .clickable {
+                    if (u.ready) eu.kanade.tachiyomi.EmbeddedHost.startAppUpdate?.invoke() else menu = true
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            if (u.downloading) {
+                androidx.compose.material3.CircularProgressIndicator(
+                    progress = { (u.progress ?: 0f).coerceIn(0f, 1f) },
+                    color = FenrirRed,
+                    trackColor = Color.White.copy(alpha = 0.15f),
+                    strokeWidth = 2.5.dp,
+                    modifier = Modifier.size(34.dp),
+                )
+            }
+            androidx.compose.material3.Icon(
+                imageVector = if (u.ready) androidx.compose.material.icons.Icons.Outlined.Check else androidx.compose.material.icons.Icons.Outlined.Download,
+                contentDescription = "Update available",
+                tint = FenrirRed,
+                modifier = Modifier.size(20.dp),
+            )
+            if (!u.downloading) {
+                Box(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 5.dp, end = 5.dp)
+                        .size(9.dp)
+                        .clip(CircleShape)
+                        .background(FenrirRed),
+                )
+            }
+        }
+        androidx.compose.material3.DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            Text(
+                when {
+                    u.error != null -> "Update failed"
+                    u.downloading && u.progress != null -> "Downloading ${(u.progress * 100).toInt().coerceIn(0, 100)}%"
+                    u.downloading -> "Starting download…"
+                    else -> "New version"
+                },
+                color = Color.White,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+            )
+            Text(
+                u.error ?: u.version,
+                color = FenrirMuted,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 6.dp),
+            )
+            if (!u.downloading) {
+                androidx.compose.material3.DropdownMenuItem(
+                    text = { Text(if (u.error != null) "Try again" else "Update now", color = FenrirRed, fontWeight = FontWeight.SemiBold) },
+                    onClick = { menu = false; eu.kanade.tachiyomi.EmbeddedHost.startAppUpdate?.invoke() },
+                )
+                androidx.compose.material3.DropdownMenuItem(
+                    text = { Text("Not now") },
+                    onClick = { menu = false; eu.kanade.tachiyomi.EmbeddedHost.dismissAppUpdate?.invoke() },
+                )
+            }
+        }
+    }
+    return true
 }

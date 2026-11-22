@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.ui.more
 
+import kotlinx.coroutines.launch
 import androidx.compose.animation.graphics.res.animatedVectorResource
 import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.animation.graphics.vector.AnimatedImageVector
@@ -67,6 +68,11 @@ data object MoreTab : Tab {
             onIncognitoModeChange = { viewModel.incognitoMode = it },
             onClickDownloadQueue = { navigator.push(DownloadQueueScreen()) },
             onClickCategories = { navigator.push(CategoryScreen()) },
+            onClickSources = {
+                kotlinx.coroutines.MainScope().launch {
+                    eu.kanade.tachiyomi.ui.home.HomeScreen.openTab(eu.kanade.tachiyomi.ui.home.HomeScreen.Tab.Browse(toExtensions = true))
+                }
+            },
             onClickStats = { navigator.push(StatsScreen()) },
             onClickDataAndStorage = { navigator.push(SettingsScreen(SettingsScreen.Destination.DataAndStorage)) },
             onClickSettings = { navigator.push(SettingsScreen()) },

@@ -156,6 +156,8 @@ private fun ExtensionContent(
     FastScrollLazyColumn(
         contentPadding = contentPadding + topSmallPaddingValues,
     ) {
+        // Fenrir: "Works with Tsundoku…" and the repo check (broken repos turned off and hidden).
+        item(key = "fenrir-repo-health") { FenrirRepoHealthCard() }
         if (!installGranted && state.installer?.requiresSystemPermission == true &&
             state.items.any { (_, items) -> items.any { it.extension is Extension.Available } }
         ) {
