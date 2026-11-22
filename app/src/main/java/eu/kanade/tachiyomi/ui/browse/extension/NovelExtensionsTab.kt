@@ -1,5 +1,7 @@
 package eu.kanade.tachiyomi.ui.browse.extension
 
+import androidx.compose.material.icons.outlined.Add
+
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -33,11 +35,17 @@ fun novelExtensionsTab(
     val state by extensionsViewModel.state.collectAsState()
     var privateExtensionToUninstall by remember { mutableStateOf<Extension?>(null) }
 
+    var fenrirShowAdd by remember { mutableStateOf(false) }
     return TabContent(
         titleRes = TDMR.strings.label_novel_extensions,
         badgeNumber = state.updates.takeIf { it > 0 },
         searchEnabled = true,
         actions = listOf(
+            AppBar.Action(
+                title = "Add extensions",
+                icon = androidx.compose.material.icons.Icons.Outlined.Add,
+                onClick = { fenrirShowAdd = true },
+            ),
             AppBar.OverflowAction(
                 title = stringResource(MR.strings.action_filter),
                 onClick = { navigator.push(ExtensionFilterScreen()) },
@@ -48,6 +56,9 @@ fun novelExtensionsTab(
             ),
         ),
         content = { contentPadding, _ ->
+            if (fenrirShowAdd) {
+                eu.kanade.presentation.browse.FenrirReadAddSheet(novelSide = true, onDismiss = { fenrirShowAdd = false })
+            }
             ExtensionScreen(
                 state = state,
                 contentPadding = contentPadding,

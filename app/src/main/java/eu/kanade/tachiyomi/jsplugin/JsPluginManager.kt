@@ -37,6 +37,10 @@ import java.nio.charset.StandardCharsets
  * Manages JavaScript plugins from LNReader-compatible repositories.
  * Handles fetching plugin lists, downloading plugins, caching, and creating JsSource instances.
  */
+/** Fenrir Read's own LNReader-style plugins (J-Novel Club…). */
+const val FENRIR_NOVEL_REPO =
+    "https://raw.githubusercontent.com/fenrirfen-cell/NuvioMobile1.0.0/read-mode/plugins/plugins.min.json"
+
 class JsPluginManager(
     private val context: Context,
 ) {
@@ -95,6 +99,7 @@ class JsPluginManager(
     init {
         cacheDir.mkdirs()
         loadRepositoriesFromPrefs()
+        addFenrirRepoOnce()
         scope.launch {
             loadInstalledPlugins()
             loadCachedPluginList()
@@ -142,7 +147,9 @@ class JsPluginManager(
      */
     suspend fun refreshAvailablePlugins(forceRefresh: Boolean = false) {
         // Skip if another refresh is already in progress — result flows through _availablePlugins StateFlow
-        if (!refreshMutex.tryLock()) return
+        // A forced refresh (new repo added, pull to refresh) waits for a running one instead of
+        // being skipped, otherwise a newly added repo's plugins never show up.
+        if (forceRefresh) refreshMutex.lock() else if (!refreshMutex.tryLock()) return
         try {
             _isLoading.value = true
             try {
@@ -399,7 +406,7 @@ class JsPluginManager(
             }
         }
         saveRepositories()
-        scope.launch { refreshAvailablePlugins() }
+        scope.launch { refreshAvailablePlugins(forceRefresh = true) }
     }
 
     /**
@@ -410,6 +417,7 @@ class JsPluginManager(
             current.filter { it.url != url }
         }
         saveRepositories()
+        scope.launch { refreshAvailablePlugins(forceRefresh = true) }
     }
 
     /**
@@ -422,6 +430,7 @@ class JsPluginManager(
             }
         }
         saveRepositories()
+        scope.launch { refreshAvailablePlugins(forceRefresh = true) }
     }
 
     /**
@@ -599,6 +608,24 @@ class JsPluginManager(
                     runCatching { source.releaseRuntime() }
                 }
             }
+        }
+    }
+
+    /**
+     * Fenrir's own novel plugins (J-Novel Club…) are added once, so they show up without
+     * pasting a link. Removing the repo afterwards keeps it removed.
+     */
+    private fun addFenrirRepoOnce() {
+        runCatching {
+            val prefs = uy.kohesive.injekt.Injekt.get<android.app.Application>()
+                .getSharedPreferences("fenrir_browse", android.content.Context.MODE_PRIVATE)
+            if (prefs.getBoolean("fenrir_novel_repo_added", false)) return
+            if (_repositories.value.none { it.url == FENRIR_NOVEL_REPO }) {
+                _repositories.update { it + JsPluginRepository("Fenrir Read", FENRIR_NOVEL_REPO) }
+                saveRepositories()
+            }
+            prefs.edit().putBoolean("fenrir_novel_repo_added", true).apply()
+            scope.launch { refreshAvailablePlugins(forceRefresh = true) }
         }
     }
 
