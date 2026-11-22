@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -310,13 +312,28 @@ fun FenrirScrollPill(
 ) {
     androidx.compose.animation.AnimatedVisibility(
         visible = visible,
-        modifier = modifier,
-        enter = androidx.compose.animation.slideInVertically { -it } + androidx.compose.animation.fadeIn(),
-        exit = androidx.compose.animation.slideOutVertically { -it } + androidx.compose.animation.fadeOut(),
+        modifier = modifier.fillMaxWidth(),
+        enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.slideInVertically { -it / 2 },
+        exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.slideOutVertically { -it / 2 },
     ) {
+        // Fade behind the status bar so the clock stays readable; the pill sits below the camera.
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(110.dp)
+                .background(
+                    Brush.verticalGradient(
+                        0f to Color(0xFF0B0B0F),
+                        0.35f to Color(0xF20B0B0F),
+                        1f to Color.Transparent,
+                    ),
+                ),
+        )
         Row(
             modifier = Modifier
-                .padding(top = 10.dp)
+                .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.Companion.statusBars)
+                .padding(top = 16.dp)
                 .height(44.dp)
                 .androidxShadowPill()
                 .fenrirReadGlass(RoundedCornerShape(22.dp))
@@ -344,6 +361,7 @@ fun FenrirScrollPill(
                     Icon(icon, contentDescription = null, tint = Color(0xFFE4E4EA), modifier = Modifier.size(18.dp))
                 }
             }
+        }
         }
     }
 }

@@ -185,6 +185,8 @@ object HomeScreen : Screen() {
                                 it.Content()
                             }
                         }
+                        // Fenrir: "may not work · Install anyway?" for novel plugins whose site is down.
+                        eu.kanade.presentation.browse.FenrirInstallCheckDialog()
                         // Fenrir: small update pill (only when a new version was found).
                         eu.kanade.presentation.library.components.FenrirUpdatePill(Modifier.align(Alignment.TopCenter))
                         if (!isTabletUi()) {

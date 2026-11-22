@@ -117,6 +117,12 @@ fun SourcesScreen(
                         FenrirContinueBrowsingCard(lastUsed, onOpen = { open(lastUsed, Listing.Popular) })
                     }
                 }
+                item(key = "fenrir-check", contentType = "check") {
+                    val allSources = remember(state.items) {
+                        state.items.mapNotNull { (it as? SourceUiModel.Item)?.source }.distinctBy { it.id }
+                    }
+                    FenrirCheckSourcesCard(allSources)
+                }
                 item(key = "fenrir-pinned", contentType = "pinned") {
                     if (pinned.isNotEmpty()) {
                         FenrirPinnedGrid(

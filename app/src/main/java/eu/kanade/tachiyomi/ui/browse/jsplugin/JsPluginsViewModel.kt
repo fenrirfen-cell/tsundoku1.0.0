@@ -59,6 +59,7 @@ class JsPluginsViewModel(
     fun installPlugin(plugin: JsPlugin) {
         val repo = state.value.repositories.find { it.enabled }?.url ?: return
         viewModelScope.launch {
+            if (!eu.kanade.presentation.browse.FenrirInstallCheck.confirmIfDown(plugin.name, plugin.site)) return@launch
             jsPluginManager.installPlugin(plugin, repo)
         }
     }

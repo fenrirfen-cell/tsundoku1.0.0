@@ -210,9 +210,10 @@ private fun PinnedCard(
     ) {
         Box {
             Box(Modifier.size(40.dp).clip(RoundedCornerShape(11.dp))) { SourceIcon(source = source) }
-            // Red dot: pinned.
+            // Dot: health after "Check sources" (green / yellow / red), otherwise the pinned dot.
+            val health = fenrirReadHealthColor(source.id)
             Box(
-                Modifier.align(Alignment.TopEnd).padding(1.dp).size(8.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary),
+                Modifier.align(Alignment.TopEnd).padding(1.dp).size(9.dp).clip(CircleShape).background(health ?: MaterialTheme.colorScheme.primary),
             )
         }
         Spacer(Modifier.size(6.dp))
@@ -456,7 +457,10 @@ fun FenrirReadAddSheet(novelSide: Boolean, onDismiss: () -> Unit) {
                             onInstall = { i ->
                                 val p = list[i]
                                 installing += p.id
-                                installScope.launch { jsPlugins.installPlugin(p, url!!); installing -= p.id }
+                                installScope.launch {
+                                    if (FenrirInstallCheck.confirmIfDown(p.name, p.site)) jsPlugins.installPlugin(p, url!!)
+                                    installing -= p.id
+                                }
                             },
                             onInstallAll = {
                                 list.forEach { p ->

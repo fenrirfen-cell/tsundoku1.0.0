@@ -277,6 +277,8 @@ class NovelExtensionsViewModel(
                 return
             }
 
+            // Fenrir: warn first if the plugin's website doesn't answer.
+            if (!eu.kanade.presentation.browse.FenrirInstallCheck.confirmIfDown(plugin.name, plugin.site)) return
             logcat(LogPriority.INFO) { "Installing JS plugin: ${extension.name} from ${extension.repoUrl}" }
             jsPluginManager.installPlugin(plugin, extension.repoUrl)
         } finally {
