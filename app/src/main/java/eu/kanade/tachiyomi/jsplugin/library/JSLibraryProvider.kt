@@ -1199,7 +1199,9 @@ class JSLibraryProvider(
 
         runtime.function("__storageGet") { args ->
             val key = args.getOrNull(0)?.toString() ?: ""
-            val value = storage[key]
+            // Read the saved setting first so values changed in the plugin's settings screen
+            // apply without restarting the app.
+            val value = runCatching { prefs.getString(key, null) }.getOrNull() ?: storage[key]
             value
         }
 
@@ -1208,7 +1210,7 @@ class JSLibraryProvider(
             val value = args.getOrNull(1)?.toString() ?: ""
             storage[key] = value
             prefs.edit().putString(key, value).apply()
-            logcat(LogPriority.DEBUG) { "[$pluginId] storage.set('$key', '$value')" }
+            logcat(LogPriority.DEBUG) { "[$pluginId] storage.set('$key') (${value.length} chars)" }
         }
 
         runtime.function("__storageDelete") { args ->

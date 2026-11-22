@@ -755,17 +755,31 @@ class JsSource(
                             this.key = key
                             this.title = label
                             this.setDefaultValue(defaultValue)
+                            // Passwords and tokens: typed hidden and never shown as the summary.
+                            val secret = key.contains("password", ignoreCase = true) ||
+                                key.contains("token", ignoreCase = true)
+                            if (secret) {
+                                setOnBindEditTextListener { editText ->
+                                    editText.inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                                        android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+                                }
+                            }
                             setOnPreferenceChangeListener { p, newValue ->
                                 val strVal = newValue.toString()
                                 prefs.edit().putString(key, strVal).apply()
-                                (p as? androidx.preference.EditTextPreference)?.summary = strVal
+                                (p as? androidx.preference.EditTextPreference)?.summary =
+                                    if (secret) (if (strVal.isEmpty()) "" else "••••••••") else strVal
                                 true
                             }
                         }
                         screen.addPreference(pref)
                         // Set text/summary AFTER addPreference so onSetInitialValue doesn't override
                         pref.text = storedText
-                        pref.summary = storedText
+                        pref.summary = if (key.contains("password", ignoreCase = true) || key.contains("token", ignoreCase = true)) {
+                            if (storedText.isEmpty()) "" else "••••••••"
+                        } else {
+                            storedText
+                        }
                     }
                 }
             }
