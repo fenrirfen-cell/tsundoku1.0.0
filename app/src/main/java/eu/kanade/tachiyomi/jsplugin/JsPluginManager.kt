@@ -39,7 +39,7 @@ import java.nio.charset.StandardCharsets
  */
 /** Fenrir Read's own LNReader-style plugins (J-Novel Club…). */
 const val FENRIR_NOVEL_REPO =
-    "https://raw.githubusercontent.com/fenrirfen-cell/NuvioMobile1.0.0/read-mode/plugins/plugins.min.json"
+    "https://raw.githubusercontent.com/fenrirfen-cell/Fenrir-Read/read-mode/plugins/plugins.min.json"
 
 class JsPluginManager(
     private val context: Context,
