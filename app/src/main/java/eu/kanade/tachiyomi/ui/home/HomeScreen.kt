@@ -159,23 +159,7 @@ object HomeScreen : Screen() {
                             }
                         }
                     },
-                    bottomBar = {
-                        if (!isTabletUi()) {
-                            val bottomNavVisible by produceState(initialValue = true) {
-                                showBottomNavEvent.receiveAsFlow().collectLatest { value = it }
-                            }
-                            AnimatedVisibility(
-                                visible = bottomNavVisible && barsShown,
-                                enter = expandVertically(androidx.compose.animation.core.tween(260)) +
-                                    androidx.compose.animation.slideInVertically(androidx.compose.animation.core.tween(260)) { it },
-                                exit = shrinkVertically(androidx.compose.animation.core.tween(260)) +
-                                    androidx.compose.animation.slideOutVertically(androidx.compose.animation.core.tween(260)) { it },
-                            ) {
-                                // Fenrir: the same liquid-glass capsule as the Watch side.
-                                FenrirGlassNavBar(tabs)
-                            }
-                        }
-                    },
+                    // Fenrir: no bottomBar slot (it drew a black strip); the glass island floats over the content.
                     contentWindowInsets = WindowInsets(0),
                 ) { contentPadding ->
                     Box(
@@ -184,6 +168,9 @@ object HomeScreen : Screen() {
                             .consumeWindowInsets(contentPadding)
                             .nestedScroll(barsScroll),
                     ) {
+                        val bottomNavVisible by produceState(initialValue = true) {
+                            showBottomNavEvent.receiveAsFlow().collectLatest { value = it }
+                        }
                         AnimatedContent(
                             targetState = tabNavigator.current,
                             transitionSpec = {
@@ -194,6 +181,18 @@ object HomeScreen : Screen() {
                         ) {
                             tabNavigator.saveableState(key = "currentTab", it) {
                                 it.Content()
+                            }
+                        }
+                        if (!isTabletUi()) {
+                            AnimatedVisibility(
+                                visible = bottomNavVisible && barsShown,
+                                modifier = Modifier.align(Alignment.BottomCenter),
+                                enter = androidx.compose.animation.slideInVertically(androidx.compose.animation.core.tween(260)) { it } +
+                                    androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(200)),
+                                exit = androidx.compose.animation.slideOutVertically(androidx.compose.animation.core.tween(260)) { it } +
+                                    androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(200)),
+                            ) {
+                                FenrirGlassNavBar(tabs)
                             }
                         }
                     }
