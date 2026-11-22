@@ -8,6 +8,17 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
@@ -129,11 +140,8 @@ object HomeScreen : Screen() {
                                 enter = expandVertically(),
                                 exit = shrinkVertically(),
                             ) {
-                                NavigationBar {
-                                    tabs.fastForEach {
-                                        NavigationBarItem(it)
-                                    }
-                                }
+                                // Fenrir: the same liquid-glass capsule as the Watch side.
+                                FenrirGlassNavBar(tabs)
                             }
                         }
                     },
@@ -195,6 +203,75 @@ object HomeScreen : Screen() {
                     }
                 }
             }
+        }
+    }
+
+    @Composable
+    private fun FenrirGlassNavBar(tabs: List<eu.kanade.presentation.util.Tab>) {
+        val shape = androidx.compose.foundation.shape.RoundedCornerShape(34.dp)
+        androidx.compose.foundation.layout.Box(
+            Modifier
+                .fillMaxWidth()
+                .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.navigationBars)
+                .padding(start = 22.dp, end = 22.dp, top = 6.dp, bottom = 12.dp),
+        ) {
+            androidx.compose.foundation.layout.Row(
+                Modifier
+                    .fillMaxWidth()
+                    .height(68.dp)
+                    .shadow(18.dp, shape)
+                    .clip(shape)
+                    .background(androidx.compose.ui.graphics.Color(0xF01C1C22))
+                    .background(
+                        androidx.compose.ui.graphics.Brush.verticalGradient(
+                            0f to androidx.compose.ui.graphics.Color.White.copy(alpha = 0.13f),
+                            0.6f to androidx.compose.ui.graphics.Color.Transparent,
+                        ),
+                    )
+                    .border(1.dp, androidx.compose.ui.graphics.Color.White.copy(alpha = 0.22f), shape)
+                    .padding(horizontal = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                tabs.fastForEach { GlassNavItem(it) }
+            }
+        }
+    }
+
+    @Composable
+    private fun RowScope.GlassNavItem(tab: eu.kanade.presentation.util.Tab) {
+        val tabNavigator = LocalTabNavigator.current
+        val navigator = LocalNavigator.currentOrThrow
+        val scope = rememberCoroutineScope()
+        val selected = tabNavigator.current::class == tab::class
+        val accent = androidx.compose.ui.graphics.Color(0xFFFF4D57)
+        val tint = if (selected) accent else androidx.compose.ui.graphics.Color(0xFFC9C9D2)
+        androidx.compose.foundation.layout.Column(
+            Modifier
+                .weight(1f)
+                .height(56.dp)
+                .clip(androidx.compose.foundation.shape.RoundedCornerShape(28.dp))
+                .background(if (selected) accent.copy(alpha = 0.16f) else androidx.compose.ui.graphics.Color.Transparent)
+                .clickable {
+                    if (!selected) {
+                        tabNavigator.current = tab
+                    } else {
+                        scope.launch { tab.onReselect(navigator) }
+                    }
+                },
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+        ) {
+            androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides tint) {
+                NavigationIconItem(tab)
+            }
+            Text(
+                text = tab.options.title,
+                color = tint,
+                fontSize = 10.5.sp,
+                fontWeight = if (selected) androidx.compose.ui.text.font.FontWeight.SemiBold else androidx.compose.ui.text.font.FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 

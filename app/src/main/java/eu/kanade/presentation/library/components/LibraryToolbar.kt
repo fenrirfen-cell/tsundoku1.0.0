@@ -174,8 +174,8 @@ private fun LibraryRegularToolbar(
                 )
             }
 
-            // Fenrir Read: calendar of expected new chapters.
-            if (eu.kanade.tachiyomi.EmbeddedHost.openWatch != null && navigator != null) {
+            // Fenrir Read: the calendar now lives in Updates (New chapters / Calendar switch).
+            if (false && navigator != null) {
                 actions.add(
                     0,
                     AppBar.Action(

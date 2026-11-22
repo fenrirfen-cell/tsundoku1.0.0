@@ -74,16 +74,34 @@ fun LibraryContent(
                     pagerState.scrollToPage(categories.size - 1)
                 }
             }
-            LibraryTabs(
+            // Fenrir: one glass bar (name, new count, dots, arrows); swipe to change category.
+            FenrirCategoryBar(
                 categories = categories,
                 pagerState = pagerState,
-                getItemCountForCategory = getItemCountForCategory,
-                onTabItemClick = {
-                    scope.launch {
-                        pagerState.animateScrollToPage(it)
-                    }
-                },
+                newCountFor = { category -> getItemsForCategory(category).count { it.unreadCount > 0 } },
+                onGoTo = { scope.launch { pagerState.animateScrollToPage(it) } },
             )
+        }
+
+        // Fenrir: "Continue reading" card for the most recently read book.
+        if (searchQuery.isNullOrEmpty() && selection.isEmpty()) {
+            val lastRead = run {
+                categories.asSequence()
+                    .flatMap { getItemsForCategory(it).asSequence() }
+                    .map { it.libraryManga }
+                    .filter { it.lastRead > 0 && it.unreadCount > 0 }
+                    .maxByOrNull { it.lastRead }
+            }
+            if (lastRead != null) {
+                FenrirContinueReadingCard(
+                    manga = lastRead,
+                    onOpen = {
+                        val resume = onContinueReadingClicked
+                        if (resume != null) resume(lastRead) else onClickManga(lastRead.manga.id)
+                    },
+                    onClickCover = { onClickManga(lastRead.manga.id) },
+                )
+            }
         }
 
         PullRefresh(
