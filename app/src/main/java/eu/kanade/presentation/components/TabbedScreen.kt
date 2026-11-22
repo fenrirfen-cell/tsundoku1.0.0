@@ -61,20 +61,14 @@ fun TabbedScreen(
                 end = contentPadding.calculateEndPadding(LocalLayoutDirection.current),
             ),
         ) {
-            PrimaryScrollableTabRow(
-                selectedTabIndex = state.currentPage,
-                edgePadding = 0.dp,
+            // Fenrir: tabs as one glass switch (scrolls sideways when there are many).
+            FenrirSegmentSwitch(
+                labels = tabs.map { stringResource(it.titleRes) },
+                selected = state.currentPage,
+                onSelect = { index -> scope.launch { state.animateScrollToPage(index) } },
+                badges = tabs.map { it.badgeNumber },
                 modifier = Modifier.zIndex(1f),
-            ) {
-                tabs.forEachIndexed { index, tab ->
-                    Tab(
-                        selected = state.currentPage == index,
-                        onClick = { scope.launch { state.animateScrollToPage(index) } },
-                        text = { TabText(text = stringResource(tab.titleRes), badgeCount = tab.badgeNumber) },
-                        unselectedContentColor = MaterialTheme.colorScheme.onSurface,
-                    )
-                }
-            }
+            )
 
             HorizontalPager(
                 modifier = Modifier.fillMaxSize(),

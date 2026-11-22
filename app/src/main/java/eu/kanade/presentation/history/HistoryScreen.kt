@@ -1,5 +1,27 @@
 package eu.kanade.presentation.history
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.sp
+import eu.kanade.presentation.components.FenrirReadUi
+import eu.kanade.presentation.components.FenrirSectionLabel
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -153,34 +175,71 @@ private fun HistoryScreenContent(
     onClickFavorite: (HistoryWithRelations) -> Unit,
     onLoadNextPage: () -> Unit,
 ) {
-    FastScrollLazyColumn {
-        items(
-            items = history,
-            key = { "history-${it.hashCode()}" },
-            contentType = {
-                when (it) {
-                    is HistoryUiModel.Header -> "header"
-                    is HistoryUiModel.Item -> "item"
-                }
-            },
-        ) { item ->
-            when (item) {
-                is HistoryUiModel.Header -> {
-                    ListGroupHeader(
-                        modifier = Modifier.animateItem(),
-                        text = relativeDateText(item.date),
-                    )
-                }
+    // Fenrir: days as sections, each day a grid of covers (3 per row) with an open-book button.
+    val sections = remember(history) {
+        val out = mutableListOf<Pair<LocalDate?, MutableList<HistoryWithRelations>>>()
+        history.forEach { model ->
+            when (model) {
+                is HistoryUiModel.Header -> out += model.date to mutableListOf()
                 is HistoryUiModel.Item -> {
-                    val value = item.item
-                    HistoryItem(
-                        modifier = Modifier.animateItem(),
-                        history = value,
-                        onClickCover = { onClickCover(value) },
-                        onClickResume = { onClickResume(value) },
-                        onClickDelete = { onClickDelete(value) },
-                        onClickFavorite = { onClickFavorite(value) },
-                    )
+                    if (out.isEmpty()) out += (null as LocalDate?) to mutableListOf()
+                    out.last().second += model.item
+                }
+            }
+        }
+        out.filter { it.second.isNotEmpty() }
+    }
+    val weekAgo = remember { System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000 }
+    val thisWeek = remember(history) {
+        history.mapNotNull { (it as? HistoryUiModel.Item)?.item }.filter { (it.readAt?.time ?: 0) >= weekAgo }
+    }
+    FastScrollLazyColumn {
+        item(key = "fenrir-history-stats") {
+            val minutes = thisWeek.sumOf { it.readDuration } / 60000
+            val time = if (minutes >= 60) "${minutes / 60}h ${minutes % 60}m" else "${minutes}m"
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp)
+                    .height(62.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Brush.horizontalGradient(0f to FenrirReadUi.Accent.copy(alpha = 0.16f), 0.6f to FenrirReadUi.Card))
+                    .border(1.dp, FenrirReadUi.CardBorder, RoundedCornerShape(18.dp)),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                listOf(
+                    "${thisWeek.size}" to "chapters this week",
+                    "${thisWeek.map { it.mangaId }.distinct().size}" to "titles",
+                    time to "reading",
+                ).forEach { (big, small) ->
+                    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(big, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                        Text(small, color = FenrirReadUi.Muted, fontSize = 11.sp, maxLines = 1)
+                    }
+                }
+            }
+        }
+        sections.forEachIndexed { sectionIndex, (date, items) ->
+            item(key = "fenrir-h-$sectionIndex-$date") {
+                FenrirSectionLabel(if (date != null) relativeDateText(date) else "Earlier")
+            }
+            items.chunked(3).forEachIndexed { rowIndex, row ->
+                item(key = "fenrir-h-$sectionIndex-$rowIndex") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        row.forEach { entry ->
+                            HistoryCoverCard(
+                                entry = entry,
+                                onResume = { onClickResume(entry) },
+                                onOpen = { onClickCover(entry) },
+                                onDelete = { onClickDelete(entry) },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                    }
                 }
             }
         }
@@ -189,6 +248,68 @@ private fun HistoryScreenContent(
                 onLoadNextPage()
             }
         }
+    }
+}
+
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun HistoryCoverCard(
+    entry: HistoryWithRelations,
+    onResume: () -> Unit,
+    onOpen: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val time = remember(entry.readAt) {
+        entry.readAt?.let { java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(it) }.orEmpty()
+    }
+    val chapter = if (entry.chapterNumber >= 0) {
+        val n = entry.chapterNumber
+        "Ch. " + if (n % 1.0 == 0.0) n.toLong().toString() else n.toString()
+    } else {
+        ""
+    }
+    Column(modifier.combinedClickable(onClick = onResume, onLongClick = onDelete)) {
+        Box {
+            eu.kanade.presentation.manga.components.MangaCover.Book(
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)),
+                data = entry.coverData,
+                onClick = onOpen,
+            )
+            Box(
+                Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(8.dp)
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(FenrirReadUi.Accent)
+                    .clickable(onClick = onResume),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    androidx.compose.material.icons.Icons.AutoMirrored.Outlined.MenuBook,
+                    contentDescription = "Resume",
+                    tint = Color.White,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+        }
+        Text(
+            entry.title,
+            color = Color.White,
+            fontSize = 12.5.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 6.dp),
+        )
+        Text(
+            listOf(chapter, time).filter { it.isNotBlank() }.joinToString(" · "),
+            color = Color(0xFF8E8E99),
+            fontSize = 11.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

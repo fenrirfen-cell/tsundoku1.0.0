@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.NewReleases
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.FlipToBack
 import androidx.compose.material.icons.outlined.GridView
@@ -152,6 +153,18 @@ fun UpdateScreen(
                         contentPadding = contentPadding,
                         state = lazyListState,
                     ) {
+                        // Fenrir: New chapters / Calendar switch (the calendar lives here now).
+                        item(key = "fenrir_switch") {
+                            eu.kanade.presentation.components.FenrirSegmentSwitch(
+                                labels = listOf("New chapters", "Calendar"),
+                                selected = 0,
+                                onSelect = { if (it == 1) onCalendarClicked() },
+                                icons = listOf(
+                                    Icons.Outlined.NewReleases,
+                                    Icons.Outlined.CalendarMonth,
+                                ),
+                            )
+                        }
                         if (showFilterChips) {
                             item(key = "filter_chips") {
                                 Row(

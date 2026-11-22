@@ -175,16 +175,6 @@ private fun LibraryRegularToolbar(
             }
 
             // Fenrir Read: the calendar now lives in Updates (New chapters / Calendar switch).
-            if (false && navigator != null) {
-                actions.add(
-                    0,
-                    AppBar.Action(
-                        title = "Upcoming chapters",
-                        icon = Icons.Outlined.CalendarMonth,
-                        onClick = { navigator.push(mihon.feature.upcoming.UpcomingScreen()) },
-                    ),
-                )
-            }
 
             AppBarActions(actions.toList())
         },

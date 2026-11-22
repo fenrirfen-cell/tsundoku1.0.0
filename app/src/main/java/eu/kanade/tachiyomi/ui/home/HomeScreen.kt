@@ -14,6 +14,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -212,7 +213,7 @@ object HomeScreen : Screen() {
         androidx.compose.foundation.layout.Box(
             Modifier
                 .fillMaxWidth()
-                .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.navigationBars)
+                .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.Companion.navigationBars)
                 .padding(start = 22.dp, end = 22.dp, top = 6.dp, bottom = 12.dp),
         ) {
             androidx.compose.foundation.layout.Row(
