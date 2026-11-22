@@ -434,10 +434,11 @@ object AniyomiExtensions {
         isMovie: Boolean,
         season: Int?,
         episode: Int?,
+        include: (sourceName: String) -> Boolean = { true },
         onFound: suspend (sourceName: String, videos: List<FoundVideo>) -> Unit,
     ) = coroutineScope {
         val permits = Semaphore(4)
-        allSources().map { source ->
+        allSources().filter { include(it.name) }.map { source ->
             async(Dispatchers.IO) {
                 permits.withPermit {
                     val videos = withTimeoutOrNull(30_000) {
@@ -561,8 +562,8 @@ object AniyomiExtensions {
 
     // ------------------------------------------------------------------ browsing
 
-    suspend fun search(query: String): List<Hit> = coroutineScope {
-        allSources().map { source ->
+    suspend fun search(query: String, include: (sourceName: String) -> Boolean = { true }): List<Hit> = coroutineScope {
+        allSources().filter { include(it.name) }.map { source ->
             async(Dispatchers.IO) {
                 withTimeoutOrNull(20_000) {
                     runCatching { source.getSearchAnime(1, query, source.getFilterList()).animes }.getOrNull()
@@ -573,6 +574,47 @@ object AniyomiExtensions {
                 }
             }
         }.awaitAll().flatten()
+    }
+
+    // ------------------------------------------------------------------ home pages (Fenrir)
+
+    data class HomeSource(val id: String, val name: String, val lang: String, val supportsLatest: Boolean)
+
+    /** Every installed Aniyomi source, with an id ("ay:<source id>") Fenrir's Home can show. */
+    fun homeSources(): List<HomeSource> = allSources().map {
+        HomeSource("ay:${it.id}", it.name, it.lang, runCatching { it.supportsLatest }.getOrDefault(false))
+    }
+
+    private fun sourceFor(homeId: String): AnimeCatalogueSource? {
+        val id = homeId.removePrefix("ay:").toLongOrNull() ?: return null
+        return allSources().firstOrNull { it.id == id }
+    }
+
+    /** One page of a source's Popular (or Latest) list, as hits Fenrir can open. */
+    suspend fun homePage(homeId: String, latest: Boolean, page: Int): List<Hit> = withContext(Dispatchers.IO) {
+        val source = sourceFor(homeId) ?: return@withContext emptyList()
+        val animes = withTimeoutOrNull(25_000) {
+            runCatching {
+                if (latest) source.getLatestUpdates(page).animes else source.getPopularAnime(page).animes
+            }.getOrNull()
+        }.orEmpty()
+        animes.map { anime ->
+            val key = "${source.id}|${anime.url}"
+            synchronized(hits) { hits[key] = source to anime }
+            Hit(key, source.name, anime.title, anime.thumbnail_url)
+        }
+    }
+
+    /** Search inside one source only. */
+    suspend fun searchIn(homeId: String, query: String): List<Hit> = withContext(Dispatchers.IO) {
+        val source = sourceFor(homeId) ?: return@withContext emptyList()
+        withTimeoutOrNull(25_000) {
+            runCatching { source.getSearchAnime(1, query, source.getFilterList()).animes }.getOrNull()
+        }.orEmpty().map { anime ->
+            val key = "${source.id}|${anime.url}"
+            synchronized(hits) { hits[key] = source to anime }
+            Hit(key, source.name, anime.title, anime.thumbnail_url)
+        }
     }
 
     suspend fun episodes(hitKey: String): List<Episode> = withContext(Dispatchers.IO) {
