@@ -142,6 +142,7 @@ object HomeScreen : Screen() {
                 Scaffold(
                     // Watch / Read switch; only drawn when embedded in Nuvio.
                     topBar = {
+                        androidx.compose.foundation.layout.Column {
                         AnimatedVisibility(
                             visible = barsShown,
                             enter = expandVertically(androidx.compose.animation.core.tween(260)) +
@@ -150,6 +151,10 @@ object HomeScreen : Screen() {
                                 androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(200)),
                         ) {
                             EmbeddedModeSwitchBar()
+                        }
+                        // Fenrir: small update pill in its own row under the header, so it never
+                        // covers the title row's buttons (only takes space when there's an update).
+                        eu.kanade.presentation.library.components.FenrirUpdatePill(Modifier.fillMaxWidth())
                         }
                     },
                     startBar = {
@@ -187,8 +192,6 @@ object HomeScreen : Screen() {
                         }
                         // Fenrir: "may not work · Install anyway?" for novel plugins whose site is down.
                         eu.kanade.presentation.browse.FenrirInstallCheckDialog()
-                        // Fenrir: small update pill (only when a new version was found).
-                        eu.kanade.presentation.library.components.FenrirUpdatePill(Modifier.align(Alignment.TopCenter))
                         if (!isTabletUi()) {
                             AnimatedVisibility(
                                 visible = bottomNavVisible && barsShown,

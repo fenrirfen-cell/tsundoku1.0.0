@@ -367,9 +367,10 @@ fun FenrirUpdatePill(modifier: Modifier = Modifier) {
         val u = info ?: return@AnimatedVisibility
         val shape = RoundedCornerShape(24.dp)
         val progress = if (u.downloading) (u.progress ?: 0f).coerceIn(0f, 1f) else 0f
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Row(
             Modifier
-                .padding(top = 8.dp, start = 16.dp, end = 16.dp)
+                .padding(top = 4.dp, bottom = 4.dp, start = 16.dp, end = 16.dp)
                 .height(46.dp)
                 .shadow(12.dp, shape)
                 .clip(shape)
@@ -425,6 +426,7 @@ fun FenrirUpdatePill(modifier: Modifier = Modifier) {
             } else {
                 Spacer(Modifier.width(10.dp))
             }
+        }
         }
     }
 }
