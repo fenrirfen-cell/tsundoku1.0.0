@@ -36,6 +36,7 @@ import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.jsplugin.JsPluginManager
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.NetworkHelper
+import eu.kanade.tachiyomi.network.interceptor.rateLimitExempt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -76,7 +77,11 @@ object FenrirRepoHealth {
     private val stores by lazy { Injekt.get<GetExtensionStores>() }
     private val extensions by lazy { Injekt.get<ExtensionManager>() }
     private val plugins by lazy { Injekt.get<JsPluginManager>() }
-    private val client by lazy { Injekt.get<NetworkHelper>().client }
+    private val client by lazy { Injekt.get<NetworkHelper>().client.rateLimitExempt() }
+    private val storeService by lazy { Injekt.get<mihon.data.extension.service.ExtensionStoreService>() }
+
+    /** Bump to make everyone re-check once after an update (r81's check was too strict). */
+    private const val CHECK_VERSION = 2
     private var loaded = false
 
     private fun load() {
@@ -96,7 +101,8 @@ object FenrirRepoHealth {
     fun checkIfDue() {
         load()
         val last = prefs.getLong("last", 0L)
-        if (System.currentTimeMillis() - last > 12 * 60 * 60 * 1000L) checkAll()
+        val version = prefs.getInt("version", 0)
+        if (version < CHECK_VERSION || System.currentTimeMillis() - last > 12 * 60 * 60 * 1000L) checkAll()
     }
 
     fun checkAll() {
@@ -107,15 +113,18 @@ object FenrirRepoHealth {
             try {
                 val disabled = sourcePrefs.disabledExtensionRepos.get()
                 val offUrls = turnedOff.value.map { it.url }.toSet()
+                val storeList = runCatching { stores.get() }.getOrDefault(emptyList())
+                    .filter { it.indexUrl !in disabled || it.indexUrl in offUrls }
+                val storeByUrl = storeList.associateBy { it.indexUrl }
                 val repos = buildList {
-                    runCatching { stores.get() }.getOrDefault(emptyList())
-                        .filter { it.indexUrl !in disabled || it.indexUrl in offUrls }
-                        .forEach { add(Repo(it.indexUrl, it.name, Kind.Extension)) }
+                    storeList.forEach { add(Repo(it.indexUrl, it.name, Kind.Extension)) }
                     plugins.repositories.value
                         .filter { it.enabled || it.url in offUrls }
                         .forEach { add(Repo(it.url, it.name, Kind.Plugin)) }
                 }.distinctBy { it.url }
-                val results = repos.map { repo -> async { repo to loads(repo.url) } }.awaitAll()
+                val results = repos.map { repo -> async { repo to loads(repo, storeByUrl[repo.url]) } }.awaitAll()
+                // Nothing loaded at all: most likely no internet, so leave every repo as it is.
+                if (results.isNotEmpty() && results.none { it.second }) return@launch
                 val broken = results.filter { !it.second }.map { it.first }
                 val working = results.filter { it.second }.map { it.first }
                 // Repos that load again come back on by themselves.
@@ -126,7 +135,7 @@ object FenrirRepoHealth {
                 lastRun.value = newlyBroken
                 workingCount.value = working.size
                 save()
-                prefs.edit().putLong("last", System.currentTimeMillis()).apply()
+                prefs.edit().putLong("last", System.currentTimeMillis()).putInt("version", CHECK_VERSION).apply()
                 if (broken.isNotEmpty() || working.any { it.url in offUrls }) {
                     runCatching { extensions.findAvailableExtensions() }
                 }
@@ -136,16 +145,23 @@ object FenrirRepoHealth {
         }
     }
 
-    /** True when the repo's list downloads and isn't empty. Tries twice before giving up. */
-    private suspend fun loads(url: String): Boolean {
+    /**
+     * True when the repo's list loads, using the same loader as Extensions (handles JSON, gzip
+     * and binary repos). Tries twice before giving up.
+     */
+    private suspend fun loads(repo: Repo, store: mihon.domain.extension.model.ExtensionStore?): Boolean {
         repeat(2) {
-            val ok = withTimeoutOrNull(15_000) {
-                runCatching {
-                    client.newCall(GET(url)).execute().use { response ->
-                        val body = response.body?.string()?.trim().orEmpty()
-                        response.isSuccessful && body.length > 2 && (body.startsWith("[") || body.startsWith("{"))
-                    }
-                }.getOrDefault(false)
+            val ok = withTimeoutOrNull(20_000) {
+                when (repo.kind) {
+                    Kind.Extension -> store != null &&
+                        storeService.getExtensions(store).getOrNull()?.isNotEmpty() == true
+                    Kind.Plugin -> runCatching {
+                        client.newCall(GET(repo.url)).execute().use { response ->
+                            val body = response.body?.string()?.trim().orEmpty()
+                            response.isSuccessful && body.startsWith("[") && body.length > 2
+                        }
+                    }.getOrDefault(false)
+                }
             } ?: false
             if (ok) return true
         }
