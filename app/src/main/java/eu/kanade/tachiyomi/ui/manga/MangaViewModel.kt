@@ -227,6 +227,8 @@ class MangaViewModel(
                 translationService.progressState,
             ) { mangaAndChapters, _, _, _ -> mangaAndChapters }
                 .collectLatest { (manga, chapters) ->
+                    // Fenrir: Continue follows reading history (refreshed whenever chapters change).
+                    eu.kanade.tachiyomi.util.chapter.FenrirContinue.refresh(manga.id)
                     val translatedChapterIds = translatedChapterIdsFor(manga, chapters)
                     updateSuccessState {
                         it.copy(

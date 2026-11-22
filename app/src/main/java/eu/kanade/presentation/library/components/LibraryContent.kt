@@ -77,6 +77,12 @@ fun LibraryContent(
 
         Column(Modifier.then(headerCollapse.modifier)) {
 
+        // Fenrir: "● 1 source down · 4 books ›" when a source your books use stopped working.
+        if (searchQuery.isNullOrEmpty() && selection.isEmpty()) {
+            val allBooks = categories.flatMap { getItemsForCategory(it) }.map { it.libraryManga }
+            FenrirSourceDownChip(books = allBooks, onOpenBook = onClickManga)
+        }
+
         if (showPageTabs && categories.isNotEmpty() && (categories.size > 1 || !categories.first().isSystemCategory)) {
             LaunchedEffect(categories) {
                 if (categories.size <= pagerState.currentPage) {

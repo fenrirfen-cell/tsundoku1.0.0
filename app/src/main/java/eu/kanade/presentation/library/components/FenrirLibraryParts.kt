@@ -515,3 +515,98 @@ fun FenrirUpdateButton(): Boolean {
     }
     return true
 }
+
+/**
+ * Small chip at the top of the Library when a source some of your books use stopped working:
+ * "● 1 source down · 4 books ›". Tap for the books and Move them (opens Migrate for that source).
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+fun FenrirSourceDownChip(books: List<LibraryManga>, onOpenBook: (Long) -> Unit) {
+    val off by eu.kanade.presentation.browse.FenrirReadHealth.turnedOff.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(Unit) { eu.kanade.presentation.browse.FenrirReadHealth.checkIfDue() }
+    val offIds = off.map { it.id }.toSet()
+    val hit = books.filter { it.manga.source in offIds }.distinctBy { it.manga.id }
+    if (hit.isEmpty()) return
+    val bySource = hit.groupBy { it.manga.source }
+    var open by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    val navigator = cafe.adriel.voyager.navigator.LocalNavigator.current
+    Row(
+        Modifier
+            .padding(start = 16.dp, top = 2.dp, bottom = 6.dp)
+            .height(28.dp)
+            .clip(CircleShape)
+            .background(FenrirRed.copy(alpha = 0.14f))
+            .border(1.dp, FenrirRed.copy(alpha = 0.4f), CircleShape)
+            .clickable { open = true }
+            .padding(horizontal = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(7.dp).clip(CircleShape).background(FenrirRed))
+        Spacer(Modifier.width(6.dp))
+        Text(
+            "${bySource.size} source${if (bySource.size > 1) "s" else ""} down · ${hit.size} book${if (hit.size > 1) "s" else ""} ›",
+            color = Color(0xFFFF8A91),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+        )
+    }
+    if (open) {
+        androidx.compose.material3.ModalBottomSheet(
+            onDismissRequest = { open = false },
+            containerColor = Color(0xFF15151B),
+        ) {
+            Column(Modifier.padding(start = 20.dp, end = 20.dp, bottom = 28.dp)) {
+                bySource.forEach { (sourceId, list) ->
+                    val name = off.firstOrNull { it.id == sourceId }?.name ?: "A source"
+                    val reason = off.firstOrNull { it.id == sourceId }?.reason ?: "Not loading"
+                    Text("$name stopped working", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
+                    Text("$reason · ${list.size} of your books use it", color = FenrirMuted, fontSize = 12.5.sp)
+                    androidx.compose.foundation.lazy.LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.padding(vertical = 12.dp),
+                    ) {
+                        items(list.size) { i ->
+                            val m = list[i]
+                            Column(Modifier.width(76.dp).clickable { open = false; onOpenBook(m.manga.id) }) {
+                                MangaCover.Book(
+                                    data = m.manga.asMangaCover(),
+                                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)),
+                                )
+                                Text(m.manga.title, color = Color.White, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+                            }
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(bottom = 16.dp)) {
+                        Text(
+                            "Move them",
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .background(FenrirRed)
+                                .clickable {
+                                    open = false
+                                    navigator?.push(eu.kanade.tachiyomi.ui.browse.migration.manga.MigrateMangaScreen(sourceId))
+                                }
+                                .padding(horizontal = 18.dp, vertical = 10.dp),
+                        )
+                        Text(
+                            "Wait for it",
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .background(Color(0xFF26262E))
+                                .clickable { open = false }
+                                .padding(horizontal = 18.dp, vertical = 10.dp),
+                        )
+                    }
+                }
+                Text("Sources that come back are turned on again by themselves.", color = FenrirMuted, fontSize = 12.sp)
+            }
+        }
+    }
+}

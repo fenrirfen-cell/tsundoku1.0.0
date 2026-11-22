@@ -43,6 +43,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
+import androidx.compose.material.icons.outlined.Download
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -196,7 +198,7 @@ private fun FenrirReadHeader(modifier: Modifier, openWatch: (Activity) -> Unit) 
                     modifier = Modifier.alignByBaseline(),
                 )
             }
-            if (eu.kanade.presentation.library.components.FenrirUpdateButton()) Spacer(Modifier.width(10.dp))
+            val appUpdate by eu.kanade.tachiyomi.EmbeddedHost.appUpdate.collectAsState()
             Box {
                 Row(
                     modifier = Modifier
@@ -222,6 +224,17 @@ private fun FenrirReadHeader(modifier: Modifier, openWatch: (Activity) -> Unit) 
                         modifier = Modifier.size(20.dp),
                     )
                 }
+                // Fenrir: red dot when a new app version is out (Update is at the top of the menu).
+                if (appUpdate != null) {
+                    Box(
+                        Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(top = 4.dp, end = 6.dp)
+                            .size(10.dp)
+                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .background(accent),
+                    )
+                }
                 androidx.compose.material3.DropdownMenu(
                     expanded = open,
                     onDismissRequest = { open = false },
@@ -235,6 +248,13 @@ private fun FenrirReadHeader(modifier: Modifier, openWatch: (Activity) -> Unit) 
                         Brush.verticalGradient(listOf(white.copy(alpha = 0.32f), white.copy(alpha = 0.05f), white.copy(alpha = 0.12f))),
                     ),
                 ) {
+                    appUpdate?.let { u ->
+                        FenrirUpdateMenuItem(u) { open = false }
+                        androidx.compose.material3.HorizontalDivider(
+                            color = white.copy(alpha = 0.08f),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        )
+                    }
                     FenrirModeItem(EmbeddedHost.watchLabel, Icons.Outlined.PlayArrow, false) {
                         open = false
                         context.findActivity()?.let(openWatch)
@@ -293,4 +313,58 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
     is ContextWrapper -> baseContext.findActivity()
     else -> null
+}
+
+
+/** Top of the Watch / Read menu when a new version is out: Update, then Install. */
+@Composable
+private fun FenrirUpdateMenuItem(u: eu.kanade.tachiyomi.EmbeddedHost.AppUpdateInfo, onDone: () -> Unit) {
+    val accent = eu.kanade.presentation.reader.FenrirAccent
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(accent.copy(alpha = 0.14f))
+            .clickable(enabled = !u.downloading) {
+                eu.kanade.tachiyomi.EmbeddedHost.startAppUpdate?.invoke()
+                if (u.ready) onDone()
+            }
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Outlined.Download, contentDescription = null, tint = accent, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(10.dp))
+        androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
+            Text(
+                when {
+                    u.error != null -> "Update failed · tap to retry"
+                    u.downloading -> "Downloading ${((u.progress ?: 0f) * 100).toInt().coerceIn(0, 100)}%"
+                    u.ready -> "Install update"
+                    else -> "Update to ${u.version.removePrefix("fenrir-").substringAfterLast("-")}"
+                },
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = androidx.compose.ui.graphics.Color.White,
+                maxLines = 1,
+            )
+            Text(
+                if (u.ready) "Ready to install" else "New version ready",
+                fontSize = 11.sp,
+                color = androidx.compose.ui.graphics.Color(0xFFB8B8C2),
+                maxLines = 1,
+            )
+        }
+        if (!u.downloading) {
+            Text(
+                "✕",
+                fontSize = 13.sp,
+                color = androidx.compose.ui.graphics.Color(0xFF8E8E99),
+                modifier = Modifier
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .clickable { eu.kanade.tachiyomi.EmbeddedHost.dismissAppUpdate?.invoke(); onDone() }
+                    .padding(6.dp),
+            )
+        }
+    }
 }

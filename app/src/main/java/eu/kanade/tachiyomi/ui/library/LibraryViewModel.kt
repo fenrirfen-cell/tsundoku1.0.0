@@ -872,6 +872,7 @@ class LibraryViewModel(
     }
 
     suspend fun getNextUnreadChapter(manga: Manga): Chapter? {
+        eu.kanade.tachiyomi.util.chapter.FenrirContinue.refresh(manga.id)
         return getChaptersByMangaId.await(manga.id, applyScanlatorFilter = true).getNextUnread(manga, downloadManager)
     }
 

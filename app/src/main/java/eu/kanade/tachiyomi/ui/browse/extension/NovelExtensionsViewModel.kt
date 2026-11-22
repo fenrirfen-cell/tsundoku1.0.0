@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import logcat.LogPriority
@@ -237,17 +238,34 @@ class NovelExtensionsViewModel(
     }
 
     fun updateAllExtensions() {
+        // Fenrir: one at a time with progress, Stop and Retry (all at once used to freeze), and
+        // updates skip the "is the site down?" check that new installs get.
         val plan = state.value.items.values.flatten()
             .map { it.extension }
             .toUpdateAllPlan()
-        plan.apkUpdates.forEach(::updateExtension)
-
-        // JS plugin installs are not safe to run concurrently, so run them one at a time
-        val jsPlugins = plan.jsPluginUpdates.filter { jsPluginInstallsInFlight.add(it.pkgName) }
-        if (jsPlugins.isEmpty()) return
-        viewModelScope.launchIO {
-            jsPlugins.forEach { installClaimedJsPlugin(it) }
+        val jobs = plan.apkUpdates.map { ext ->
+            Triple<String, String, suspend () -> Boolean>(ext.pkgName, ext.name) { updateOneAndWait(ext) }
+        } + plan.jsPluginUpdates.map { ext ->
+            Triple<String, String, suspend () -> Boolean>(ext.pkgName, ext.name) {
+                if (!jsPluginInstallsInFlight.add(ext.pkgName)) false else installClaimedJsPlugin(ext)
+            }
         }
+        eu.kanade.presentation.browse.FenrirUpdateQueue.run(jobs)
+    }
+
+    /** Updates one extension and waits for it to finish (gives up after 3 minutes). */
+    private suspend fun updateOneAndWait(extension: Extension.Installed): Boolean {
+        var last: InstallStep? = null
+        val finished = kotlinx.coroutines.withTimeoutOrNull(180_000) {
+            extensionManager.updateExtension(extension)
+                .onEach { step -> last = step; addDownloadState(extension, step) }
+                .takeWhile { step -> step != InstallStep.Installed && step != InstallStep.Error }
+                .collect()
+            true
+        }
+        if (finished == null) extensionManager.cancelInstallUpdateExtension(extension)
+        removeDownloadState(extension)
+        return last == InstallStep.Installed
     }
 
     fun installExtension(extension: Extension.Available) {
@@ -261,8 +279,15 @@ class NovelExtensionsViewModel(
         viewModelScope.launchIO { installClaimedJsPlugin(extension) }
     }
 
-    private suspend fun installClaimedJsPlugin(extension: Extension.JsPlugin) {
-        try {
+    private suspend fun installClaimedJsPlugin(extension: Extension.JsPlugin): Boolean = try {
+        // Never stay "busy" forever: give up after 5 minutes so the plugin can be tapped again.
+        kotlinx.coroutines.withTimeoutOrNull(300_000) { installClaimedJsPluginInner(extension) } ?: false
+    } finally {
+        jsPluginInstallsInFlight.remove(extension.pkgName)
+    }
+
+    private suspend fun installClaimedJsPluginInner(extension: Extension.JsPlugin): Boolean {
+        run {
             // Extract the original plugin ID from pkgName (remove prefix)
             val pluginId = extension.pkgName.removePrefix(JsPlugin.PKG_PREFIX)
             val plugin = jsPluginManager.availablePlugins.value.find { it.id == pluginId }
@@ -270,19 +295,22 @@ class NovelExtensionsViewModel(
                 logcat(LogPriority.ERROR) {
                     "Plugin not found in available plugins: $pluginId (pkgName: ${extension.pkgName})"
                 }
-                return
+                return false
             }
             if (extension.repoUrl.isEmpty()) {
                 logcat(LogPriority.ERROR) { "Plugin repo URL is empty: ${extension.pkgName}" }
-                return
+                return false
             }
 
-            // Fenrir: warn first if the plugin's website doesn't answer.
-            if (!eu.kanade.presentation.browse.FenrirInstallCheck.confirmIfDown(plugin.name, plugin.site)) return
+            // Fenrir: warn first if the plugin's website doesn't answer — new installs only;
+            // updates of a plugin you already have go straight through.
+            if (!extension.isInstalled &&
+                !eu.kanade.presentation.browse.FenrirInstallCheck.confirmIfDown(plugin.name, plugin.site)
+            ) {
+                return false
+            }
             logcat(LogPriority.INFO) { "Installing JS plugin: ${extension.name} from ${extension.repoUrl}" }
-            jsPluginManager.installPlugin(plugin, extension.repoUrl)
-        } finally {
-            jsPluginInstallsInFlight.remove(extension.pkgName)
+            return jsPluginManager.installPlugin(plugin, extension.repoUrl)
         }
     }
 

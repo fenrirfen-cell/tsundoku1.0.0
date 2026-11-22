@@ -151,13 +151,29 @@ class ExtensionsViewModel(
     }
 
     fun updateAllExtensions() {
-        viewModelScope.launchIO {
-            state.value.items.values.flatten()
-                .map { it.extension }
-                .filterIsInstance<Extension.Installed>()
-                .filter { it.hasUpdate }
-                .forEach(::updateExtension)
+        // Fenrir: one at a time with progress, Stop and Retry (all at once used to freeze).
+        val list = state.value.items.values.flatten()
+            .map { it.extension }
+            .filterIsInstance<Extension.Installed>()
+            .filter { it.hasUpdate }
+        eu.kanade.presentation.browse.FenrirUpdateQueue.run(
+            list.map { ext -> Triple<String, String, suspend () -> Boolean>(ext.pkgName, ext.name) { updateOneAndWait(ext) } },
+        )
+    }
+
+    /** Updates one extension and waits for it to finish (gives up after 3 minutes). */
+    private suspend fun updateOneAndWait(extension: Extension.Installed): Boolean {
+        var last: InstallStep? = null
+        val finished = kotlinx.coroutines.withTimeoutOrNull(180_000) {
+            extensionManager.updateExtension(extension)
+                .onEach { step -> last = step; addDownloadState(extension, step) }
+                .takeWhile { step -> step != InstallStep.Installed && step != InstallStep.Error }
+                .collect()
+            true
         }
+        if (finished == null) extensionManager.cancelInstallUpdateExtension(extension)
+        removeDownloadState(extension)
+        return last == InstallStep.Installed
     }
 
     fun installExtension(extension: Extension.Available) {

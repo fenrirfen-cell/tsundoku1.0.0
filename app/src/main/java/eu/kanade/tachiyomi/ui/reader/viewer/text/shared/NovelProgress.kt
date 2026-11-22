@@ -12,7 +12,7 @@ object NovelProgress {
      * Scroll ratio at/above which a chapter counts as fully read. Shared by every renderer and by
      * the scroll-tracking JS so a chapter marks read at the same point regardless of viewer.
      */
-    const val DONE_THRESHOLD = 0.99f
+    const val DONE_THRESHOLD = 0.95f
 
     /**
      * Minimum non-whitespace length for extracted chapter text to count as real content.
