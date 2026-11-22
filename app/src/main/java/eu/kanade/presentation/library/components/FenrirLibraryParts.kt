@@ -284,6 +284,12 @@ internal fun FenrirLibraryGridItem(
                     lastModified = manga.coverLastModified,
                 ),
             )
+            // Fenrir: ★ rating badge (tap for why); nothing shows without a sure match.
+            FenrirRatingBadge(
+                title = manga.title,
+                novel = manga.isNovel,
+                modifier = Modifier.align(Alignment.BottomStart).padding(start = 7.dp, bottom = 14.dp),
+            )
             val unread = item.badges.unreadCount
             if (unread > 0) {
                 Text(

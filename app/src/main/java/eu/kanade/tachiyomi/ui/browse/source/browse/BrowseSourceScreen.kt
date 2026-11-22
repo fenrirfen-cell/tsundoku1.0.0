@@ -478,6 +478,18 @@ data class BrowseSourceScreen(
                         }
                     }
 
+                    // Fenrir: genre chips you can tap right away (tap again to clear).
+                    eu.kanade.presentation.browse.FenrirGenreChips(
+                        source = viewModel.source,
+                        listing = state.listing,
+                        onPick = { viewModel.searchGenre(it) },
+                        onClear = {
+                            viewModel.resetFilters()
+                            viewModel.setListing(Listing.Popular)
+                        },
+                        onOpenFilters = if (state.filters.isNotEmpty()) viewModel::openFilterSheet else null,
+                    )
+
                     HorizontalDivider()
                 }
             },

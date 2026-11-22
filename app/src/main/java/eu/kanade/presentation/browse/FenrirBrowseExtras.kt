@@ -55,6 +55,8 @@ import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.jsplugin.JsPluginManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import androidx.compose.foundation.border
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -371,6 +373,18 @@ fun FenrirReadAddSheet(novelSide: Boolean, onDismiss: () -> Unit) {
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     val installing = remember { mutableStateListOf<String>() }
+    // Fenrir: the repo is tested before it's added.
+    var verdict by remember { mutableStateOf<FenrirRepoVerdict?>(null) }
+    // Fenrir: Browse + also offers Import a book.
+    var importOpen by remember { mutableStateOf(false) }
+    val navigator = cafe.adriel.voyager.navigator.LocalNavigator.current
+    if (importOpen) {
+        eu.kanade.presentation.library.components.FenrirImportSheet(
+            onDismiss = { importOpen = false; onDismiss() },
+            openImporter = { uris -> navigator?.push(eu.kanade.tachiyomi.ui.library.ImportEpubScreen(initialUriStrings = uris)) },
+        )
+        return
+    }
 
     val available by extensionManager.availableExtensionsFlow.collectAsState()
     val installedExt by extensionManager.installedExtensionsFlow.collectAsState()
@@ -378,10 +392,24 @@ fun FenrirReadAddSheet(novelSide: Boolean, onDismiss: () -> Unit) {
     val jsInstalled by jsPlugins.installedPlugins.collectAsState()
     val jsLoading by jsPlugins.isLoading.collectAsState()
 
-    fun add() {
+    fun add(force: Boolean = false) {
         val url = link.trim()
         if (url.isEmpty()) return
         message = null
+        if (!force) {
+            busy = true
+            scope.launch {
+                val v = fenrirVerifyRepo(url, jsPlugins)
+                busy = false
+                verdict = v
+                if (v is FenrirRepoVerdict.Works) {
+                    if (v.isPlugins && kind != ReadRepoKind.NovelJs) kind = ReadRepoKind.NovelJs
+                    if (!v.isPlugins && kind == ReadRepoKind.NovelJs) kind = guessReadKind(url, false).takeIf { it != ReadRepoKind.NovelJs } ?: ReadRepoKind.Manga
+                    add(force = true)
+                }
+            }
+            return
+        }
         when (kind) {
             ReadRepoKind.NovelJs -> {
                 jsPlugins.addRepository(url.substringAfter("://").substringBefore("/").ifBlank { "Repository" }, url)
@@ -439,6 +467,13 @@ fun FenrirReadAddSheet(novelSide: Boolean, onDismiss: () -> Unit) {
                     }
                 }
                 message?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp)) }
+                verdict?.let { v ->
+                    FenrirRepoVerdictCard(
+                        verdict = v,
+                        onAddAnyway = { verdict = null; add(force = true) },
+                        onCancel = { verdict = null },
+                    )
+                }
                 if (busy || (addedKind == ReadRepoKind.NovelJs && jsLoading)) {
                     Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
@@ -507,8 +542,9 @@ fun FenrirReadAddSheet(novelSide: Boolean, onDismiss: () -> Unit) {
         },
         confirmButton = {
             Row {
+                TextButton(onClick = { importOpen = true }) { Text("Import a book") }
                 TextButton(onClick = onDismiss) { Text("Close") }
-                TextButton(onClick = { add() }, enabled = link.isNotBlank() && !busy) { Text("Add") }
+                TextButton(onClick = { verdict = null; add() }, enabled = link.isNotBlank() && !busy) { Text("Add") }
             }
         },
     )
@@ -545,6 +581,92 @@ private fun FoundList(
                         TextButton(onClick = { onInstall(i) }) { Text("Install") }
                     }
                 }
+            }
+        }
+    }
+}
+
+
+/** What the test of a pasted repo link found. */
+sealed interface FenrirRepoVerdict {
+    data class Works(val count: Int?, val isPlugins: Boolean) : FenrirRepoVerdict
+    data object Anime : FenrirRepoVerdict
+    data object DidntLoad : FenrirRepoVerdict
+    data class Duplicate(val name: String) : FenrirRepoVerdict
+}
+
+/** Loads the repo before adding it: does it load, is it for Read, is it already added? */
+suspend fun fenrirVerifyRepo(url: String, jsPlugins: JsPluginManager): FenrirRepoVerdict = withContext(Dispatchers.IO) {
+    fun norm(u: String) = u.trim().trimEnd('/').substringAfter("://").lowercase()
+    val known = runCatching { Injekt.get<mihon.domain.extension.interactor.GetExtensionStores>().get() }.getOrDefault(emptyList())
+    known.firstOrNull { norm(it.indexUrl) == norm(url) || norm(it.indexUrl).substringBeforeLast("/") == norm(url).substringBeforeLast("/") && norm(url).endsWith("index.min.json") }
+        ?.let { return@withContext FenrirRepoVerdict.Duplicate(it.name) }
+    jsPlugins.repositories.value.firstOrNull { norm(it.url) == norm(url) }
+        ?.let { return@withContext FenrirRepoVerdict.Duplicate(it.name) }
+    val client = Injekt.get<eu.kanade.tachiyomi.network.NetworkHelper>().client
+    val body = kotlinx.coroutines.withTimeoutOrNull(15_000) {
+        runCatching {
+            client.newCall(eu.kanade.tachiyomi.network.GET(url.trim())).execute().use { r ->
+                if (!r.isSuccessful) null else r.body?.string()
+            }
+        }.getOrNull()
+    } ?: return@withContext FenrirRepoVerdict.DidntLoad
+    val t = body.trim()
+    val lower = t.take(200_000).lowercase()
+    if ("animeextension" in lower || "aniyomi" in lower && "\"pkg\"" in lower) return@withContext FenrirRepoVerdict.Anime
+    when {
+        t.startsWith("[") -> {
+            val items = runCatching { kotlinx.serialization.json.Json.parseToJsonElement(t) as? kotlinx.serialization.json.JsonArray }.getOrNull()
+                ?: return@withContext FenrirRepoVerdict.DidntLoad
+            if (items.isEmpty()) return@withContext FenrirRepoVerdict.DidntLoad
+            val plugins = "\"apk\"" !in lower && (".js\"" in lower || "\"site\"" in lower)
+            FenrirRepoVerdict.Works(items.size, isPlugins = plugins)
+        }
+        t.isEmpty() -> FenrirRepoVerdict.DidntLoad
+        t.startsWith("<") -> FenrirRepoVerdict.DidntLoad // a web page, not a repo
+        else -> FenrirRepoVerdict.Works(null, isPlugins = false)
+    }
+}
+
+@Composable
+private fun FenrirRepoVerdictCard(verdict: FenrirRepoVerdict, onAddAnyway: () -> Unit, onCancel: () -> Unit) {
+    val (color, title, body) = when (verdict) {
+        is FenrirRepoVerdict.Works -> Triple(
+            Color(0xFF4CD787),
+            "✓ Works with Read",
+            verdict.count?.let { "$it ${if (verdict.isPlugins) "novel plugins" else "extensions"} · adding it" } ?: "Adding it",
+        )
+        FenrirRepoVerdict.Anime -> Triple(
+            Color(0xFFFFB547),
+            "⚠ Not compatible",
+            "This is an Aniyomi (anime) repo. Its extensions won't work in Read — add it on the Watch side under Settings → Sources.",
+        )
+        FenrirRepoVerdict.DidntLoad -> Triple(
+            Color(0xFFFFB547),
+            "⚠ Didn't load",
+            "The link may be wrong, or the site is down right now.",
+        )
+        is FenrirRepoVerdict.Duplicate -> Triple(
+            Color(0xFF8FB4FF),
+            "You already have this repo",
+            "It's listed as “${verdict.name}”.",
+        )
+    }
+    Column(
+        Modifier
+            .padding(top = 10.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(color.copy(alpha = 0.10f))
+            .border(1.dp, color.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
+            .padding(12.dp),
+    ) {
+        Text(title, color = color, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Text(body, color = Color(0xFFC9C9D2), fontSize = 12.5.sp, modifier = Modifier.padding(top = 4.dp))
+        if (verdict == FenrirRepoVerdict.Anime || verdict == FenrirRepoVerdict.DidntLoad) {
+            Row(Modifier.padding(top = 6.dp)) {
+                TextButton(onClick = onCancel) { Text("Cancel") }
+                TextButton(onClick = onAddAnyway) { Text("Add anyway") }
             }
         }
     }

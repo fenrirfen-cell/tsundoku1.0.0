@@ -203,6 +203,21 @@ fun FenrirBookInfoCard(manga: Manga, source: Source, chapters: List<Chapter>, is
                 Text(health.second, color = health.first, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
             }
         }
+        // Rating (AniList / MyAnimeList / Webnovel); tap for why it's rated that way.
+        val rating by produceState<eu.kanade.presentation.library.components.FenrirRatings.Rating?>(null, manga.title) {
+            value = eu.kanade.presentation.library.components.FenrirRatings.get(manga.title, isNovel)
+        }
+        rating?.let { r ->
+            var openWhy by remember { mutableStateOf(false) }
+            InfoRow("Rating") {
+                Row(Modifier.clickable { openWhy = true }, verticalAlignment = Alignment.CenterVertically) {
+                    Text("★ ", color = eu.kanade.presentation.library.components.fenrirRatingColor(r.score), fontSize = 14.sp)
+                    Text(String.format(java.util.Locale.US, "%.1f", r.score), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text(" · ${r.site} ›", color = Muted, fontSize = 13.sp)
+                }
+            }
+            if (openWhy) eu.kanade.presentation.library.components.FenrirRatingSheet(manga.title, r) { openWhy = false }
+        }
         val lang = remember(source.lang) {
             runCatching { java.util.Locale.forLanguageTag(source.lang).displayLanguage }.getOrNull()?.takeIf { it.isNotBlank() } ?: source.lang
         }

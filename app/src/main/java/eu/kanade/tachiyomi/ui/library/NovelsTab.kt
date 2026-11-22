@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
@@ -99,6 +100,14 @@ data object NovelsTab : Tab {
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
         val haptic = LocalHapticFeedback.current
+        // Fenrir: Import a book (link with safety checks, page scan, or from the phone).
+        var fenrirImportOpen by remember { androidx.compose.runtime.mutableStateOf(false) }
+        if (fenrirImportOpen) {
+            eu.kanade.presentation.library.components.FenrirImportSheet(
+                onDismiss = { fenrirImportOpen = false },
+                openImporter = { uris -> navigator.push(ImportEpubScreen(initialUriStrings = uris)) },
+            )
+        }
 
         val libraryPreferences = remember { Injekt.get<tachiyomi.domain.library.service.LibraryPreferences>() }
         val isJoined by libraryPreferences.joinedLibrary.collectAsState()
@@ -190,7 +199,7 @@ data object NovelsTab : Tab {
                     // For scroll overlay when no tab
                     scrollBehavior = scrollBehavior.takeIf { !state.showCategoryTabs },
                     onClickMassImport = viewModel::openMassImportDialog,
-                    onClickImportEpub = { navigator.push(ImportEpubScreen()) },
+                    onClickImportEpub = { fenrirImportOpen = true },
                     onClickFindDuplicates = { navigator.push(DuplicateDetectionScreen()) },
                     onClickCategoryActions = {
                         state.activeCategory?.let(viewModel::openCategoryActionsDialog)
