@@ -152,9 +152,6 @@ object HomeScreen : Screen() {
                         ) {
                             EmbeddedModeSwitchBar()
                         }
-                        // Fenrir: small update pill in its own row under the header, so it never
-                        // covers the title row's buttons (only takes space when there's an update).
-                        eu.kanade.presentation.library.components.FenrirUpdatePill(Modifier.fillMaxWidth())
                         }
                     },
                     startBar = {
@@ -190,6 +187,13 @@ object HomeScreen : Screen() {
                                 it.Content()
                             }
                         }
+                        // Fenrir: small update pill floating just above the island (never covers buttons).
+                        eu.kanade.presentation.library.components.FenrirUpdatePill(
+                            Modifier
+                                .align(Alignment.BottomCenter)
+                                .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.Companion.navigationBars)
+                                .padding(bottom = 92.dp),
+                        )
                         // Fenrir: "may not work · Install anyway?" for novel plugins whose site is down.
                         eu.kanade.presentation.browse.FenrirInstallCheckDialog()
                         if (!isTabletUi()) {
