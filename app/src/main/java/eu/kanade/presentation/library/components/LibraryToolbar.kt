@@ -1,5 +1,6 @@
 package eu.kanade.presentation.library.components
 
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.Icons
@@ -118,6 +119,13 @@ private fun LibraryRegularToolbar(
             val filterTint = if (hasFilters) MaterialTheme.colorScheme.active else LocalContentColor.current
             val navigator = cafe.adriel.voyager.navigator.LocalNavigator.current
             val actions = mutableListOf(
+                // Fenrir: ✨ For you (suggestions from your sources).
+                AppBar.Action(
+                    title = "For you",
+                    icon = androidx.compose.material.icons.Icons.Filled.AutoAwesome,
+                    iconTint = androidx.compose.ui.graphics.Color(0xFFFF6B73),
+                    onClick = { FenrirReadForYou.show() },
+                ),
                 AppBar.Action(
                     title = stringResource(MR.strings.action_filter),
                     icon = Icons.Outlined.FilterList,

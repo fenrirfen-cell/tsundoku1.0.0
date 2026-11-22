@@ -535,6 +535,15 @@ private fun MangaScreenSmallImpl(
                         )
                     }
 
+                    // Fenrir: "You may like" (sequels, side stories, same author, popular on the source).
+                    item(key = "fenrir-you-may-like", contentType = "fenrir-you-may-like") {
+                        val fenrirNavigator = cafe.adriel.voyager.navigator.LocalNavigator.current
+                        eu.kanade.presentation.library.components.FenrirYouMayLike(
+                            manga = state.manga,
+                            onOpenManga = { id -> fenrirNavigator?.push(eu.kanade.tachiyomi.ui.manga.MangaScreen(id)) },
+                        )
+                    }
+
                     item(
                         key = MangaScreenItem.CHAPTER_HEADER,
                         contentType = MangaScreenItem.CHAPTER_HEADER,

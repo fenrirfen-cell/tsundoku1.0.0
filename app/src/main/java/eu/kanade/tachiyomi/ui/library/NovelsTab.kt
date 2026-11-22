@@ -296,6 +296,9 @@ data object NovelsTab : Tab {
                     )
                 }
             }
+            eu.kanade.presentation.library.components.FenrirReadForYouHost(
+                onOpenManga = { navigator.push(MangaScreen(it)) },
+            )
             eu.kanade.presentation.components.FenrirScrollPill(
                 label = state.getToolbarTitle(defaultTitle = "Library", defaultCategoryTitle = "Default", page = state.coercedActiveCategoryIndex).text,
                 visible = !fenrirPillShown && !state.selectionMode && state.toolbarQuery == null && !state.isLoading,
