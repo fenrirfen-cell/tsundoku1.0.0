@@ -8,6 +8,9 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -119,9 +122,34 @@ object HomeScreen : Screen() {
         ) { tabNavigator ->
             // Provide usable navigator to content screen
             CompositionLocalProvider(LocalNavigator provides navigator) {
+                // Fenrir: like the Watch side, scrolling down tucks away the FENRIR READ header
+                // and the glass bar; scrolling up brings them back.
+                var barsShown by remember { mutableStateOf(true) }
+                LaunchedEffect(tabNavigator.current) { barsShown = true }
+                val barsScroll = remember {
+                    object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+                        override fun onPreScroll(
+                            available: androidx.compose.ui.geometry.Offset,
+                            source: androidx.compose.ui.input.nestedscroll.NestedScrollSource,
+                        ): androidx.compose.ui.geometry.Offset {
+                            if (available.y < -4f) barsShown = false else if (available.y > 4f) barsShown = true
+                            return androidx.compose.ui.geometry.Offset.Zero
+                        }
+                    }
+                }
                 Scaffold(
                     // Watch / Read switch; only drawn when embedded in Nuvio.
-                    topBar = { EmbeddedModeSwitchBar() },
+                    topBar = {
+                        AnimatedVisibility(
+                            visible = barsShown,
+                            enter = expandVertically(androidx.compose.animation.core.tween(260)) +
+                                androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(260)),
+                            exit = shrinkVertically(androidx.compose.animation.core.tween(260)) +
+                                androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(200)),
+                        ) {
+                            EmbeddedModeSwitchBar()
+                        }
+                    },
                     startBar = {
                         if (isTabletUi()) {
                             NavigationRail {
@@ -137,9 +165,11 @@ object HomeScreen : Screen() {
                                 showBottomNavEvent.receiveAsFlow().collectLatest { value = it }
                             }
                             AnimatedVisibility(
-                                visible = bottomNavVisible,
-                                enter = expandVertically(),
-                                exit = shrinkVertically(),
+                                visible = bottomNavVisible && barsShown,
+                                enter = expandVertically(androidx.compose.animation.core.tween(260)) +
+                                    androidx.compose.animation.slideInVertically(androidx.compose.animation.core.tween(260)) { it },
+                                exit = shrinkVertically(androidx.compose.animation.core.tween(260)) +
+                                    androidx.compose.animation.slideOutVertically(androidx.compose.animation.core.tween(260)) { it },
                             ) {
                                 // Fenrir: the same liquid-glass capsule as the Watch side.
                                 FenrirGlassNavBar(tabs)
@@ -151,7 +181,8 @@ object HomeScreen : Screen() {
                     Box(
                         modifier = Modifier
                             .padding(contentPadding)
-                            .consumeWindowInsets(contentPadding),
+                            .consumeWindowInsets(contentPadding)
+                            .nestedScroll(barsScroll),
                     ) {
                         AnimatedContent(
                             targetState = tabNavigator.current,
