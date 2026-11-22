@@ -85,6 +85,7 @@ fun Screen.novelSourcesTab(): TabContent {
                 onClickPin = screenModel::togglePin,
                 onLongClickPin = screenModel::showPinGroupsDialog,
                 onRemoveFromGroup = screenModel::removeSourceFromGroup,
+                novelSide = true,
             )
 
             val currentDialog = state.dialog

@@ -61,7 +61,7 @@ object FenrirImport {
     const val MAX_BYTES = 1024L * 1024 * 1024 // about 1 GB per file
 
     sealed interface Result {
-        data class Book(val uri: Uri, val name: String, val bytes: Long, val secure: Boolean, val host: String) : Result
+        data class Book(val uri: Uri, val name: String, val bytes: Long, val secure: Boolean, val host: String, val convertedFrom: String? = null) : Result
         data class Page(val host: String, val links: List<Pair<String, String>>) : Result // name to url
         data class Stop(val title: String, val why: String) : Result
     }
@@ -69,6 +69,21 @@ object FenrirImport {
     private val client by lazy { Injekt.get<NetworkHelper>().client }
 
     fun hostOf(url: String) = runCatching { Uri.parse(url).host }.getOrNull()?.removePrefix("www.").orEmpty()
+
+    private val famous = listOf("google", "amazon", "apple", "microsoft", "paypal", "facebook", "gutenberg", "standardebooks", "github", "webnovel", "royalroad")
+
+    /** Simple on-phone checks for links that look like tricks. Null means nothing odd was found. */
+    fun linkWarning(host: String): String? {
+        val h = host.lowercase()
+        if (Regex("""^\d{1,3}(\.\d{1,3}){3}$""").matches(h) || h.startsWith("[")) return "This link is a bare number address, not a named website"
+        if (h.split('.').any { it.startsWith("xn--") }) return "This address uses look-alike letters"
+        val name = h.split('.').dropLast(1).lastOrNull().orEmpty()
+        val swapped = name.replace('0', 'o').replace('1', 'l').replace("rn", "m").replace('3', 'e')
+        famous.forEach { f ->
+            if (name != f && (swapped == f || (name.contains(f) && name != f && h.count { it == '-' } >= 1))) return "This looks like $f but isn't"
+        }
+        return null
+    }
 
     suspend fun check(context: Context, rawUrl: String): Result = withContext(Dispatchers.IO) {
         val url = rawUrl.trim().let { if (!it.startsWith("http")) "https://$it" else it }
@@ -90,7 +105,7 @@ object FenrirImport {
             }
             val name = fileName(r.header("Content-Disposition"), url)
             val dir = File(context.cacheDir, "fenrir_imports").apply { mkdirs() }
-            val out = File(dir, name.ifBlank { "book" }.replace(Regex("[^A-Za-z0-9._ -]"), "_").let { if (it.endsWith(".epub", true)) it else "$it.epub" })
+            val out = File(dir, "${System.currentTimeMillis()}-" + name.ifBlank { "book" }.replace(Regex("[^A-Za-z0-9._ -]"), "_"))
             var total = 0L
             body.byteStream().use { input ->
                 out.outputStream().use { o ->
@@ -107,40 +122,79 @@ object FenrirImport {
                     }
                 }
             }
-            inspect(out)?.let { stop -> out.delete(); return@withContext stop }
-            Result.Book(Uri.fromFile(out), name.removeSuffix(".epub"), total, secure, host)
+            process(out, name, secure, host)
         }
     }
 
-    /** Looks inside the file (never runs anything). Returns why it can't be imported, or null if it's a fine EPUB. */
-    private fun inspect(file: File): Result.Stop? {
-        val head = file.inputStream().use { s -> ByteArray(5).also { s.read(it) } }
+    /**
+     * Looks inside the file (never runs anything): EPUBs go straight through, comic archives, PDFs
+     * and DRM-free Kindle files are converted to EPUB, app installers and locked books are stopped.
+     */
+    fun process(file: File, rawName: String, secure: Boolean, host: String): Result {
+        val head = file.inputStream().use { s -> ByteArray(68).also { s.read(it) } }
         val text = String(head, Charsets.ISO_8859_1)
-        return when {
-            text.startsWith("%PDF") -> Result.Stop("PDF books aren't supported yet", "Only EPUB books can be imported for now.")
-            text.startsWith("Rar!") -> Result.Stop("Comic archives (CBR) aren't supported yet", "Only EPUB books can be imported for now.")
-            text.startsWith("BOOKM") || text.startsWith("\u0000\u0000\u0000") ->
-                Result.Stop("Kindle files aren't supported yet", "Get the EPUB version of this book instead.")
-            !text.startsWith("PK") -> Result.Stop("This isn't a book", "The file isn't an EPUB, so it was stopped.")
-            else -> runCatching {
-                ZipFile(file).use { zip ->
-                    val names = zip.entries().asSequence().map { it.name }.toList()
-                    when {
-                        names.any { it == "AndroidManifest.xml" || it == "classes.dex" } ->
-                            Result.Stop("This isn't a book", "It's really an app installer (APK) named like a book. Fenrir Read never installs anything, so it was stopped.")
-                        names.any { it.equals("META-INF/encryption.xml", true) } &&
-                            zip.getEntry("META-INF/encryption.xml")?.let { e -> zip.getInputStream(e).use { it.readBytes().decodeToString() } }
-                                ?.let { "adobe.com/adept" in it || "readium.org/2014/01/lcp" in it || "kindle" in it.lowercase() } == true ->
-                            Result.Stop("🔒 This book is locked (DRM)", "It only opens in the store's own app. Read it there, or get a DRM-free copy.")
-                        zip.getEntry("mimetype")?.let { e -> zip.getInputStream(e).use { it.readBytes().decodeToString().trim() } } == "application/epub+zip" -> null
-                        names.any { it.lowercase().endsWith(".opf") } -> null
-                        names.all { it.lowercase().matches(Regex(""".*\.(jpe?g|png|webp|gif|xml|txt)$|.*/$""")) } ->
-                            Result.Stop("Comic archives (CBZ) aren't supported yet", "Only EPUB books can be imported for now.")
-                        else -> Result.Stop("This isn't a book", "The file isn't an EPUB, so it was stopped.")
-                    }
-                }
-            }.getOrElse { Result.Stop("This isn't a book", "The file couldn't be opened as an EPUB.") }
+        val base = rawName.substringBeforeLast('.').ifBlank { "Book" }
+        val dir = file.parentFile ?: file
+        fun converted(kind: String, block: (File) -> String?): Result = runCatching {
+            val out = File(dir, "${base.replace(Regex("[^A-Za-z0-9._ -]"), "_")}-${System.currentTimeMillis()}.epub")
+            val title = block(out) ?: base
+            file.delete()
+            Result.Book(Uri.fromFile(out), title, out.length(), secure, host, convertedFrom = kind)
+        }.getOrElse { e ->
+            if (e is FenrirConvert.Locked) Result.Stop("🔒 This book is locked (DRM)", "It only opens in the store's own app. Read it there, or get a DRM-free copy.")
+            else Result.Stop("Couldn't convert this $kind", e.message ?: "The file may be damaged.")
         }
+        return when {
+            text.startsWith("%PDF") -> converted("PDF") { FenrirConvert.pdfToEpub(file, base, it); base }
+            text.startsWith("Rar!") || text.startsWith("7z") -> converted("comic archive") { FenrirConvert.archiveToEpub(file, base, it); base }
+            text.length >= 68 && text.substring(60, 68).let { it == "BOOKMOBI" || it == "TEXtREAd" } ->
+                converted("Kindle file") { FenrirConvert.mobiToEpub(file, it) }
+            !text.startsWith("PK") -> { file.delete(); Result.Stop("This isn't a book", "It isn't an EPUB, PDF, comic archive or Kindle file, so it was stopped.") }
+            else -> {
+                val kind = runCatching {
+                    ZipFile(file).use { zip ->
+                        val names = zip.entries().asSequence().map { it.name }.toList()
+                        when {
+                            names.any { it == "AndroidManifest.xml" || it == "classes.dex" } -> "apk"
+                            names.any { it.equals("META-INF/encryption.xml", true) } &&
+                                zip.getEntry("META-INF/encryption.xml")?.let { e -> zip.getInputStream(e).use { it.readBytes().decodeToString() } }
+                                    ?.let { "adobe.com/adept" in it || "readium.org/2014/01/lcp" in it } == true -> "drm"
+                            zip.getEntry("mimetype")?.let { e -> zip.getInputStream(e).use { it.readBytes().decodeToString().trim() } } == "application/epub+zip" -> "epub"
+                            names.any { it.lowercase().endsWith(".opf") } -> "epub"
+                            names.any { it.lowercase().matches(Regex(""".*\.(jpe?g|png|webp|gif|avif)$""")) } -> "cbz"
+                            else -> "other"
+                        }
+                    }
+                }.getOrDefault("broken")
+                when (kind) {
+                    "apk" -> { file.delete(); Result.Stop("This isn't a book", "It's really an app installer (APK) named like a book. Fenrir Read never installs anything, so it was stopped.") }
+                    "drm" -> { file.delete(); Result.Stop("🔒 This book is locked (DRM)", "It only opens in the store's own app. Read it there, or get a DRM-free copy.") }
+                    "epub" -> {
+                        val epub = if (file.name.endsWith(".epub", true)) file else File(dir, "$base.epub").also { file.renameTo(it) }
+                        Result.Book(Uri.fromFile(epub), base, epub.length(), secure, host)
+                    }
+                    "cbz" -> converted("comic archive") { FenrirConvert.archiveToEpub(file, base, it); base }
+                    else -> { file.delete(); Result.Stop("This isn't a book", "The file couldn't be opened as a book.") }
+                }
+            }
+        }
+    }
+
+    /** A file picked on the phone: copied here, then checked and converted like a download. */
+    suspend fun fromPhone(context: Context, uri: Uri): Result = withContext(Dispatchers.IO) {
+        val name = runCatching {
+            context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                if (c.moveToFirst()) c.getString(0) else null
+            }
+        }.getOrNull() ?: uri.lastPathSegment?.substringAfterLast('/') ?: "book"
+        val dir = File(context.cacheDir, "fenrir_imports").apply { mkdirs() }
+        val out = File(dir, "${System.currentTimeMillis()}-" + name.replace(Regex("[^A-Za-z0-9._ -]"), "_"))
+        val copied = runCatching {
+            context.contentResolver.openInputStream(uri)?.use { input -> out.outputStream().use { input.copyTo(it) } }
+        }.getOrNull()
+        if (copied == null) return@withContext Result.Stop("Couldn't open the file", "The file couldn't be read.")
+        if (out.length() > MAX_BYTES) { out.delete(); return@withContext Result.Stop("Too big", "Files over about 1 GB aren't imported.") }
+        process(out, name, secure = true, host = "your phone")
     }
 
     private fun fileName(disposition: String?, url: String): String {
@@ -155,7 +209,7 @@ object FenrirImport {
         val links = re.findAll(html).mapNotNull { m ->
             val href = m.groupValues[1].replace("&amp;", "&")
             val label = m.groupValues[2].replace(Regex("<[^>]+>"), " ").replace(Regex("\\s+"), " ").trim()
-            val isEpub = href.substringBefore('?').lowercase().let { it.endsWith(".epub") || it.endsWith(".epub3") || it.endsWith(".kepub.epub") } ||
+            val isEpub = href.substringBefore('?').lowercase().let { h -> listOf(".epub", ".epub3", ".pdf", ".cbz", ".cbr", ".mobi", ".azw3", ".azw").any { h.endsWith(it) } } ||
                 (href.lowercase().contains("epub") && (label.lowercase().contains("download") || label.lowercase().contains("epub")))
             if (!isEpub) return@mapNotNull null
             val abs = runCatching { base?.resolve(href)?.toString() }.getOrNull() ?: href
@@ -190,11 +244,33 @@ fun FenrirImportSheet(onDismiss: () -> Unit, openImporter: (List<String>) -> Uni
     var result by remember { mutableStateOf<FenrirImport.Result?>(null) }
     val picked = remember { mutableStateListOf<String>() }
     var progress by remember { mutableStateOf<String?>(null) }
+    // From your phone: any book file; non-EPUBs are converted first.
+    val phonePicker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments(),
+    ) { uris ->
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+        busy = true
+        scope.launch {
+            val got = mutableListOf<String>(); val stops = mutableListOf<String>()
+            uris.forEachIndexed { i, u ->
+                progress = "Checking ${i + 1} of ${uris.size}…"
+                when (val one = FenrirImport.fromPhone(context, u)) {
+                    is FenrirImport.Result.Book -> got += one.uri.toString()
+                    is FenrirImport.Result.Stop -> stops += one.title
+                    else -> {}
+                }
+            }
+            busy = false; progress = null
+            if (got.isNotEmpty()) { onDismiss(); openImporter(got) } else {
+                result = FenrirImport.Result.Stop("None could be imported", stops.distinct().joinToString())
+            }
+        }
+    }
 
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Color(0xFF15151B)) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, bottom = 28.dp)) {
             Text("Import a book", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
-            Text("EPUB · goes into your Library", color = Muted, fontSize = 12.5.sp, modifier = Modifier.padding(top = 2.dp, bottom = 12.dp))
+            Text("EPUB · PDF · CBZ · CBR · MOBI · AZW3 · goes into your Library", color = Muted, fontSize = 12.5.sp, modifier = Modifier.padding(top = 2.dp, bottom = 12.dp))
             OutlinedTextField(
                 value = link,
                 onValueChange = { link = it; result = null },
@@ -211,7 +287,7 @@ fun FenrirImportSheet(onDismiss: () -> Unit, openImporter: (List<String>) -> Uni
                         busy = false
                     }
                 }
-                Pill("From your phone", primary = false, enabled = !busy) { onDismiss(); openImporter(emptyList()) }
+                Pill("From your phone", primary = false, enabled = !busy) { phonePicker.launch(arrayOf("*/*")) }
             }
             if (busy) {
                 Row(Modifier.padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -228,7 +304,11 @@ fun FenrirImportSheet(onDismiss: () -> Unit, openImporter: (List<String>) -> Uni
                     ) {
                         Text(r.name, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         Check(if (r.secure) "Secure link (https) · ${r.host}" else "From ${r.host}", ok = r.secure, bad = "Not a secure link (http) · ${r.host}")
-                        Check("Really an EPUB book · ${sizeLabel(r.bytes)}", ok = true)
+                        FenrirImport.linkWarning(r.host)?.let { Check(it, ok = false, bad = it) }
+                        Check(
+                            r.convertedFrom?.let { "Converted from $it → EPUB · ${sizeLabel(r.bytes)}" } ?: "Really an EPUB book · ${sizeLabel(r.bytes)}",
+                            ok = true,
+                        )
                         Check("DRM-free", ok = true)
                         Check("No hidden scripts will run", ok = true)
                     }

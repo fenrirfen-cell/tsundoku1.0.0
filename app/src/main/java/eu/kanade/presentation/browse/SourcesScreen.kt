@@ -68,6 +68,7 @@ fun SourcesScreen(
     onLongClickPin: (Source) -> Unit,
     onRemoveFromGroup: (Source, String) -> Unit,
     onLongClickItem: (Source) -> Unit,
+    novelSide: Boolean = false,
 ) {
     when {
         state.isLoading -> LoadingScreen(Modifier.padding(contentPadding))
@@ -112,6 +113,14 @@ fun SourcesScreen(
             ScrollbarLazyColumn(
                 contentPadding = contentPadding + topSmallPaddingValues,
             ) {
+                item(key = "fenrir-mybooks", contentType = "mybooks") {
+                    eu.kanade.presentation.library.components.FenrirMyBooksCard()
+                }
+                if (novelSide) {
+                    item(key = "fenrir-catalogs", contentType = "catalogs") {
+                        eu.kanade.presentation.library.components.FenrirCatalogsCard()
+                    }
+                }
                 if (lastUsed != null) {
                     item(key = "fenrir-continue", contentType = "continue") {
                         FenrirContinueBrowsingCard(lastUsed, onOpen = { open(lastUsed, Listing.Popular) })

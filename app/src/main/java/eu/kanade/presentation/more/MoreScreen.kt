@@ -142,6 +142,14 @@ fun MoreScreen(
                         icon = Icons.Outlined.Extension,
                         onClick = onClickSources,
                     )
+                    FenrirGroupDivider()
+                    val fenrirNav = cafe.adriel.voyager.navigator.LocalNavigator.current
+                    FenrirGroupRow(
+                        title = "Storage & backup",
+                        subtitle = "Space used, clean up finished books, backups",
+                        icon = Icons.Outlined.Storage,
+                        onClick = { fenrirNav?.push(eu.kanade.presentation.library.components.FenrirStorageScreen()) },
+                    )
                 }
             }
 
