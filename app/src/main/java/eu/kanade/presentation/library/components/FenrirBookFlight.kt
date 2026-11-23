@@ -81,15 +81,22 @@ internal object FenrirBookFlight {
         val cover: tachiyomi.domain.manga.model.MangaCover,
         val start: Rect,
         val onDone: () -> Unit,
+        val page: kotlinx.coroutines.Deferred<FenrirFirstPage.Content?>? = null,
     )
 
     var current by mutableStateOf<Flight?>(null)
         private set
 
-    fun start(mangaId: Long, cover: tachiyomi.domain.manga.model.MangaCover, start: Rect, onDone: () -> Unit) {
+    fun start(
+        mangaId: Long,
+        cover: tachiyomi.domain.manga.model.MangaCover,
+        start: Rect,
+        onDone: () -> Unit,
+        page: kotlinx.coroutines.Deferred<FenrirFirstPage.Content?>? = null,
+    ) {
         if (current != null) return
         if (start.width <= 0f) { onDone(); return }
-        current = Flight(mangaId, cover, start, onDone)
+        current = Flight(mangaId, cover, start, onDone, page)
     }
 
     internal fun clear() { current = null }
@@ -120,15 +127,25 @@ internal fun FenrirBookFlightOverlay() {
         FenrirBookFlight.clear()
         flight.onDone()
     }
+    var content by remember(flight) { mutableStateOf<FenrirFirstPage.Content?>(null) }
     LaunchedEffect(flight) {
-        clock.animateTo(total, tween(total.toInt(), easing = LinearEasing))
+        val p = flight.page ?: return@LaunchedEffect
+        content = runCatching { p.await() }.getOrNull()
+    }
+    LaunchedEffect(flight) {
+        clock.animateTo(700f, tween(700, easing = LinearEasing))
+        // just before the cover opens: give the chapter's first page a moment to arrive
+        val p = flight.page
+        if (p != null && !p.isCompleted) runCatching { kotlinx.coroutines.withTimeoutOrNull(1200) { p.await() } }
+        clock.animateTo(total, tween((total - 700f).toInt(), easing = LinearEasing))
         finish()
     }
     val t = clock.value
     val slide = smooth(phase(t, 0f, 250f))
     val fly = FastOutSlowInEasing.transform(phase(t, 200f, 550f))
     val open = FastOutSlowInEasing.transform(phase(t, 750f, 500f))
-    val flood = smooth(phase(t, 1250f, 300f))
+    // the open page grows into the reader (or fades to paper when there's no page to show)
+    val grow = smooth(phase(t, 1250f, 300f))
 
     BoxWithConstraints(
         Modifier
@@ -152,10 +169,13 @@ internal fun FenrirBookFlightOverlay() {
         val bookH = bookW * ratio
         val endL = (wPx - endW) / 2f
         val endT = (hPx - endW * ratio) / 2f - with(density) { 20.dp.toPx() }
-        val left = lerp(startL, endL, fly)
-        val top = lerp(startT, endT, fly)
-        val wDp = with(density) { bookW.toDp() }
-        val hDp = with(density) { bookH.toDp() }
+        val c = content
+        val g = if (c != null) grow else 0f
+        val left = lerp(lerp(startL, endL, fly), 0f, g)
+        val top = lerp(lerp(startT, endT, fly), 0f, g)
+        val wDp = with(density) { lerp(bookW, wPx, g).toDp() }
+        val hDp = with(density) { lerp(bookH, hPx, g).toDp() }
+        val flood = if (c == null) grow else 0f
 
         Box(
             Modifier
@@ -166,8 +186,40 @@ internal fun FenrirBookFlightOverlay() {
                     shape = RoundedCornerShape(4.dp)
                 },
         ) {
-            // the first page under the cover
-            Box(Modifier.fillMaxSize().background(PageCream).drawBehind { pageLines(true) })
+            // the first page of the chapter you're on, under the cover
+            when (val pc = content) {
+                is FenrirFirstPage.Content.Image -> Box(Modifier.fillMaxSize().background(Color.White)) {
+                    androidx.compose.foundation.Image(
+                        bitmap = pc.bitmap,
+                        contentDescription = null,
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        alignment = Alignment.TopCenter,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+                is FenrirFirstPage.Content.Text -> Column(
+                    Modifier.fillMaxSize().background(PageCream).padding(horizontal = 10.dp + 14.dp * g, vertical = 12.dp + 20.dp * g),
+                ) {
+                    Text(
+                        pc.chapter,
+                        color = Color(0xFF50281E),
+                        fontSize = (9f + 9f * g).sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        pc.text,
+                        color = Color(0xFF2A1E18),
+                        fontSize = (6.5f + 8f * g).sp,
+                        lineHeight = (9f + 11f * g).sp,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
+                        overflow = TextOverflow.Clip,
+                    )
+                }
+                null -> Box(Modifier.fillMaxSize().background(PageCream).drawBehind { pageLines(true) })
+            }
             // a couple of pages turning just after the cover
             listOf(0, 1).forEach { k ->
                 val p = FastOutSlowInEasing.transform(phase(t, 880f + k * 110f, 300f))
@@ -243,16 +295,21 @@ internal fun FenrirContinueReadingCase(manga: LibraryManga, onOpen: () -> Unit) 
     // close the doors again once the book has gone (ready for when you come back)
     LaunchedEffect(flying) { if (!flying && doors.value > 0f) doors.snapTo(0f) }
 
+    // start fetching the first page of the chapter you're on, so it's there when the book opens
+    LaunchedEffect(manga.manga.id, manga.readCount) {
+        FenrirFirstPage.forget(manga.manga.id)
+        FenrirFirstPage.prefetch(manga.manga)
+    }
     val tapped: () -> Unit = {
         if (doors.value == 0f && FenrirBookFlight.current == null) {
             scope.launch {
                 doors.animateTo(1f, tween(850, easing = FastOutSlowInEasing))
-                FenrirBookFlight.start(manga.manga.id, cover, bookRect, onOpen)
+                FenrirBookFlight.start(manga.manga.id, cover, bookRect, onOpen, FenrirFirstPage.prefetch(manga.manga))
             }
         }
     }
-    val hint = rememberInfiniteTransition(label = "knobs")
-    val glow by hint.animateFloat(0.25f, 0.85f, infiniteRepeatable(tween(1400), RepeatMode.Reverse), label = "knobGlow")
+    // a still glow on the knobs (an endless pulse kept the screen redrawing and used battery)
+    val glow = 0.6f
 
     Box(
         Modifier

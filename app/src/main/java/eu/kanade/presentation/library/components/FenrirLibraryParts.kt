@@ -193,15 +193,16 @@ private fun FenrirCategoryButton(
     val pillShape = RoundedCornerShape(7.dp)
     Box(contentAlignment = Alignment.Center) {
         if (showHint) {
-            val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "hint")
-            val t by pulse.animateFloat(
-                initialValue = 0f,
-                targetValue = 1f,
-                animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                    androidx.compose.animation.core.tween(1400, easing = androidx.compose.animation.core.LinearOutSlowInEasing),
-                ),
-                label = "ring",
-            )
+            // pulse three times, then stay still (an endless pulse costs battery)
+            val ring = remember { androidx.compose.animation.core.Animatable(0f) }
+            androidx.compose.runtime.LaunchedEffect(Unit) {
+                repeat(3) {
+                    ring.snapTo(0f)
+                    ring.animateTo(1f, androidx.compose.animation.core.tween(1400, easing = androidx.compose.animation.core.LinearOutSlowInEasing))
+                }
+                ring.snapTo(0.35f)
+            }
+            val t = ring.value
             Box(
                 Modifier
                     .matchParentSize()
@@ -533,7 +534,7 @@ internal fun FenrirLibraryGridItem(
                 onClick = {
                     if (flyOnClick) {
                         // Fenrir: the book slides off the shelf, flies out and opens.
-                        FenrirBookFlight.start(manga.id, coverData, bookRect.value, onClick)
+                        FenrirBookFlight.start(manga.id, coverData, bookRect.value, onClick, FenrirFirstPage.prefetch(manga))
                     } else {
                         onClick()
                     }
