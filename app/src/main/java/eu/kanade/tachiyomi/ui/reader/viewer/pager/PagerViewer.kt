@@ -371,7 +371,150 @@ abstract class PagerViewer(val activity: ReaderActivity) : Viewer {
 
     private fun setBookFlip(on: Boolean) {
         bookFlipOn = on && this !is VerticalPagerViewer
-        pager.bookFlipSwipe = if (bookFlipOn) { towardLeft -> if (towardLeft) moveRight() else moveLeft() } else null
+        pager.bookFlipTouch = if (bookFlipOn) ::onFlipTouch else null
+    }
+
+    // Finger-following curl (like the novel reader): drag a page and it curls under your finger;
+    // let go past the middle (or flick) to turn it, otherwise it falls back.
+    private var flipDownX = 0f
+    private var flipDownY = 0f
+    private var flipLastX = 0f
+    private var flipLastY = 0f
+    private var flipVelocity: android.view.VelocityTracker? = null
+    private var flipDrag = 0 // 0 none, 1 capturing, 2 dragging
+    private var flipBase = 0
+    private var flipForward = true
+    private var flipPending: Boolean? = null
+    private var flipMulti = false
+
+    private val mirrored get() = this is R2LPagerViewer
+    private fun localX(x: Float) = if (mirrored) pager.width - x else x
+
+    private fun onFlipTouch(ev: android.view.MotionEvent): Boolean {
+        when (ev.actionMasked) {
+            android.view.MotionEvent.ACTION_DOWN -> {
+                flipDownX = ev.x; flipDownY = ev.y; flipLastX = ev.x; flipLastY = ev.y
+                flipMulti = false
+                flipVelocity?.recycle()
+                flipVelocity = android.view.VelocityTracker.obtain().also { it.addMovement(ev) }
+                return flipping
+            }
+            android.view.MotionEvent.ACTION_POINTER_DOWN -> {
+                flipMulti = true
+                return flipDrag != 0
+            }
+            android.view.MotionEvent.ACTION_MOVE -> {
+                flipVelocity?.addMovement(ev)
+                flipLastX = ev.x; flipLastY = ev.y
+                if (flipDrag == 2) {
+                    curlView?.dragTo(localX(ev.x), ev.y)
+                    return true
+                }
+                if (flipDrag == 1) return true
+                if (flipping || flipMulti) return flipping
+                val dx = ev.x - flipDownX
+                val dy = ev.y - flipDownY
+                val slop = android.view.ViewConfiguration.get(activity).scaledTouchSlop * 1.5f
+                if (kotlin.math.abs(dx) < slop || kotlin.math.abs(dx) < kotlin.math.abs(dy) * 1.2f) return false
+                // Dragging toward the left shows the page on the right, and the other way round.
+                val towardRight = dx < 0
+                val holder = (currentPage as? ReaderPage)?.let(::getPageHolder)
+                if (holder != null && (if (towardRight) holder.canPanRight() else holder.canPanLeft())) return false
+                val target = pager.currentItem + if (towardRight) 1 else -1
+                if (target !in 0 until adapter.count) return false
+                startInteractiveFlip(target)
+                return true
+            }
+            android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                val vt = flipVelocity
+                vt?.addMovement(ev)
+                vt?.computeCurrentVelocity(1000)
+                val vx = (vt?.xVelocity ?: 0f).let { if (mirrored) -it else it }
+                vt?.recycle(); flipVelocity = null
+                if (flipDrag == 0) return flipping
+                val w = pager.width.toFloat()
+                val x = localX(ev.x)
+                val fling = kotlin.math.abs(vx) > 900f
+                val commit = ev.actionMasked == android.view.MotionEvent.ACTION_UP && if (flipForward) {
+                    if (fling) vx < 0 else x < w * 0.55f
+                } else {
+                    if (fling) vx > 0 else x > w * 0.45f
+                }
+                if (flipDrag == 1) flipPending = commit else finishInteractiveFlip(commit)
+                return true
+            }
+        }
+        return flipDrag != 0
+    }
+
+    private fun ensureCurl(parent: android.view.ViewGroup, w: Int, h: Int): eu.kanade.tachiyomi.ui.reader.viewer.text.webview.PageCurlView {
+        val v = curlView ?: eu.kanade.tachiyomi.ui.reader.viewer.text.webview.PageCurlView(activity).also { curlView = it }
+        if (v.parent !== parent) {
+            (v.parent as? android.view.ViewGroup)?.removeView(v)
+            parent.addView(v, parent.indexOfChild(pager) + 1, android.view.ViewGroup.LayoutParams(w, h))
+        }
+        v.x = pager.x
+        v.y = pager.y
+        v.scaleX = if (mirrored) -1f else 1f
+        v.backColor = android.graphics.Color.rgb(226, 223, 214)
+        return v
+    }
+
+    private fun mirroredShot(shot: android.graphics.Bitmap): android.graphics.Bitmap {
+        if (!mirrored) return shot
+        return android.graphics.Bitmap.createBitmap(shot.width, shot.height, android.graphics.Bitmap.Config.ARGB_8888).also { m ->
+            android.graphics.Canvas(m).apply { scale(-1f, 1f, shot.width / 2f, 0f); drawBitmap(shot, 0f, 0f, null) }
+            shot.recycle()
+        }
+    }
+
+    private fun startInteractiveFlip(target: Int) {
+        val parent = pager.parent as? android.view.ViewGroup ?: return
+        val w = pager.width
+        val h = pager.height
+        if (w <= 0 || h <= 0) return
+        flipping = true
+        flipDrag = 1
+        flipBase = pager.currentItem
+        flipForward = if (mirrored) target < pager.currentItem else target > pager.currentItem
+        flipPending = null
+        val cornerTop = flipDownY < h / 2f
+        capturePager { shot ->
+            if (shot == null) {
+                flipDrag = 0; flipping = false
+                pager.setCurrentItem(target, false)
+                return@capturePager
+            }
+            val bmp = mirroredShot(shot)
+            val v = ensureCurl(parent, w, h)
+            // Forward: the corner starts under your finger. Back: the page comes in from the spine side.
+            val sx = if (flipForward) localX(flipLastX) else (localX(flipLastX) - w).coerceAtMost(0f)
+            v.begin(bmp, flipForward, cornerTop, sx, flipLastY)
+            v.visibility = View.VISIBLE
+            pager.setCurrentItem(target, false)
+            flipDrag = 2
+            if (!flipForward) v.dragTo(localX(flipLastX), flipLastY)
+            flipPending?.let { finishInteractiveFlip(it) }
+        }
+    }
+
+    private fun finishInteractiveFlip(commit: Boolean) {
+        val v = curlView
+        flipDrag = 0
+        if (v == null) { flipping = false; return }
+        val w = v.pageWidth
+        val turnedAway = if (flipForward) commit else !commit
+        val tx = if (turnedAway) -w else w
+        val lift = v.pageHeight * 0.08f
+        val arc = if (!commit) 0f else if (v.cornerY == 0f) -lift else lift
+        v.animateTo(tx, v.cornerY, arc, if (commit) 360L else 240L) {
+            if (!commit) pager.setCurrentItem(flipBase, false)
+            v.postDelayed({
+                v.visibility = View.INVISIBLE
+                v.clear()
+                flipping = false
+            }, if (commit) 0L else 60L)
+        }
     }
 
     private fun turnTo(target: Int) {
@@ -379,7 +522,6 @@ abstract class PagerViewer(val activity: ReaderActivity) : Viewer {
             if (!flipping) pager.setCurrentItem(target, config.usePageTransitions)
             return
         }
-        val mirrored = this is R2LPagerViewer
         val forward = if (mirrored) target < pager.currentItem else target > pager.currentItem
         val parent = pager.parent as? android.view.ViewGroup
         val w = pager.width
@@ -395,32 +537,22 @@ abstract class PagerViewer(val activity: ReaderActivity) : Viewer {
                 pager.setCurrentItem(target, false)
                 return@capturePager
             }
-            val bmp = if (mirrored) {
-                android.graphics.Bitmap.createBitmap(shot.width, shot.height, android.graphics.Bitmap.Config.ARGB_8888).also { m ->
-                    android.graphics.Canvas(m).apply { scale(-1f, 1f, shot.width / 2f, 0f); drawBitmap(shot, 0f, 0f, null) }
-                    shot.recycle()
-                }
-            } else {
-                shot
-            }
-            val v = curlView ?: eu.kanade.tachiyomi.ui.reader.viewer.text.webview.PageCurlView(activity).also { cv ->
-                curlView = cv
-            }
-            if (v.parent !== parent) {
-                (v.parent as? android.view.ViewGroup)?.removeView(v)
-                val index = parent.indexOfChild(pager) + 1
-                parent.addView(v, index, android.view.ViewGroup.LayoutParams(w, h))
-            }
-            v.x = pager.x
-            v.y = pager.y
-            v.scaleX = if (mirrored) -1f else 1f
-            v.backColor = android.graphics.Color.rgb(226, 223, 214)
+            val bmp = mirroredShot(shot)
+            val v = ensureCurl(parent, w, h)
             val fw = bmp.width.toFloat()
             val fh = bmp.height.toFloat()
-            v.begin(bmp, forward, false, if (forward) fw - 1f else -fw, fh - 1f)
+            if (forward) {
+                // Lift the bottom corner and turn the page over to the left.
+                v.begin(bmp, true, false, fw - 1f, fh - 1f)
+            } else {
+                // Going back: the previous page lifts off the spine and lays down from the left,
+                // like turning back a real page (a short opening curl, then the full turn).
+                v.begin(bmp, false, false, -fw, fh - 1f)
+                v.dragTo(-fw * 0.55f, fh * 0.82f)
+            }
             v.visibility = View.VISIBLE
             pager.setCurrentItem(target, false)
-            v.animateTo(if (forward) -fw else fw, fh, fh * 0.12f, 430L) {
+            v.animateTo(if (forward) -fw else fw, fh, fh * 0.08f, if (forward) 420L else 460L) {
                 v.visibility = View.INVISIBLE
                 v.clear()
                 flipping = false

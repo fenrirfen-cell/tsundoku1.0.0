@@ -166,6 +166,8 @@ class MangaScreen(
             },
             onTagSearch = { scope.launch { performGenreSearch(navigator, it, viewModel.source!!) } },
             onFilterButtonClicked = viewModel::showSettingsDialog,
+            onToggleChapterOrder = { viewModel.setSorting(successState.manga.sorting) },
+            onChapterOrderForAll = { viewModel.setCurrentSettingsAsDefault(applyToExisting = true) },
             onRefresh = viewModel::fetchAllFromSource,
             onForceRefresh = { viewModel.fetchAllFromSource(forceRefresh = true) },
             onContinueReading = { continueReading(context, viewModel.getNextUnreadChapter()) },

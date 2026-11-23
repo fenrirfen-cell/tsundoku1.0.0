@@ -111,6 +111,8 @@ fun MangaScreen(
     onTagSearch: (String) -> Unit,
 
     onFilterButtonClicked: () -> Unit,
+    onToggleChapterOrder: () -> Unit = {},
+    onChapterOrderForAll: () -> Unit = {},
     onRefresh: () -> Unit,
     onForceRefresh: (() -> Unit)? = null,
     onContinueReading: () -> Unit,
@@ -180,6 +182,8 @@ fun MangaScreen(
             onTagSearch = onTagSearch,
             onCopyTagToClipboard = onCopyTagToClipboard,
             onFilterClicked = onFilterButtonClicked,
+            onToggleChapterOrder = onToggleChapterOrder,
+            onChapterOrderForAll = onChapterOrderForAll,
             onRefresh = onRefresh,
             onForceRefresh = onForceRefresh,
             onContinueReading = onContinueReading,
@@ -232,6 +236,8 @@ fun MangaScreen(
             onTagSearch = onTagSearch,
             onCopyTagToClipboard = onCopyTagToClipboard,
             onFilterButtonClicked = onFilterButtonClicked,
+            onToggleChapterOrder = onToggleChapterOrder,
+            onChapterOrderForAll = onChapterOrderForAll,
             onRefresh = onRefresh,
             onForceRefresh = onForceRefresh,
             onContinueReading = onContinueReading,
@@ -290,6 +296,8 @@ private fun MangaScreenSmallImpl(
     onCopyTagToClipboard: (tag: String) -> Unit,
 
     onFilterClicked: () -> Unit,
+    onToggleChapterOrder: () -> Unit = {},
+    onChapterOrderForAll: () -> Unit = {},
     onRefresh: () -> Unit,
     onForceRefresh: (() -> Unit)? = null,
     onContinueReading: () -> Unit,
@@ -610,6 +618,9 @@ private fun MangaScreenSmallImpl(
                         )
                     }
 
+                    item(key = "fenrir-order", contentType = "fenrir-order") {
+                        FenrirChapterOrderRow(state.manga.sortDescending(), onToggleChapterOrder)
+                    }
                     sharedChapterItems(
                         manga = state.manga,
                         chapters = listItem,
@@ -689,6 +700,9 @@ private fun MangaScreenSmallImpl(
                     onFromStart = { fenrirOrdered.firstOrNull()?.let(onChapterClicked) },
                     onDownloadNext5 = onDownloadActionClicked?.let { dl -> { dl(DownloadAction.NEXT_5_CHAPTERS) } },
                     close = { fenrirPopup = null },
+                    newestFirst = state.manga.sortDescending(),
+                    onToggleOrder = onToggleChapterOrder,
+                    onOrderForAll = onChapterOrderForAll,
                 )
             }
         }
@@ -716,6 +730,8 @@ fun MangaScreenLargeImpl(
     onCopyTagToClipboard: (tag: String) -> Unit,
 
     onFilterButtonClicked: () -> Unit,
+    onToggleChapterOrder: () -> Unit = {},
+    onChapterOrderForAll: () -> Unit = {},
     onRefresh: () -> Unit,
     onForceRefresh: (() -> Unit)? = null,
     onContinueReading: () -> Unit,
@@ -1022,7 +1038,10 @@ fun MangaScreenLargeImpl(
                                 )
                             }
 
-                            sharedChapterItems(
+                            item(key = "fenrir-order", contentType = "fenrir-order") {
+                        FenrirChapterOrderRow(state.manga.sortDescending(), onToggleChapterOrder)
+                    }
+                    sharedChapterItems(
                                 manga = state.manga,
                                 chapters = listItem,
                                 isAnyChapterSelected = chapters.fastAny { it.selected },
@@ -1084,6 +1103,9 @@ fun MangaScreenLargeImpl(
                     onFromStart = { fenrirOrdered.firstOrNull()?.let(onChapterClicked) },
                     onDownloadNext5 = onDownloadActionClicked?.let { dl -> { dl(DownloadAction.NEXT_5_CHAPTERS) } },
                     close = { fenrirPopup = null },
+                    newestFirst = state.manga.sortDescending(),
+                    onToggleOrder = onToggleChapterOrder,
+                    onOrderForAll = onChapterOrderForAll,
                 )
             }
         }

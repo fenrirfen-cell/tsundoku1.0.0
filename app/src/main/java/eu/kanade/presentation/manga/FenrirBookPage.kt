@@ -1191,6 +1191,9 @@ fun FenrirReadMenu(
     onFromStart: () -> Unit,
     onDownloadNext5: (() -> Unit)?,
     close: () -> Unit,
+    newestFirst: Boolean = true,
+    onToggleOrder: () -> Unit = {},
+    onOrderForAll: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val last = remember(ordered) { FenrirSpot.last(manga.id)?.let { (id, at) -> ordered.firstOrNull { it.id == id }?.let { it to at } } }
@@ -1208,4 +1211,34 @@ fun FenrirReadMenu(
     FenrirMenuRow("🕶", "Read incognito") { close(); onIncognito() }
     FenrirMenuRow("⏮", "Start from chapter 1") { close(); onFromStart() }
     if (onDownloadNext5 != null) FenrirMenuRow("⤓", "Download next 5") { close(); onDownloadNext5() }
+    Box(Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth().height(1.dp).background(Color(0xFF26262E)))
+    FenrirMenuRow(
+        if (newestFirst) "↑" else "↓",
+        if (newestFirst) "Show chapter 1 at the top" else "Show newest at the top",
+        "For this book",
+    ) { close(); onToggleOrder() }
+    FenrirMenuRow("⇅", "Use this order for all books", if (newestFirst) "Newest at the top" else "Chapter 1 at the top") { close(); onOrderForAll() }
+}
+
+/** "Newest first ↓ / Chapter 1 first ↑" switch above the chapter list. */
+@Composable
+fun FenrirChapterOrderRow(newestFirst: Boolean, onToggle: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text("Order", color = Muted, fontSize = 12.5.sp, modifier = Modifier.weight(1f))
+        Row(
+            Modifier.clip(CircleShape).background(Color(0xFF1C1C23)).border(1.dp, Color.White.copy(alpha = 0.12f), CircleShape).padding(3.dp),
+        ) {
+            listOf(true to "Newest first", false to "Ch. 1 first").forEach { (desc, label) ->
+                val on = desc == newestFirst
+                Text(
+                    label,
+                    color = if (on) Color.White else Color(0xFFA9A9B4),
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clip(CircleShape).background(if (on) Red else Color.Transparent)
+                        .clickable(enabled = !on, onClick = onToggle).padding(horizontal = 12.dp, vertical = 6.dp),
+                )
+            }
+        }
+    }
 }
