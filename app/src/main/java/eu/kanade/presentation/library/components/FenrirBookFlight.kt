@@ -84,7 +84,10 @@ internal object FenrirBookFlight {
         val page: kotlinx.coroutines.Deferred<FenrirFirstPage.Content?>? = null,
         val turn: Boolean = false,
         val title: String = "",
-    )
+    ) {
+        /** Set once the book has opened; a flight that's done never plays again (e.g. on Back). */
+        var done = false
+    }
 
     var current by mutableStateOf<Flight?>(null)
         private set
@@ -118,6 +121,10 @@ private fun smooth(x: Float): Float = x * x * (3f - 2f * x)
 @Composable
 internal fun FenrirBookFlightOverlay() {
     val flight = FenrirBookFlight.current ?: return
+    if (flight.done) {
+        androidx.compose.runtime.SideEffect { FenrirBookFlight.clear() }
+        return
+    }
     if (flight.turn) {
         FenrirBookTurnOverlay(flight)
         return
@@ -125,14 +132,21 @@ internal fun FenrirBookFlightOverlay() {
     val clock = remember(flight) { Animatable(0f) }
     var origin by remember { mutableStateOf(Offset.Zero) }
     var finished by remember(flight) { mutableStateOf(false) }
+    var placed by remember(flight) { mutableStateOf(false) }
+    LaunchedEffect(finished) {
+        if (finished) {
+            delay(1500)
+            FenrirBookFlight.clear()
+        }
+    }
     val total = 1550f
     val scope = rememberCoroutineScope()
     fun finish() {
         if (finished) return
         finished = true
-        // Let go first: if this screen is left (and later shown again on Back), the flight
-        // must not start over and open the book a second time.
-        FenrirBookFlight.clear()
+        // Mark it done (so Back never replays it), but keep the last frame on screen while the
+        // next page slides in: letting go here flashed the library for a moment.
+        flight.done = true
         flight.onDone()
     }
     var content by remember(flight) { mutableStateOf<FenrirFirstPage.Content?>(null) }
@@ -158,7 +172,9 @@ internal fun FenrirBookFlightOverlay() {
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
-            .onGloballyPositioned { origin = it.positionInRoot() }
+            .onGloballyPositioned { origin = it.positionInRoot(); placed = true }
+            // nothing is drawn until we know where the overlay sits (the first frame jumped)
+            .graphicsLayer { alpha = if (placed) 1f else 0f }
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { finish() },
     ) {
         val density = LocalDensity.current
@@ -501,11 +517,20 @@ private fun FenrirBookTurnOverlay(flight: FenrirBookFlight.Flight) {
     val clock = remember(flight) { Animatable(0f) }
     var origin by remember { mutableStateOf(Offset.Zero) }
     var finished by remember(flight) { mutableStateOf(false) }
-    val total = 820f
+    var placed by remember(flight) { mutableStateOf(false) }
+    LaunchedEffect(finished) {
+        if (finished) {
+            delay(1500)
+            FenrirBookFlight.clear()
+        }
+    }
+    val total = 760f
     fun finish() {
         if (finished) return
         finished = true
-        FenrirBookFlight.clear()
+        // Mark it done (so Back never replays it), but keep the last frame on screen while the
+        // next page slides in: letting go here flashed the library for a moment.
+        flight.done = true
         flight.onDone()
     }
     LaunchedEffect(flight) {
@@ -513,21 +538,23 @@ private fun FenrirBookTurnOverlay(flight: FenrirBookFlight.Flight) {
         finish()
     }
     val t = clock.value
-    val lift = smooth(phase(t, 0f, 180f))
-    val fly = FastOutSlowInEasing.transform(phase(t, 100f, 480f))
-    val spin = FastOutSlowInEasing.transform(phase(t, 140f, 560f))
-    val fade = smooth(phase(t, 680f, 140f))
+    val lift = smooth(phase(t, 0f, 200f))
+    val fly = FastOutSlowInEasing.transform(phase(t, 60f, 560f))
+    val spin = FastOutSlowInEasing.transform(phase(t, 120f, 600f))
+    val fade = 0f
 
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
-            .onGloballyPositioned { origin = it.positionInRoot() }
+            .onGloballyPositioned { origin = it.positionInRoot(); placed = true }
+            // nothing is drawn until we know where the overlay sits (the first frame jumped)
+            .graphicsLayer { alpha = if (placed) 1f else 0f }
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { finish() },
     ) {
         val density = LocalDensity.current
         val wPx = with(density) { maxWidth.toPx() }
         val hPx = with(density) { maxHeight.toPx() }
-        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f * fly + 0.4f * fade)))
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f * fly)))
 
         val s = flight.start
         val ratio = s.height / s.width
