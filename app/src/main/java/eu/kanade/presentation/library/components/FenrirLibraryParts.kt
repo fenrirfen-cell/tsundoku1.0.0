@@ -419,6 +419,24 @@ class FenrirFollowBar {
  * Quick-return header: moves up exactly as far as the books scroll (until it's out of sight) and
  * comes back as soon as you scroll up. Never consumes scrolling, never changes the list's size.
  */
+/**
+ * The library's top part (glass case + category rail) moves exactly with the books, like part of
+ * the bookcase: each grid starts with an empty spot as tall as the top part, and the top part is
+ * shifted by however far that spot has scrolled. No resizing, no popping back mid-list.
+ */
+internal class FenrirScrollingHeader {
+    var heightPx by androidx.compose.runtime.mutableIntStateOf(0)
+    val grids = androidx.compose.runtime.mutableStateMapOf<Int, androidx.compose.foundation.lazy.grid.LazyGridState>()
+
+    fun offsetFor(page: Int): Float {
+        val st = grids[page] ?: return 0f
+        return if (st.firstVisibleItemIndex == 0) -minOf(st.firstVisibleItemScrollOffset, heightPx).toFloat() else -heightPx.toFloat()
+    }
+}
+
+internal val LocalFenrirHeader = androidx.compose.runtime.staticCompositionLocalOf<FenrirScrollingHeader?> { null }
+internal val LocalFenrirPage = androidx.compose.runtime.staticCompositionLocalOf { 0 }
+
 internal class FenrirQuickReturnHeader {
     var heightPx by androidx.compose.runtime.mutableIntStateOf(0)
     var offsetPx by androidx.compose.runtime.mutableFloatStateOf(0f)

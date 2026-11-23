@@ -139,13 +139,9 @@ object HomeScreen : Screen() {
                             available: androidx.compose.ui.geometry.Offset,
                             source: androidx.compose.ui.input.nestedscroll.NestedScrollSource,
                         ): androidx.compose.ui.geometry.Offset {
-                            val bars = eu.kanade.presentation.components.FenrirBars.shown
-                            if (available.y != 0f) {
-                                run = if ((run < 0f) == (available.y < 0f)) run + available.y else available.y
-                                if (run < -48f && bars.value) bars.value = false
-                                if (run > 48f && !bars.value) bars.value = true
-                            }
-                            return followBar.connection.onPreScroll(available, source)
+                            // Fenrir: the top bars stay put (hiding/showing them pushed the books
+                            // up and down while scrolling).
+                            return androidx.compose.ui.geometry.Offset.Zero
                         }
                     }
                 }

@@ -68,8 +68,11 @@ fun LibraryPager(
         }
         // Fenrir: revolving bookcase. Each category is one side of a box that turns as you switch.
         Box(Modifier.fillMaxSize().fenrirBookcaseTurn(state, page).fenrirBookcaseBack()) {
+        androidx.compose.runtime.CompositionLocalProvider(LocalFenrirPage provides page) {
         val category = getCategoryForPage(page)
         val items = getItemsForCategory(category)
+        val fenrirHeaderDp = with(androidx.compose.ui.platform.LocalDensity.current) { (LocalFenrirHeader.current?.heightPx ?: 0).toDp() }
+        val listPadding = contentPadding + PaddingValues(top = fenrirHeaderDp)
 
         if (paginationEnabled) {
             LaunchedEffect(category.id) { onCategoryFirstVisible(category) }
@@ -79,7 +82,7 @@ fun LibraryPager(
             if (paginationEnabled && isCategoryLoading(category)) {
                 Box(
                     modifier = Modifier
-                        .padding(contentPadding)
+                        .padding(listPadding)
                         .fillMaxSize(),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -89,7 +92,7 @@ fun LibraryPager(
                 LibraryPagerEmptyScreen(
                     searchQuery = searchQuery,
                     hasActiveFilters = hasActiveFilters,
-                    contentPadding = contentPadding,
+                    contentPadding = listPadding,
                     onGlobalSearchClicked = onGlobalSearchClicked,
                 )
             }
@@ -121,7 +124,7 @@ fun LibraryPager(
             LibraryDisplayMode.List -> {
                 LibraryList(
                     items = items,
-                    contentPadding = contentPadding,
+                    contentPadding = listPadding,
                     selection = selection,
                     onClick = onClickManga,
                     onLongClick = onLongClickManga,
@@ -165,6 +168,7 @@ fun LibraryPager(
                     loadMoreKey = loadMoreKey,
                 )
             }
+        }
         }
         }
     }

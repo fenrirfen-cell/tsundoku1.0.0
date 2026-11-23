@@ -67,7 +67,7 @@ fun LibraryContent(
     // Fenrir: the top part (Continue reading case + category rail) slides away over the books as
     // you scroll down and slides back as soon as you scroll up. It moves on top of the list instead
     // of resizing it, so scrolling stays smooth and never jumps.
-    val header = remember { FenrirQuickReturnHeader() }
+    val scrollHeader = remember { FenrirScrollingHeader() }
     val density = androidx.compose.ui.platform.LocalDensity.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val pagerState = rememberPagerState(currentPage) { categories.size }
@@ -84,9 +84,63 @@ fun LibraryContent(
             )
             .clipToBounds(),
     ) {
-      Column(Modifier.fillMaxSize()) {
-        // Fenrir: Continue reading + the category rail stay put at the top; only the books scroll.
-        Column(Modifier.fillMaxWidth().background(androidx.compose.ui.graphics.Color(0xFF0B0B0F))) {
+      androidx.compose.runtime.CompositionLocalProvider(LocalFenrirHeader provides scrollHeader) {
+      Box(Modifier.fillMaxSize()) {
+        PullRefresh(
+            refreshing = isRefreshing,
+            enabled = selection.isEmpty(),
+            indicatorPadding = PaddingValues(top = with(density) { scrollHeader.heightPx.toDp() }),
+            onRefresh = {
+                // Fenrir: also check quietly for a new app version (only says something if there is one).
+                fenrirCheckAppUpdate(context)
+                val started = onRefresh()
+                if (!started) return@PullRefresh
+                scope.launch {
+                    // Fake refresh status but hide it after a second as it's a long running task
+                    isRefreshing = true
+                    delay(1.seconds)
+                    isRefreshing = false
+                }
+            },
+        ) {
+            LibraryPager(
+                state = pagerState,
+                contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding()),
+                hasActiveFilters = hasActiveFilters,
+                selection = selection,
+                searchQuery = searchQuery,
+                onGlobalSearchClicked = onGlobalSearchClicked,
+                getCategoryForPage = { page -> categories[page] },
+                getDisplayMode = getDisplayMode,
+                getColumnsForOrientation = getColumnsForOrientation,
+                getItemsForCategory = getItemsForCategory,
+                onClickManga = { category, manga ->
+                    if (selection.isNotEmpty()) {
+                        onToggleSelection(category, manga)
+                    } else {
+                        onClickManga(manga.manga.id)
+                    }
+                },
+                onLongClickManga = onToggleRangeSelection,
+                onClickContinueReading = onContinueReadingClicked,
+                titleMaxLines = titleMaxLines,
+                showUrlInList = showUrlInList,
+                paginationEnabled = paginationEnabled,
+                onCategoryFirstVisible = onCategoryFirstVisible,
+                onLoadMore = onLoadMore,
+                getLoadMoreKey = getLoadMoreKey,
+                isCategoryLoading = isCategoryLoading,
+            )
+        }
+
+        // Fenrir: the glass case + category rail, moving exactly with the books of this category.
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .onSizeChanged { scrollHeader.heightPx = it.height }
+                .graphicsLayer { translationY = scrollHeader.offsetFor(pagerState.currentPage) }
+                .background(androidx.compose.ui.graphics.Color(0xFF0B0B0F)),
+        ) {
                         // Fenrir: "● 1 source down · 4 books ›" when a source your books use stopped working.
             if (searchQuery.isNullOrEmpty() && selection.isEmpty()) {
                 val allBooks = categories.flatMap { getItemsForCategory(it) }.map { it.libraryManga }
@@ -132,54 +186,7 @@ fun LibraryContent(
             }
         
         }
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-        PullRefresh(
-            refreshing = isRefreshing,
-            enabled = selection.isEmpty(),
-            onRefresh = {
-                // Fenrir: also check quietly for a new app version (only says something if there is one).
-                fenrirCheckAppUpdate(context)
-                val started = onRefresh()
-                if (!started) return@PullRefresh
-                scope.launch {
-                    // Fake refresh status but hide it after a second as it's a long running task
-                    isRefreshing = true
-                    delay(1.seconds)
-                    isRefreshing = false
-                }
-            },
-        ) {
-            LibraryPager(
-                state = pagerState,
-                contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding()),
-                hasActiveFilters = hasActiveFilters,
-                selection = selection,
-                searchQuery = searchQuery,
-                onGlobalSearchClicked = onGlobalSearchClicked,
-                getCategoryForPage = { page -> categories[page] },
-                getDisplayMode = getDisplayMode,
-                getColumnsForOrientation = getColumnsForOrientation,
-                getItemsForCategory = getItemsForCategory,
-                onClickManga = { category, manga ->
-                    if (selection.isNotEmpty()) {
-                        onToggleSelection(category, manga)
-                    } else {
-                        onClickManga(manga.manga.id)
-                    }
-                },
-                onLongClickManga = onToggleRangeSelection,
-                onClickContinueReading = onContinueReadingClicked,
-                titleMaxLines = titleMaxLines,
-                showUrlInList = showUrlInList,
-                paginationEnabled = paginationEnabled,
-                onCategoryFirstVisible = onCategoryFirstVisible,
-                onLoadMore = onLoadMore,
-                getLoadMoreKey = getLoadMoreKey,
-                isCategoryLoading = isCategoryLoading,
-            )
-        }
-
-        }
+      }
       }
 
         if (isQueryRunning && selection.isEmpty()) {

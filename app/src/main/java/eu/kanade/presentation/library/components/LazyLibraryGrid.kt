@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.grid.items
 import tachiyomi.presentation.core.components.FastScrollLazyVerticalGrid
@@ -31,13 +32,30 @@ internal fun LazyLibraryGrid(
         } else {
             ((maxWidth - 16.dp + CommonMangaItemDefaults.GridHorizontalSpacer) / (128.dp + CommonMangaItemDefaults.GridHorizontalSpacer)).toInt().coerceAtLeast(1)
         }
+        val header = LocalFenrirHeader.current
+        val page = LocalFenrirPage.current
+        val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+        if (header != null) {
+            androidx.compose.runtime.DisposableEffect(gridState, page) {
+                header.grids[page] = gridState
+                onDispose { if (header.grids[page] === gridState) header.grids.remove(page) }
+            }
+        }
+        val headerDp = with(androidx.compose.ui.platform.LocalDensity.current) { (header?.heightPx ?: 0).toDp() }
         FastScrollLazyVerticalGrid(
             columns = if (columns == 0) GridCells.Adaptive(128.dp) else GridCells.Fixed(columns),
+            state = gridState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = contentPadding + PaddingValues(8.dp),
             verticalArrangement = Arrangement.spacedBy(CommonMangaItemDefaults.GridVerticalSpacer),
             horizontalArrangement = Arrangement.spacedBy(CommonMangaItemDefaults.GridHorizontalSpacer),
         ) {
+            // Fenrir: room for the glass case + rail, which scroll along with this spot.
+            if (header != null) {
+                item(span = { GridItemSpan(maxLineSpan) }, contentType = { "fenrir_header_space" }) {
+                    androidx.compose.foundation.layout.Spacer(Modifier.height(headerDp))
+                }
+            }
             content()
             // Fenrir: finish the bookcase. Empty spots fill the last shelf, then a few empty
             // shelves follow, so the case never just stops where your books do.
