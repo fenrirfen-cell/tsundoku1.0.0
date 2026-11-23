@@ -312,7 +312,17 @@ class ReaderViewModel @JvmOverloads constructor(
             .distinctUntilChanged()
             .filterNotNull()
             .onEach { currentChapter ->
-                if (chapterPageIndex >= 0) {
+                // Fenrir: a page picked on the book page (also for chapters already read).
+                val fenrirJump = currentChapter.chapter.id?.let { eu.kanade.presentation.manga.FenrirReaderJump.take(it) }
+                // Fenrir: automatic bookmark of the chapter you're in.
+                if (!incognitoMode) {
+                    val mid = manga?.id
+                    val cid = currentChapter.chapter.id
+                    if (mid != null && cid != null) eu.kanade.presentation.manga.FenrirSpot.saveLast(mid, cid)
+                }
+                if (fenrirJump != null) {
+                    currentChapter.requestedPage = fenrirJump
+                } else if (chapterPageIndex >= 0) {
                     // Restore from SavedState
                     currentChapter.requestedPage = chapterPageIndex
                 } else if (!currentChapter.chapter.read) {

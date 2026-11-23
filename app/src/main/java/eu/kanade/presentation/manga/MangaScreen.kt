@@ -367,6 +367,13 @@ private fun MangaScreenSmallImpl(
         if (state.manga.sortDescending()) list.reversed() else list
     }
     val fenrirTarget = remember(state.chapters, state.manga) { state.chapters.getNextUnread(state.manga) }
+    // Fenrir: on the Pages tab the button follows the chapter you pick; Continue asks when you went back.
+    var fenrirPicked by remember(state.manga.id) { mutableStateOf<tachiyomi.domain.chapter.model.Chapter?>(null) }
+    androidx.compose.runtime.LaunchedEffect(fenrirTab) { if (fenrirTab != FenrirBookTab.Pages) fenrirPicked = null }
+    val fenrirContext = androidx.compose.ui.platform.LocalContext.current
+    val fenrirContinue = rememberFenrirContinue(state.manga, fenrirOrdered) {
+        if (fenrirTarget != null) onContinueReading() else fenrirOrdered.firstOrNull()?.let(onChapterClicked)
+    }
 
     Scaffold(
         topBar = {
@@ -428,13 +435,19 @@ private fun MangaScreenSmallImpl(
                     tab = fenrirTab,
                     onTab = { fenrirTab = it },
                     continueLabel = when {
+                        fenrirTab == FenrirBookTab.Pages && fenrirPicked != null -> "Read Ch. ${fenrirChapterNumber(fenrirPicked!!)}"
                         fenrirTarget != null && anyRead -> "Continue · Ch. ${fenrirChapterNumber(fenrirTarget)}"
                         fenrirTarget != null -> "Start · Ch. ${fenrirChapterNumber(fenrirTarget)}"
                         fenrirOrdered.isNotEmpty() -> "Read again"
                         else -> null
                     },
                     onContinue = {
-                        if (fenrirTarget != null) onContinueReading() else fenrirOrdered.firstOrNull()?.let(onChapterClicked)
+                        val picked = fenrirPicked
+                        if (fenrirTab == FenrirBookTab.Pages && picked != null) {
+                            fenrirOpenAt(fenrirContext, state.manga.id, picked, 0)
+                        } else {
+                            fenrirContinue()
+                        }
                     },
                     onIncognito = {
                         runCatching { Injekt.get<eu.kanade.domain.base.BasePreferences>().incognitoMode.set(true) }
@@ -618,6 +631,7 @@ private fun MangaScreenSmallImpl(
                                 startChapterId = fenrirTarget?.id,
                                 isNovel = state.isNovel,
                                 onOpenChapter = onChapterClicked,
+                                onPickChapter = { fenrirPicked = it },
                             )
                         }
                         FenrirBookTab.Bookmarks -> item(key = "fenrir-bookmarks", contentType = "fenrir-bookmarks") {
@@ -739,6 +753,13 @@ fun MangaScreenLargeImpl(
         if (state.manga.sortDescending()) list.reversed() else list
     }
     val fenrirTarget = remember(state.chapters, state.manga) { state.chapters.getNextUnread(state.manga) }
+    // Fenrir: on the Pages tab the button follows the chapter you pick; Continue asks when you went back.
+    var fenrirPicked by remember(state.manga.id) { mutableStateOf<tachiyomi.domain.chapter.model.Chapter?>(null) }
+    androidx.compose.runtime.LaunchedEffect(fenrirTab) { if (fenrirTab != FenrirBookTab.Pages) fenrirPicked = null }
+    val fenrirContext = androidx.compose.ui.platform.LocalContext.current
+    val fenrirContinue = rememberFenrirContinue(state.manga, fenrirOrdered) {
+        if (fenrirTarget != null) onContinueReading() else fenrirOrdered.firstOrNull()?.let(onChapterClicked)
+    }
 
     Scaffold(
         topBar = {
@@ -792,13 +813,19 @@ fun MangaScreenLargeImpl(
                             tab = fenrirTab,
                             onTab = { fenrirTab = it },
                             continueLabel = when {
-                                fenrirTarget != null && anyRead -> "Continue · Ch. ${fenrirChapterNumber(fenrirTarget)}"
+                                fenrirTab == FenrirBookTab.Pages && fenrirPicked != null -> "Read Ch. ${fenrirChapterNumber(fenrirPicked!!)}"
+                        fenrirTarget != null && anyRead -> "Continue · Ch. ${fenrirChapterNumber(fenrirTarget)}"
                                 fenrirTarget != null -> "Start · Ch. ${fenrirChapterNumber(fenrirTarget)}"
                                 fenrirOrdered.isNotEmpty() -> "Read again"
                                 else -> null
                             },
                             onContinue = {
-                                if (fenrirTarget != null) onContinueReading() else fenrirOrdered.firstOrNull()?.let(onChapterClicked)
+                                val picked = fenrirPicked
+                                if (fenrirTab == FenrirBookTab.Pages && picked != null) {
+                                    fenrirOpenAt(fenrirContext, state.manga.id, picked, 0)
+                                } else {
+                                    fenrirContinue()
+                                }
                             },
                             onIncognito = {
                                 runCatching { Injekt.get<eu.kanade.domain.base.BasePreferences>().incognitoMode.set(true) }
@@ -970,6 +997,7 @@ fun MangaScreenLargeImpl(
                                         startChapterId = fenrirTarget?.id,
                                         isNovel = state.isNovel,
                                         onOpenChapter = onChapterClicked,
+                                        onPickChapter = { fenrirPicked = it },
                                     )
                                 }
                                 FenrirBookTab.Bookmarks -> item(key = "fenrir-bookmarks", contentType = "fenrir-bookmarks") {
