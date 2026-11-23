@@ -108,7 +108,7 @@ object FenrirRatings {
     private fun key(title: String, novel: Boolean) = (if (novel) "n3:" else "m3:") + norm(title)
     fun norm(t: String) = t.lowercase().filter { it.isLetterOrDigit() }
 
-    private fun matches(query: String, candidates: List<String>): Boolean {
+    fun matches(query: String, candidates: List<String>): Boolean {
         val q = norm(query)
         if (q.length < 2) return false
         return candidates.map { norm(it) }.filter { it.isNotEmpty() }.any { c ->
@@ -149,6 +149,58 @@ object FenrirRatings {
         memory[k] = r
         prefs.edit().putString(k, "${System.currentTimeMillis()}\u0001${r?.let { encode(it) }.orEmpty()}").apply()
         return r
+    }
+
+    // ---- Similar books (AniList "recommendations": what readers of this book also liked) ----
+    data class Similar(val names: List<String>, val cover: String?, val format: String?)
+    private val similarMemory: MutableMap<String, List<Similar>> = java.util.Collections.synchronizedMap(HashMap())
+
+    suspend fun similar(title: String, novel: Boolean): List<Similar> = withContext(Dispatchers.IO) {
+        val k = key(title, novel)
+        similarMemory[k]?.let { return@withContext it }
+        val q = """
+            query(${'$'}s: String) { Page(perPage: 6) { media(search: ${'$'}s, type: MANGA) {
+              format synonyms title { romaji english native }
+              recommendations(sort: [RATING_DESC], perPage: 14) { nodes { rating mediaRecommendation {
+                format title { romaji english } coverImage { large }
+              } } }
+            } } }
+        """.trimIndent()
+        val body = buildJsonObject {
+            put("query", q)
+            put("variables", buildJsonObject { put("s", title.take(120)) })
+        }.toString()
+        val text = runCatching {
+            withTimeoutOrNull(15_000) {
+                client.newCall(
+                    Request.Builder().url("https://graphql.anilist.co")
+                        .post(body.toRequestBody("application/json".toMediaType()))
+                        .header("Accept", "application/json").build(),
+                ).execute().use { it.body?.string() }
+            }
+        }.getOrNull() ?: return@withContext emptyList()
+        val list = runCatching { (json.parseToJsonElement(text).obj("data")?.obj("Page")?.get("media") as? JsonArray) }.getOrNull()
+            ?: return@withContext emptyList()
+        val media = list.mapNotNull { it as? JsonObject }
+            .filter { m ->
+                val t = m.obj("title")
+                val names = listOfNotNull(t?.str("romaji"), t?.str("english"), t?.str("native")) +
+                    ((m["synonyms"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.content } ?: emptyList())
+                matches(title, names)
+            }
+            .sortedByDescending { m -> if ((m.str("format") == "NOVEL") == novel) 1 else 0 }
+            .firstOrNull() ?: return@withContext emptyList()
+        val out = ((media.obj("recommendations")?.get("nodes") as? JsonArray) ?: JsonArray(emptyList()))
+            .mapNotNull { (it as? JsonObject)?.obj("mediaRecommendation") }
+            .mapNotNull { r ->
+                val t = r.obj("title")
+                val names = listOfNotNull(t?.str("english"), t?.str("romaji")).distinct()
+                if (names.isEmpty()) null else Similar(names, r.obj("coverImage")?.str("large"), r.str("format"))
+            }
+            // Same kind first (novels for a novel, comics for a comic).
+            .sortedByDescending { if ((it.format == "NOVEL") == novel) 1 else 0 }
+        similarMemory[k] = out
+        out
     }
 
     // ---- AniList ----
