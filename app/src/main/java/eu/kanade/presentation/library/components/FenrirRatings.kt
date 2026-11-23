@@ -93,7 +93,7 @@ object FenrirRatings {
             showBadges.value = it.getBoolean("show", true)
         }
     }
-    private val memory = java.util.concurrent.ConcurrentHashMap<String, Rating?>()
+    private val memory: MutableMap<String, Rating?> = java.util.Collections.synchronizedMap(HashMap<String, Rating?>()) // allows "no rating" (null)
     private val permits = Semaphore(2)
     private val client by lazy { Injekt.get<NetworkHelper>().client }
     private val json = Json { ignoreUnknownKeys = true }
