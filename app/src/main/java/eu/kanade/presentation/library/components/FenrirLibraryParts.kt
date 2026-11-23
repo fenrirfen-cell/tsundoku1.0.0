@@ -1,5 +1,11 @@
 package eu.kanade.presentation.library.components
 
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.zIndex
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import uy.kohesive.injekt.api.get
@@ -90,22 +96,15 @@ internal fun FenrirCategoryBar(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         ArrowButton(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Previous category", enabled = current > 0) { onGoTo(current - 1) }
-        // Hold the name: new category, rename, move left/right, delete.
-        var menu by remember { mutableStateOf(false) }
-        var dialog by remember { mutableStateOf<String?>(null) } // "new", "rename", "delete"
+        // Hold the bar: the Categories pop-up (reorder, rename, delete, add).
+        var manage by remember { mutableStateOf(false) }
         Column(
-            Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).combinedClickable(onClick = {}, onLongClick = { menu = true }),
+            Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).combinedClickable(onClick = {}, onLongClick = { manage = true }),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            FenrirCategoryMenu(
-                categories = categories,
-                current = category,
-                menu = menu,
-                onMenuClose = { menu = false },
-                dialog = dialog,
-                onDialog = { dialog = it },
-                onMoved = { newPos -> onGoTo(newPos) },
-            )
+            if (manage) {
+                FenrirCategoriesDialog(categories = categories, current = category, onDismiss = { manage = false })
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     category.visualName,
@@ -681,97 +680,185 @@ fun FenrirSourceDownChip(books: List<LibraryManga>, onOpenBook: (Long) -> Unit) 
 }
 
 
-/** Hold-the-category-name menu and its dialogs. Changes save right away; nothing here can crash the library. */
+/** The Categories pop-up: drag ≡ to reorder, ✎ rename, 🗑 delete, ＋ new. Saves as you go. */
 @Composable
-private fun FenrirCategoryMenu(
-    categories: List<Category>,
-    current: Category,
-    menu: Boolean,
-    onMenuClose: () -> Unit,
-    dialog: String?,
-    onDialog: (String?) -> Unit,
-    onMoved: (Int) -> Unit,
-) {
+private fun FenrirCategoriesDialog(categories: List<Category>, current: Category, onDismiss: () -> Unit) {
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val system = current.isSystemCategory
-    val visible = categories.filterNot { it.isSystemCategory }
-    val at = visible.indexOfFirst { it.id == current.id }
-    fun move(by: Int) {
-        val neighbor = visible.getOrNull(at + by) ?: return
+    val list = remember { androidx.compose.runtime.mutableStateListOf<Category>() }
+    // Follow the library's list (renames/new/deleted) unless a drag is in progress.
+    var dragId by remember { mutableStateOf<Long?>(null) }
+    androidx.compose.runtime.LaunchedEffect(categories) {
+        if (dragId == null) {
+            list.clear()
+            list.addAll(categories.filterNot { it.isSystemCategory })
+        }
+    }
+    var dragY by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    var rowPx by remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
+    var editing by remember { mutableStateOf<Long?>(null) } // category id, or -1 for "new"
+    var deleting by remember { mutableStateOf<Long?>(null) }
+    var name by remember { mutableStateOf("") }
+    val type = current.contentType.takeIf { !current.isSystemCategory } ?: Category.CONTENT_TYPE_ALL
+
+    fun saveOrder(moved: Category) {
+        val at = list.indexOfFirst { it.id == moved.id }
+        val prev = list.getOrNull(at - 1)
+        val next = list.getOrNull(at + 1)
         scope.launch {
             runCatching {
                 val all = uy.kohesive.injekt.Injekt.get<tachiyomi.domain.category.interactor.GetCategories>().await()
                     .filterNot { it.isSystemCategory }.sortedBy { it.order }
-                val newIndex = all.indexOfFirst { it.id == neighbor.id }
-                if (newIndex >= 0) {
-                    uy.kohesive.injekt.Injekt.get<tachiyomi.domain.category.interactor.ReorderCategory>().await(current, newIndex)
-                    onMoved(categories.indexOfFirst { it.id == neighbor.id })
-                }
+                val rest = all.filterNot { it.id == moved.id }
+                val newIndex = when {
+                    prev != null -> rest.indexOfFirst { it.id == prev.id } + 1
+                    next != null -> rest.indexOfFirst { it.id == next.id }
+                    else -> return@runCatching
+                }.coerceIn(0, rest.size)
+                uy.kohesive.injekt.Injekt.get<tachiyomi.domain.category.interactor.ReorderCategory>().await(moved, newIndex)
             }
         }
     }
-    androidx.compose.material3.DropdownMenu(expanded = menu, onDismissRequest = onMenuClose) {
-        androidx.compose.material3.DropdownMenuItem(text = { Text("New category") }, onClick = { onMenuClose(); onDialog("new") })
-        if (!system) {
-            androidx.compose.material3.DropdownMenuItem(text = { Text("Rename “${current.visualName}”") }, onClick = { onMenuClose(); onDialog("rename") })
-            if (at > 0) androidx.compose.material3.DropdownMenuItem(text = { Text("Move left") }, onClick = { onMenuClose(); move(-1) })
-            if (at in 0 until visible.lastIndex) androidx.compose.material3.DropdownMenuItem(text = { Text("Move right") }, onClick = { onMenuClose(); move(1) })
-            androidx.compose.material3.DropdownMenuItem(
-                text = { Text("Delete “${current.visualName}”", color = FenrirRed) },
-                onClick = { onMenuClose(); onDialog("delete") },
-            )
+
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(26.dp))
+                .background(Color(0xFF15151B))
+                .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(26.dp))
+                .padding(horizontal = 16.dp, vertical = 18.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Categories", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f))
+                Text("Hold ≡ and drag to reorder", color = FenrirMuted, fontSize = 11.5.sp)
+            }
+            Spacer(Modifier.height(10.dp))
+            androidx.compose.foundation.lazy.LazyColumn(Modifier.heightIn(max = 380.dp), userScrollEnabled = dragId == null) {
+                items(list.size, key = { list[it].id }) { i ->
+                    val c = list[i]
+                    val dragging = dragId == c.id
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .zIndex(if (dragging) 1f else 0f)
+                            .graphicsLayer { translationY = if (dragging) dragY else 0f; scaleX = if (dragging) 1.03f else 1f; scaleY = scaleX }
+                            .onSizeChanged { rowPx = it.height.toFloat().coerceAtLeast(1f) }
+                            .padding(vertical = 4.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (dragging) Color(0xFF2A2A34) else Color(0xFF1C1C23))
+                            .border(1.dp, if (c.id == current.id) FenrirRed else Color.White.copy(alpha = 0.06f), RoundedCornerShape(14.dp))
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                    ) {
+                        when {
+                            editing == c.id -> InlineName(name, { name = it }, "Rename", categories, c.id,
+                                onSave = { n ->
+                                    editing = null
+                                    scope.launch { runCatching { uy.kohesive.injekt.Injekt.get<tachiyomi.domain.category.interactor.RenameCategory>().await(c, n) } }
+                                },
+                                onCancel = { editing = null },
+                            )
+                            deleting == c.id -> Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Delete “${c.visualName}”? Books stay in your library.", color = Color.White, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                                Text("Cancel", color = FenrirMuted, fontSize = 13.sp, modifier = Modifier.clickable { deleting = null }.padding(8.dp))
+                                Text("Delete", color = FenrirRed, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable {
+                                    deleting = null
+                                    scope.launch { runCatching { uy.kohesive.injekt.Injekt.get<tachiyomi.domain.category.interactor.DeleteCategory>().await(c.id) } }
+                                }.padding(8.dp))
+                            }
+                            else -> Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    "≡",
+                                    color = if (dragging) Color.White else FenrirMuted,
+                                    fontSize = 20.sp,
+                                    modifier = Modifier
+                                        .pointerInput(c.id) {
+                                            detectDragGesturesAfterLongPress(
+                                                onDragStart = { dragId = c.id; dragY = 0f },
+                                                onDragEnd = {
+                                                    val moved = list.firstOrNull { it.id == dragId }
+                                                    dragId = null; dragY = 0f
+                                                    moved?.let(::saveOrder)
+                                                },
+                                                onDragCancel = { dragId = null; dragY = 0f },
+                                            ) { change, amount ->
+                                                change.consume()
+                                                dragY += amount.y
+                                                val at = list.indexOfFirst { it.id == c.id }
+                                                if (dragY > rowPx / 2 && at < list.lastIndex) {
+                                                    list.add(at + 1, list.removeAt(at)); dragY -= rowPx
+                                                } else if (dragY < -rowPx / 2 && at > 0) {
+                                                    list.add(at - 1, list.removeAt(at)); dragY += rowPx
+                                                }
+                                            }
+                                        }
+                                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(c.visualName, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                                Text("✎", color = Color(0xFFC9C9D2), fontSize = 16.sp,
+                                    modifier = Modifier.clip(CircleShape).clickable { name = c.name; editing = c.id; deleting = null }.padding(8.dp))
+                                Text("🗑", fontSize = 15.sp,
+                                    modifier = Modifier.clip(CircleShape).clickable { deleting = c.id; editing = null }.padding(8.dp))
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            if (editing == -1L) {
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFF1C1C23)).padding(10.dp)) {
+                    InlineName(name, { name = it }, "New category", categories, -1L,
+                        onSave = { n ->
+                            editing = null
+                            scope.launch { runCatching { uy.kohesive.injekt.Injekt.get<tachiyomi.domain.category.interactor.CreateCategoryWithName>().await(n, type) } }
+                        },
+                        onCancel = { editing = null },
+                    )
+                }
+            } else {
+                Text(
+                    "＋  New category",
+                    color = Color(0xFFC9C9D2),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                        .border(1.5.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(14.dp))
+                        .clickable { name = ""; editing = -1L; deleting = null }.padding(horizontal = 14.dp, vertical = 12.dp),
+                )
+            }
+            Row(Modifier.fillMaxWidth().padding(top = 14.dp), horizontalArrangement = Arrangement.End) {
+                Text("Done", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold,
+                    modifier = Modifier.clip(CircleShape).background(FenrirRed).clickable(onClick = onDismiss).padding(horizontal = 24.dp, vertical = 10.dp))
+            }
         }
     }
-    when (dialog) {
-        "new", "rename" -> {
-            var name by remember(dialog) { mutableStateOf(if (dialog == "rename") current.name else "") }
-            val taken = categories.any { it.name.equals(name.trim(), true) && (dialog == "new" || it.id != current.id) }
-            androidx.compose.material3.AlertDialog(
-                onDismissRequest = { onDialog(null) },
-                title = { Text(if (dialog == "new") "New category" else "Rename category") },
-                text = {
-                    Column {
-                        androidx.compose.material3.OutlinedTextField(value = name, onValueChange = { name = it }, singleLine = true, placeholder = { Text("Name") })
-                        if (taken) Text("A category with that name already exists", color = FenrirRed, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
-                    }
-                },
-                confirmButton = {
-                    androidx.compose.material3.TextButton(
-                        enabled = name.isNotBlank() && !taken,
-                        onClick = {
-                            val n = name.trim()
-                            onDialog(null)
-                            scope.launch {
-                                runCatching {
-                                    if (dialog == "new") {
-                                        val type = current.contentType.takeIf { !system } ?: Category.CONTENT_TYPE_ALL
-                                        uy.kohesive.injekt.Injekt.get<tachiyomi.domain.category.interactor.CreateCategoryWithName>().await(n, type)
-                                    } else {
-                                        uy.kohesive.injekt.Injekt.get<tachiyomi.domain.category.interactor.RenameCategory>().await(current, n)
-                                    }
-                                }
-                            }
-                        },
-                    ) { Text(if (dialog == "new") "Add" else "Save") }
-                },
-                dismissButton = { androidx.compose.material3.TextButton(onClick = { onDialog(null) }) { Text("Cancel") } },
-            )
-        }
-        "delete" -> androidx.compose.material3.AlertDialog(
-            onDismissRequest = { onDialog(null) },
-            title = { Text("Delete “${current.visualName}”?") },
-            text = { Text("The books stay in your library; they just move out of this category.") },
-            confirmButton = {
-                androidx.compose.material3.TextButton(onClick = {
-                    onDialog(null)
-                    scope.launch {
-                        runCatching { uy.kohesive.injekt.Injekt.get<tachiyomi.domain.category.interactor.DeleteCategory>().await(current.id) }
-                    }
-                }) { Text("Delete", color = FenrirRed) }
-            },
-            dismissButton = { androidx.compose.material3.TextButton(onClick = { onDialog(null) }) { Text("Cancel") } },
+}
+
+@Composable
+private fun InlineName(
+    value: String,
+    onValue: (String) -> Unit,
+    label: String,
+    categories: List<Category>,
+    selfId: Long,
+    onSave: (String) -> Unit,
+    onCancel: () -> Unit,
+) {
+    val taken = categories.any { it.name.equals(value.trim(), true) && it.id != selfId }
+    Text(label, color = FenrirMuted, fontSize = 11.sp)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        androidx.compose.material3.OutlinedTextField(value = value, onValueChange = onValue, singleLine = true, modifier = Modifier.weight(1f))
+        Text("Cancel", color = FenrirMuted, fontSize = 13.sp, modifier = Modifier.clickable(onClick = onCancel).padding(8.dp))
+        Text(
+            "Save",
+            color = if (value.isNotBlank() && !taken) FenrirRed else FenrirMuted,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.clickable(enabled = value.isNotBlank() && !taken) { onSave(value.trim()) }.padding(8.dp),
         )
     }
+    if (taken) Text("That name is already used", color = FenrirRed, fontSize = 11.5.sp)
 }
 
 /**
