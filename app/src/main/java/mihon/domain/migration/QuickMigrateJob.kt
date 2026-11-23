@@ -72,7 +72,7 @@ class QuickMigrateJob(private val context: Context, workerParams: WorkerParamete
     private val quoteManager: QuoteManager by lazy { QuoteManager(Injekt.get<Application>()) }
 
     private val notificationBuilder = context.notificationBuilder(Notifications.CHANNEL_MIGRATION) {
-        setSmallIcon(android.R.drawable.stat_notify_sync)
+        setSmallIcon(eu.kanade.tachiyomi.R.drawable.ic_fenrir_notification)
         setContentTitle(context.stringResource(MR.strings.action_quick_migrate))
         setContentText(context.stringResource(TDMR.strings.quick_migrate_notification_starting))
         setOngoing(true)

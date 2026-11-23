@@ -77,7 +77,7 @@ class DatabaseMaintenanceJob(private val context: Context, workerParams: WorkerP
 
     override suspend fun getForegroundInfo(): ForegroundInfo {
         val notification = context.notificationBuilder(Notifications.CHANNEL_DB_MAINTENANCE) {
-            setSmallIcon(android.R.drawable.ic_popup_sync)
+            setSmallIcon(eu.kanade.tachiyomi.R.drawable.ic_fenrir_notification)
             setContentTitle(context.stringResource(TDMR.strings.db_maintenance_title))
             setContentText(context.stringResource(TDMR.strings.db_maintenance_starting))
             setOngoing(true)
@@ -97,7 +97,7 @@ class DatabaseMaintenanceJob(private val context: Context, workerParams: WorkerP
 
     private fun updateNotification(step: String) {
         val notification = context.notificationBuilder(Notifications.CHANNEL_DB_MAINTENANCE) {
-            setSmallIcon(android.R.drawable.ic_popup_sync)
+            setSmallIcon(eu.kanade.tachiyomi.R.drawable.ic_fenrir_notification)
             setContentTitle(context.stringResource(TDMR.strings.db_maintenance_title))
             setContentText(step)
             setOngoing(true)
@@ -110,7 +110,7 @@ class DatabaseMaintenanceJob(private val context: Context, workerParams: WorkerP
     private fun showComplete(message: String) {
         context.cancelNotification(Notifications.ID_DB_MAINTENANCE_PROGRESS)
         val notification = context.notificationBuilder(Notifications.CHANNEL_DB_MAINTENANCE) {
-            setSmallIcon(android.R.drawable.ic_popup_sync)
+            setSmallIcon(eu.kanade.tachiyomi.R.drawable.ic_fenrir_notification)
             setContentTitle(context.stringResource(TDMR.strings.db_maintenance_complete_title))
             setContentText(message)
             setAutoCancel(true)

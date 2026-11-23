@@ -51,7 +51,7 @@ class MigrationJob(private val context: Context, workerParams: WorkerParameters)
     private val migrateManga: MigrateMangaUseCase by lazy { Injekt.get() }
 
     private val notificationBuilder = context.notificationBuilder(Notifications.CHANNEL_MIGRATION) {
-        setSmallIcon(android.R.drawable.stat_notify_sync)
+        setSmallIcon(eu.kanade.tachiyomi.R.drawable.ic_fenrir_notification)
         setContentTitle(context.stringResource(MR.strings.action_migrate))
         setContentText(context.stringResource(TDMR.strings.migrate_notification_starting))
         setOngoing(true)

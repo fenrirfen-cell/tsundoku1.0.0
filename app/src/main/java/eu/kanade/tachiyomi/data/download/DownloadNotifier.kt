@@ -73,7 +73,7 @@ internal class DownloadNotifier(private val context: Context) {
     fun onProgressChange(download: Download, chapterProgress: Pair<Int, Int>? = null) {
         with(progressNotificationBuilder) {
             if (!isDownloading) {
-                setSmallIcon(android.R.drawable.stat_sys_download)
+                setSmallIcon(eu.kanade.tachiyomi.R.drawable.ic_fenrir_notification)
                 clearActions()
                 // Open download manager when clicked
                 setContentIntent(NotificationHandler.openDownloadManagerPendingActivity(context))
@@ -127,7 +127,7 @@ internal class DownloadNotifier(private val context: Context) {
         with(progressNotificationBuilder) {
             setContentTitle(context.stringResource(MR.strings.chapter_paused))
             setContentText(context.stringResource(MR.strings.download_notifier_download_paused))
-            setSmallIcon(R.drawable.ic_pause_24dp)
+            setSmallIcon(eu.kanade.tachiyomi.R.drawable.ic_fenrir_notification)
             setProgress(0, 0, false)
             setOngoing(false)
             clearActions()
@@ -175,7 +175,7 @@ internal class DownloadNotifier(private val context: Context) {
         with(errorNotificationBuilder) {
             setContentTitle(context.stringResource(MR.strings.download_notifier_downloader_title))
             setStyle(NotificationCompat.BigTextStyle().bigText(reason))
-            setSmallIcon(R.drawable.ic_warning_white_24dp)
+            setSmallIcon(eu.kanade.tachiyomi.R.drawable.ic_fenrir_notification)
             setAutoCancel(true)
             clearActions()
             setContentIntent(NotificationHandler.openDownloadManagerPendingActivity(context))
@@ -216,7 +216,7 @@ internal class DownloadNotifier(private val context: Context) {
                 mangaTitle?.plus(": $chapter") ?: context.stringResource(MR.strings.download_notifier_downloader_title),
             )
             setContentText(error ?: context.stringResource(MR.strings.download_notifier_unknown_error))
-            setSmallIcon(R.drawable.ic_warning_white_24dp)
+            setSmallIcon(eu.kanade.tachiyomi.R.drawable.ic_fenrir_notification)
             clearActions()
             setContentIntent(NotificationHandler.openDownloadManagerPendingActivity(context))
             if (mangaId != null) {

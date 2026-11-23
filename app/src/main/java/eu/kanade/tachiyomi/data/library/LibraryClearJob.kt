@@ -43,7 +43,7 @@ class LibraryClearJob(private val context: Context, workerParams: WorkerParamete
 
     private val progressBuilder by lazy {
         context.notificationBuilder(Notifications.CHANNEL_LIBRARY_CLEAR) {
-            setSmallIcon(android.R.drawable.ic_menu_delete)
+            setSmallIcon(eu.kanade.tachiyomi.R.drawable.ic_fenrir_notification)
             setOngoing(true)
             setOnlyAlertOnce(true)
         }
@@ -166,7 +166,7 @@ class LibraryClearJob(private val context: Context, workerParams: WorkerParamete
     private fun showComplete(message: String) {
         context.cancelNotification(Notifications.ID_LIBRARY_CLEAR_PROGRESS)
         val notification = context.notificationBuilder(Notifications.CHANNEL_LIBRARY_CLEAR) {
-            setSmallIcon(android.R.drawable.ic_menu_delete)
+            setSmallIcon(eu.kanade.tachiyomi.R.drawable.ic_fenrir_notification)
             setContentTitle(context.stringResource(TDMR.strings.library_clear_complete_title))
             setContentText(message)
             setAutoCancel(true)

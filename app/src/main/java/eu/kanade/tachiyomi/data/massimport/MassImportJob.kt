@@ -134,7 +134,7 @@ class MassImportJob(private val context: Context, workerParams: WorkerParameters
     private val memoryPressureMutex = Mutex()
 
     private val notificationBuilder = context.notificationBuilder(Notifications.CHANNEL_MASS_IMPORT) {
-        setSmallIcon(android.R.drawable.stat_sys_download)
+        setSmallIcon(eu.kanade.tachiyomi.R.drawable.ic_fenrir_notification)
         setContentTitle("Mass Import")
         setContentText("Starting...")
         setOngoing(true)
@@ -327,7 +327,7 @@ class MassImportJob(private val context: Context, workerParams: WorkerParameters
 
     private fun notifyForegroundLimitReached(batchId: String) {
         val notification = context.notificationBuilder(Notifications.CHANNEL_MASS_IMPORT) {
-            setSmallIcon(android.R.drawable.stat_sys_warning)
+            setSmallIcon(eu.kanade.tachiyomi.R.drawable.ic_fenrir_notification)
             setContentTitle("Mass import paused")
             setContentText("Android background time limit reached - open the app and resume the import")
             setAutoCancel(true)
@@ -1081,7 +1081,7 @@ class MassImportJob(private val context: Context, workerParams: WorkerParameters
             // Create a new notification builder each time to avoid ConcurrentModificationException
             // when addAction() is called repeatedly on the same builder
             val notification = context.notificationBuilder(Notifications.CHANNEL_MASS_IMPORT) {
-                setSmallIcon(android.R.drawable.stat_sys_download)
+                setSmallIcon(eu.kanade.tachiyomi.R.drawable.ic_fenrir_notification)
                 setContentTitle(context.stringResource(TDMR.strings.mass_import_progress_title))
                 setContentText(status)
                 setProgress(total, current, false)
@@ -1128,7 +1128,7 @@ class MassImportJob(private val context: Context, workerParams: WorkerParameters
         val resultFile = writeResultFile(batchId, added, skipped, errored)
 
         val notificationBuilder = context.notificationBuilder(Notifications.CHANNEL_MASS_IMPORT) {
-            setSmallIcon(android.R.drawable.stat_sys_download_done)
+            setSmallIcon(eu.kanade.tachiyomi.R.drawable.ic_fenrir_notification)
             setContentTitle(context.stringResource(TDMR.strings.mass_import_complete_title))
             setContentText(text)
             setAutoCancel(true)

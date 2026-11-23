@@ -32,7 +32,7 @@ class TranslationJob(context: Context, workerParams: WorkerParameters) : Corouti
     override suspend fun getForegroundInfo(): ForegroundInfo {
         val notification = applicationContext.notificationBuilder(Notifications.CHANNEL_TRANSLATION) {
             setContentTitle(applicationContext.stringResource(TDMR.strings.translation_job_translating))
-            setSmallIcon(android.R.drawable.stat_sys_download)
+            setSmallIcon(eu.kanade.tachiyomi.R.drawable.ic_fenrir_notification)
             setOngoing(true)
         }.build()
         return ForegroundInfo(
@@ -64,7 +64,7 @@ class TranslationJob(context: Context, workerParams: WorkerParameters) : Corouti
                                 ?: applicationContext.stringResource(TDMR.strings.translation_job_processing),
                         )
                         setProgress(progress.totalChapters, progress.completedChapters, false)
-                        setSmallIcon(android.R.drawable.stat_sys_download)
+                        setSmallIcon(eu.kanade.tachiyomi.R.drawable.ic_fenrir_notification)
                         setOngoing(true)
                         setOnlyAlertOnce(true)
                     }.build()
@@ -96,7 +96,7 @@ class TranslationJob(context: Context, workerParams: WorkerParameters) : Corouti
                 setContentText(
                     applicationContext.stringResource(TDMR.strings.translation_job_complete_count, completedCount),
                 )
-                setSmallIcon(android.R.drawable.stat_sys_download_done)
+                setSmallIcon(eu.kanade.tachiyomi.R.drawable.ic_fenrir_notification)
                 setAutoCancel(true)
                 setOngoing(false)
             }.build(),

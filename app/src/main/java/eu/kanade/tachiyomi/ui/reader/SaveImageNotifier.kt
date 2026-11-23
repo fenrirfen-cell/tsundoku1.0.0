@@ -61,7 +61,7 @@ class SaveImageNotifier(private val context: Context) {
         with(notificationBuilder) {
             setContentTitle(context.stringResource(MR.strings.download_notifier_title_error))
             setContentText(error ?: context.stringResource(MR.strings.unknown_error))
-            setSmallIcon(android.R.drawable.ic_menu_report_image)
+            setSmallIcon(eu.kanade.tachiyomi.R.drawable.ic_fenrir_notification)
         }
         updateNotification()
     }
@@ -69,7 +69,7 @@ class SaveImageNotifier(private val context: Context) {
     private fun showCompleteNotification(uri: Uri, image: Bitmap?) {
         with(notificationBuilder) {
             setContentTitle(context.stringResource(MR.strings.picture_saved))
-            setSmallIcon(R.drawable.ic_photo_24dp)
+            setSmallIcon(eu.kanade.tachiyomi.R.drawable.ic_fenrir_notification)
             image?.let { setStyle(NotificationCompat.BigPictureStyle().bigPicture(it)) }
             setLargeIcon(image)
             setAutoCancel(true)

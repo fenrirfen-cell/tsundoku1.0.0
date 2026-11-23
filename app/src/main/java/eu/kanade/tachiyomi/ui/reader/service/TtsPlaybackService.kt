@@ -199,7 +199,7 @@ class TtsPlaybackService : Service() {
 
         val notification = if (readerPreferences.novelTtsLegacyNotification.get()) {
             notificationBuilder(Notifications.CHANNEL_TTS_PLAYBACK) {
-                setSmallIcon(R.drawable.ic_mihon)
+                setSmallIcon(eu.kanade.tachiyomi.R.drawable.ic_fenrir_notification)
                 setContentTitle(novelTitle)
                 setContentText(contentText)
                 setContentIntent(openReaderPendingIntent)
@@ -226,7 +226,7 @@ class TtsPlaybackService : Service() {
             var nextIndex = 0
 
             notificationBuilder(Notifications.CHANNEL_TTS_PLAYBACK) {
-                setSmallIcon(R.drawable.ic_mihon)
+                setSmallIcon(eu.kanade.tachiyomi.R.drawable.ic_fenrir_notification)
                 setContentTitle(novelTitle)
                 setContentText(contentText)
                 if (paragraphLabel != null) setSubText(paragraphLabel)

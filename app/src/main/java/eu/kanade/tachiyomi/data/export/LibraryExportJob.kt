@@ -32,7 +32,7 @@ class LibraryExportJob(private val context: Context, workerParams: WorkerParamet
     private val mangaRepository: MangaRepository = Injekt.get()
 
     private val notificationBuilder = context.notificationBuilder(Notifications.CHANNEL_LIBRARY_EXPORT) {
-        setSmallIcon(android.R.drawable.stat_sys_upload)
+        setSmallIcon(eu.kanade.tachiyomi.R.drawable.ic_fenrir_notification)
         setContentTitle("Library Export")
         setContentText("Starting...")
         setOngoing(true)

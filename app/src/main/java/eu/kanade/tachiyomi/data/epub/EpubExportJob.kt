@@ -78,7 +78,7 @@ class EpubExportJob(private val context: Context, workerParams: WorkerParameters
     private val readerPreferences: ReaderPreferences = Injekt.get()
 
     private val notificationBuilder = context.notificationBuilder(Notifications.CHANNEL_EPUB_EXPORT) {
-        setSmallIcon(android.R.drawable.ic_menu_save)
+        setSmallIcon(eu.kanade.tachiyomi.R.drawable.ic_fenrir_notification)
         setContentTitle(context.stringResource(TDMR.strings.epub_export_job_title))
         setContentText(context.stringResource(TDMR.strings.epub_export_job_starting))
         setProgress(0, 0, true)
@@ -1217,7 +1217,7 @@ class EpubExportJob(private val context: Context, workerParams: WorkerParameters
         context.notify(
             Notifications.ID_EPUB_EXPORT_COMPLETE,
             context.notificationBuilder(Notifications.CHANNEL_EPUB_EXPORT) {
-                setSmallIcon(android.R.drawable.ic_menu_save)
+                setSmallIcon(eu.kanade.tachiyomi.R.drawable.ic_fenrir_notification)
                 setContentTitle(context.stringResource(TDMR.strings.epub_export_job_complete_title))
                 setContentText(message)
                 setAutoCancel(true)
@@ -1294,7 +1294,7 @@ class EpubExportJob(private val context: Context, workerParams: WorkerParameters
         context.notify(
             Notifications.ID_EPUB_EXPORT_COMPLETE,
             context.notificationBuilder(Notifications.CHANNEL_EPUB_EXPORT) {
-                setSmallIcon(android.R.drawable.ic_menu_close_clear_cancel)
+                setSmallIcon(eu.kanade.tachiyomi.R.drawable.ic_fenrir_notification)
                 setContentTitle(context.stringResource(TDMR.strings.epub_export_job_failed_title))
                 setContentText(error)
                 setAutoCancel(true)
@@ -1347,7 +1347,7 @@ class EpubExportJob(private val context: Context, workerParams: WorkerParameters
             context.notify(
                 Notifications.ID_EPUB_EXPORT_PROGRESS,
                 context.notificationBuilder(Notifications.CHANNEL_EPUB_EXPORT) {
-                    setSmallIcon(android.R.drawable.ic_menu_save)
+                    setSmallIcon(eu.kanade.tachiyomi.R.drawable.ic_fenrir_notification)
                     setContentTitle(context.stringResource(TDMR.strings.epub_export_job_title))
                     setContentText(context.stringResource(TDMR.strings.epub_export_job_starting))
                     setProgress(0, 0, true)
