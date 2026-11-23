@@ -36,6 +36,7 @@ import eu.kanade.tachiyomi.util.system.LocaleHelper
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.presentation.core.components.material.Scaffold
 import uy.kohesive.injekt.api.get
+import tachiyomi.presentation.core.components.material.padding
 
 @Composable
 fun GlobalSearchScreen(
@@ -149,35 +150,23 @@ enum class FenrirSearchKind(val label: String) {
     }
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun FenrirSearchKindRow(selected: FenrirSearchKind, onPick: (FenrirSearchKind) -> Unit) {
+    // Same chips, spacing and left edge as the Pinned / All / Has results row above it.
     Row(
         Modifier
-            .padding(horizontal = 16.dp, vertical = 8.dp)
             .fillMaxWidth()
-            .clip(CircleShape)
-            .background(Color(0xFF17171D))
-            .border(1.dp, Color(0xFF2A2A34), CircleShape)
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+            .padding(horizontal = androidx.compose.material3.MaterialTheme.padding.small)
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(androidx.compose.material3.MaterialTheme.padding.small),
     ) {
         FenrirSearchKind.entries.forEach { k ->
-            Box(
-                Modifier
-                    .weight(1f)
-                    .height(36.dp)
-                    .clip(CircleShape)
-                    .background(if (k == selected) Color(0xFFFF4D57) else Color.Transparent)
-                    .clickable(enabled = k != selected) { onPick(k) },
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    k.label,
-                    color = if (k == selected) Color.White else Color(0xFFA9A9B4),
-                    fontSize = 13.5.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
+            androidx.compose.material3.FilterChip(
+                selected = k == selected,
+                onClick = { if (k != selected) onPick(k) },
+                label = { Text(k.label) },
+            )
         }
     }
 }

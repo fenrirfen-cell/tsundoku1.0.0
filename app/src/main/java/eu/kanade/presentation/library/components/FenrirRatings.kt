@@ -633,6 +633,24 @@ fun FenrirRatingSheet(title: String, r: FenrirRatings.Rating, onClose: () -> Uni
                 }
                 Text("Scores out of 10 (sites that rate out of 5 are doubled).", color = Color(0xFF6E6E78), fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
             }
+            // Webnovel: every review with the stars each reader gave.
+            val wnUrl = if (r.site == "Webnovel") r.url else r.also.firstOrNull { it.site == "Webnovel" }?.url
+            if (wnUrl != null && FenrirWebnovelReviews.bookId(wnUrl) != null) {
+                val nav = cafe.adriel.voyager.navigator.LocalNavigator.current
+                Text(
+                    "All Webnovel reviews with stars ›",
+                    color = Color.White,
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 16.dp).fillMaxWidth().clip(CircleShape).background(Color(0xFFFF4D57))
+                        .clickable {
+                            onClose()
+                            nav?.push(FenrirWebnovelReviewsScreen(title, wnUrl))
+                        }
+                        .padding(vertical = 11.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+            }
             Row(Modifier.padding(top = 18.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Show rating badges on covers", color = Color(0xFF9A9AA6), fontSize = 12.5.sp, modifier = Modifier.weight(1f))
                 val show by FenrirRatings.showBadges.collectAsState()
