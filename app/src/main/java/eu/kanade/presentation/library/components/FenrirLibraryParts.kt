@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.zIndex
 import androidx.compose.runtime.remember
@@ -413,6 +415,32 @@ class FenrirFollowBar {
  * A header that slides up out of the way as the list below scrolls up, and slides back
  * once the list is scrolled back to its top (like a collapsing toolbar).
  */
+/**
+ * Quick-return header: moves up exactly as far as the books scroll (until it's out of sight) and
+ * comes back as soon as you scroll up. Never consumes scrolling, never changes the list's size.
+ */
+internal class FenrirQuickReturnHeader {
+    var heightPx by androidx.compose.runtime.mutableIntStateOf(0)
+    var offsetPx by androidx.compose.runtime.mutableFloatStateOf(0f)
+
+    val connection = object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+        override fun onPostScroll(
+            consumed: androidx.compose.ui.geometry.Offset,
+            available: androidx.compose.ui.geometry.Offset,
+            source: androidx.compose.ui.input.nestedscroll.NestedScrollSource,
+        ): androidx.compose.ui.geometry.Offset {
+            if (heightPx > 0 && consumed.y != 0f) {
+                offsetPx = (offsetPx + consumed.y).coerceIn(-heightPx.toFloat(), 0f)
+            }
+            return androidx.compose.ui.geometry.Offset.Zero
+        }
+    }
+
+    suspend fun show() {
+        androidx.compose.animation.core.animate(offsetPx, 0f, animationSpec = androidx.compose.animation.core.tween(250)) { v, _ -> offsetPx = v }
+    }
+}
+
 internal class FenrirCollapsingHeader {
     private var heightPx by androidx.compose.runtime.mutableIntStateOf(0)
     private var offsetPx by androidx.compose.runtime.mutableFloatStateOf(0f)
@@ -474,6 +502,7 @@ internal fun FenrirLibraryGridItem(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     titleMaxLines: Int = 2,
+    flyOnClick: Boolean = false,
 ) {
     val lm = item.libraryManga
     val manga = lm.manga
@@ -486,15 +515,42 @@ internal fun FenrirLibraryGridItem(
         else -> "${(progress * 100).toInt().coerceIn(1, 99)}% read"
     }
     val shape = RoundedCornerShape(topStart = 2.dp, bottomStart = 2.dp, topEnd = 4.dp, bottomEnd = 4.dp)
+    val bookRect = remember { androidx.compose.runtime.mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
+    val coverData = remember(manga.id, manga.coverLastModified, manga.thumbnailUrl) {
+        tachiyomi.domain.manga.model.MangaCover(
+            mangaId = manga.id,
+            sourceId = manga.source,
+            isMangaFavorite = manga.favorite,
+            url = manga.thumbnailUrl,
+            lastModified = manga.coverLastModified,
+        )
+    }
     Column(
         Modifier
             .fenrirPlank(5.dp, MangaCover.Book.ratio, 5.dp)
             .padding(5.dp)
             .clip(RoundedCornerShape(6.dp))
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+            .combinedClickable(
+                onClick = {
+                    if (flyOnClick) {
+                        // Fenrir: the book slides off the shelf, flies out and opens.
+                        FenrirBookFlight.start(manga.id, coverData, bookRect.value, onClick)
+                    } else {
+                        onClick()
+                    }
+                },
+                onLongClick = onLongClick,
+            ),
     ) {
         // Fenrir: a standing hardcover; page edges show on the right and along the top.
-        Box(Modifier.fillMaxWidth().aspectRatio(MangaCover.Book.ratio).fenrirPageBlock(5.dp)) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(MangaCover.Book.ratio)
+                .onGloballyPositioned { bookRect.value = it.boundsInRoot() }
+                .alpha(if (FenrirBookFlight.isFlying(manga.id)) 0f else 1f)
+                .fenrirPageBlock(5.dp),
+        ) {
         Box(
             Modifier
                 .fillMaxSize()

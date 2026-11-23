@@ -43,6 +43,7 @@ internal fun LibraryComfortableGrid(
                 onClick = { onClick(libraryItem.libraryManga) },
                 onLongClick = { onLongClick(libraryItem.libraryManga) },
                 titleMaxLines = titleMaxLines,
+                flyOnClick = selection.isEmpty(),
             )
             return@items
             MangaComfortableGridItem(

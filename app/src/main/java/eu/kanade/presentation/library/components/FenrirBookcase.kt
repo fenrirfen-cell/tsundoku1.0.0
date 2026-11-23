@@ -86,6 +86,12 @@ internal fun Modifier.fenrirRail(): Modifier = composed {
             dstSize = IntSize(size.width.toInt(), size.height.toInt()),
             filterQuality = FilterQuality.Medium,
         )
+        // shadow it throws onto what's under it
+        drawRect(
+            Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.6f), 1f to Color.Transparent, startY = size.height, endY = size.height + 16.dp.toPx()),
+            topLeft = Offset(0f, size.height),
+            size = Size(size.width, 16.dp.toPx()),
+        )
     }
 }
 
@@ -169,11 +175,6 @@ internal fun Modifier.fenrirBookcaseBack(): Modifier = composed {
                 0.78f to Color.Transparent,
                 1f to Color.Black.copy(alpha = 0.45f),
             ),
-        )
-        // shadow cast by the top rail
-        drawRect(
-            Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.65f), 1f to Color.Transparent, endY = 18.dp.toPx()),
-            size = Size(size.width, 18.dp.toPx()),
         )
         drawContent()
         val pw = 10.dp.toPx()

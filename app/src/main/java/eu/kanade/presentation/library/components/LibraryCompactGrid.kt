@@ -43,6 +43,7 @@ internal fun LibraryCompactGrid(
                     isSelected = manga.id in selection,
                     onClick = { onClick(libraryItem.libraryManga) },
                     onLongClick = { onLongClick(libraryItem.libraryManga) },
+                    flyOnClick = selection.isEmpty(),
                 )
                 return@items
             }

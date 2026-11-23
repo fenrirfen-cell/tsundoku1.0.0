@@ -1,6 +1,10 @@
 package eu.kanade.presentation.library.components
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
@@ -57,75 +61,32 @@ fun LibraryContent(
     getLoadMoreKey: (Category) -> Long = { 0 },
     isCategoryLoading: (Category) -> Boolean = { false },
 ) {
-    // Fenrir: the category bar and Continue reading card scroll away with the books and
-    // come back when you scroll back to the top.
-    val headerCollapse = remember { FenrirCollapsingHeader() }
+    // Fenrir: the top part (Continue reading case + category rail) slides away over the books as
+    // you scroll down and slides back as soon as you scroll up. It moves on top of the list instead
+    // of resizing it, so scrolling stays smooth and never jumps.
+    val header = remember { FenrirQuickReturnHeader() }
+    val density = androidx.compose.ui.platform.LocalDensity.current
     val context = androidx.compose.ui.platform.LocalContext.current
-    Column(
+    val pagerState = rememberPagerState(currentPage) { categories.size }
+    val scope = rememberCoroutineScope()
+    var isRefreshing by remember(pagerState.currentPage) { mutableStateOf(false) }
+    val headerHeightDp = with(density) { header.heightPx.toDp() }
+    LaunchedEffect(pagerState.currentPage) { header.show() }
+
+    Box(
         modifier = Modifier
             .padding(
                 top = contentPadding.calculateTopPadding(),
                 start = contentPadding.calculateStartPadding(LocalLayoutDirection.current),
                 end = contentPadding.calculateEndPadding(LocalLayoutDirection.current),
             )
-            .nestedScroll(headerCollapse.connection),
+            .clipToBounds()
+            .nestedScroll(header.connection),
     ) {
-        val pagerState = rememberPagerState(currentPage) { categories.size }
-
-        val scope = rememberCoroutineScope()
-        var isRefreshing by remember(pagerState.currentPage) { mutableStateOf(false) }
-
-        Column(Modifier.then(headerCollapse.modifier)) {
-
-        // Fenrir: "● 1 source down · 4 books ›" when a source your books use stopped working.
-        if (searchQuery.isNullOrEmpty() && selection.isEmpty()) {
-            val allBooks = categories.flatMap { getItemsForCategory(it) }.map { it.libraryManga }
-            FenrirSourceDownChip(books = allBooks, onOpenBook = onClickManga)
-            if (allBooks.isNotEmpty()) FenrirAlertsCard()
-        }
-
-        // Fenrir: "Continue reading" card for the most recently read book.
-        if (searchQuery.isNullOrEmpty() && selection.isEmpty()) {
-            val lastRead = run {
-                categories.asSequence()
-                    .flatMap { getItemsForCategory(it).asSequence() }
-                    .map { it.libraryManga }
-                    .filter { it.lastRead > 0 && it.unreadCount > 0 }
-                    .maxByOrNull { it.lastRead }
-            }
-            if (lastRead != null) {
-                FenrirContinueReadingCard(
-                    manga = lastRead,
-                    onOpen = {
-                        val resume = onContinueReadingClicked
-                        if (resume != null) resume(lastRead) else onClickManga(lastRead.manga.id)
-                    },
-                    onClickCover = { onClickManga(lastRead.manga.id) },
-                )
-            }
-        }
-
-        if (showPageTabs && categories.isNotEmpty() && (categories.size > 1 || !categories.first().isSystemCategory)) {
-            LaunchedEffect(categories) {
-                if (categories.size <= pagerState.currentPage) {
-                    pagerState.scrollToPage(categories.size - 1)
-                }
-            }
-            // Fenrir: one glass bar (name, new count, dots, arrows); swipe to change category.
-            FenrirCategoryBar(
-                categories = categories,
-                pagerState = pagerState,
-                newCountFor = { category -> getItemsForCategory(category).count { it.unreadCount > 0 } },
-                onGoTo = { scope.launch { pagerState.animateScrollToPage(it) } },
-                countFor = { category -> getItemsForCategory(category).size },
-            )
-        }
-
-        }
-
         PullRefresh(
             refreshing = isRefreshing,
             enabled = selection.isEmpty(),
+            indicatorPadding = PaddingValues(top = headerHeightDp),
             onRefresh = {
                 // Fenrir: also check quietly for a new app version (only says something if there is one).
                 fenrirCheckAppUpdate(context)
@@ -141,7 +102,7 @@ fun LibraryContent(
         ) {
             LibraryPager(
                 state = pagerState,
-                contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding()),
+                contentPadding = PaddingValues(top = headerHeightDp, bottom = contentPadding.calculateBottomPadding()),
                 hasActiveFilters = hasActiveFilters,
                 selection = selection,
                 searchQuery = searchQuery,
@@ -169,11 +130,64 @@ fun LibraryContent(
             )
         }
 
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .onSizeChanged { header.heightPx = it.height }
+                .graphicsLayer { translationY = header.offsetPx },
+        ) {
+            // Fenrir: "● 1 source down · 4 books ›" when a source your books use stopped working.
+            if (searchQuery.isNullOrEmpty() && selection.isEmpty()) {
+                val allBooks = categories.flatMap { getItemsForCategory(it) }.map { it.libraryManga }
+                FenrirSourceDownChip(books = allBooks, onOpenBook = onClickManga)
+                if (allBooks.isNotEmpty()) FenrirAlertsCard()
+            }
+
+            // Fenrir: "Continue reading" glass display case for the most recently read book.
+            if (searchQuery.isNullOrEmpty() && selection.isEmpty()) {
+                val lastRead = run {
+                    categories.asSequence()
+                        .flatMap { getItemsForCategory(it).asSequence() }
+                        .map { it.libraryManga }
+                        .filter { it.lastRead > 0 && it.unreadCount > 0 }
+                        .maxByOrNull { it.lastRead }
+                }
+                if (lastRead != null) {
+                    FenrirContinueReadingCase(
+                        manga = lastRead,
+                        onOpen = {
+                            val resume = onContinueReadingClicked
+                            if (resume != null) resume(lastRead) else onClickManga(lastRead.manga.id)
+                        },
+                    )
+                }
+            }
+
+            if (showPageTabs && categories.isNotEmpty() && (categories.size > 1 || !categories.first().isSystemCategory)) {
+                LaunchedEffect(categories) {
+                    if (categories.size <= pagerState.currentPage) {
+                        pagerState.scrollToPage(categories.size - 1)
+                    }
+                }
+                // Fenrir: the bookcase's top rail (name, new count, dots, brass knobs); swipe to change category.
+                FenrirCategoryBar(
+                    categories = categories,
+                    pagerState = pagerState,
+                    newCountFor = { category -> getItemsForCategory(category).count { it.unreadCount > 0 } },
+                    onGoTo = { scope.launch { pagerState.animateScrollToPage(it) } },
+                    countFor = { category -> getItemsForCategory(category).size },
+                )
+            }
+        }
+
         if (isQueryRunning && selection.isEmpty()) {
             LinearProgressIndicator(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().align(androidx.compose.ui.Alignment.BottomCenter),
             )
         }
+
+        // Fenrir: a book flying off the shelf and opening (shelf books and the glass case).
+        FenrirBookFlightOverlay()
 
         LaunchedEffect(pagerState.currentPage) {
             onChangeCurrentPage(pagerState.currentPage)
