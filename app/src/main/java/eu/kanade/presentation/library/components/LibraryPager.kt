@@ -19,6 +19,10 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import eu.kanade.core.preference.PreferenceMutableState
@@ -62,6 +66,8 @@ fun LibraryPager(
             // To make sure only one offscreen page is being composed
             return@HorizontalPager
         }
+        // Fenrir: revolving bookcase. Each category is one side of a box that turns as you switch.
+        Box(Modifier.fillMaxSize().fenrirBookcaseTurn(state, page)) {
         val category = getCategoryForPage(page)
         val items = getItemsForCategory(category)
 
@@ -160,8 +166,24 @@ fun LibraryPager(
                 )
             }
         }
+        }
     }
 }
+
+/** Turns a pager page like one side of a box (the revolving bookcase), darkening as it turns away. */
+private fun Modifier.fenrirBookcaseTurn(state: PagerState, page: Int): Modifier = this
+    .graphicsLayer {
+        val o = ((page - state.currentPage) - state.currentPageOffsetFraction).coerceIn(-1f, 1f)
+        cameraDistance = 14f * density
+        transformOrigin = TransformOrigin(if (o < 0f) 1f else 0f, 0.5f)
+        rotationY = 90f * o
+    }
+    .drawWithContent {
+        drawContent()
+        val o = ((page - state.currentPage) - state.currentPageOffsetFraction).coerceIn(-1f, 1f)
+        val shade = kotlin.math.abs(o) * 0.45f
+        if (shade > 0.01f) drawRect(Color.Black.copy(alpha = shade))
+    }
 
 @Composable
 private fun LibraryPagerEmptyScreen(

@@ -13,6 +13,9 @@ import androidx.compose.runtime.mutableStateOf
 import uy.kohesive.injekt.api.get
 import kotlinx.coroutines.launch
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.using
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -100,11 +103,12 @@ internal fun FenrirCategoryBar(
     ) {
         ArrowButton(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Previous category", enabled = current > 0) { onGoTo(current - 1) }
         // Hold the bar: "Jump to" (every category with counts); Edit opens the Categories editor.
+        val ctx = androidx.compose.ui.platform.LocalContext.current
         var jump by remember { mutableStateOf(false) }
         var manage by remember { mutableStateOf(false) }
         var startNew by remember { mutableStateOf(false) }
         Column(
-            Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).combinedClickable(onClick = { jump = true }, onLongClick = { jump = true }),
+            Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).combinedClickable(onClick = { fenrirCategoryHintSeen(ctx); jump = true }, onLongClick = { fenrirCategoryHintSeen(ctx); jump = true }),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             if (jump) {
@@ -122,21 +126,11 @@ internal fun FenrirCategoryBar(
             if (manage) {
                 FenrirCategoriesDialog(categories = categories, current = category, onDismiss = { manage = false }, startNew = startNew)
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    category.visualName,
-                    color = Color.White,
-                    fontSize = 15.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-                if (newCount > 0) {
-                    Spacer(Modifier.width(6.dp))
-                    Text("● $newCount new", color = FenrirRed, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                }
-            }
+            FenrirCategoryButton(
+                categories = categories,
+                current = current,
+                newCountFor = newCountFor,
+            )
             Spacer(Modifier.height(4.dp))
             if (categories.size <= 8) {
                 Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -157,6 +151,159 @@ internal fun FenrirCategoryBar(
         }
         ArrowButton(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Next category", enabled = current < categories.lastIndex) { onGoTo(current + 1) }
     }
+}
+
+private const val FENRIR_UI_PREFS = "fenrir_ui"
+private const val CATEGORY_HINT_KEY = "category_button_hint_seen"
+private val fenrirHintVisible = androidx.compose.runtime.mutableStateOf<Boolean?>(null)
+
+private fun fenrirCategoryHintSeen(context: android.content.Context) {
+    if (fenrirHintVisible.value == false) return
+    fenrirHintVisible.value = false
+    context.getSharedPreferences(FENRIR_UI_PREFS, android.content.Context.MODE_PRIVATE)
+        .edit().putBoolean(CATEGORY_HINT_KEY, true).apply()
+}
+
+/**
+ * The category name as a button: grid icon, name, ▾. The name slides in from the side you're
+ * going. The first time, a pulsing ring and "Tap here to see all categories" point at it.
+ */
+@Composable
+private fun FenrirCategoryButton(
+    categories: List<Category>,
+    current: Int,
+    newCountFor: (Category) -> Int,
+) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    if (fenrirHintVisible.value == null) {
+        fenrirHintVisible.value = !ctx.getSharedPreferences(FENRIR_UI_PREFS, android.content.Context.MODE_PRIVATE)
+            .getBoolean(CATEGORY_HINT_KEY, false)
+    }
+    val showHint = fenrirHintVisible.value == true
+    val pillShape = RoundedCornerShape(14.dp)
+    Box(contentAlignment = Alignment.Center) {
+        if (showHint) {
+            val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "hint")
+            val t by pulse.animateFloat(
+                initialValue = 0f,
+                targetValue = 1f,
+                animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                    androidx.compose.animation.core.tween(1400, easing = androidx.compose.animation.core.LinearOutSlowInEasing),
+                ),
+                label = "ring",
+            )
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .graphicsLayer { scaleX = 1f + 0.18f * t; scaleY = 1f + 0.35f * t; alpha = 1f - t }
+                    .border(2.dp, FenrirRed, pillShape),
+            )
+            androidx.compose.ui.window.Popup(
+                alignment = Alignment.TopCenter,
+                offset = androidx.compose.ui.unit.IntOffset(0, with(androidx.compose.ui.platform.LocalDensity.current) { 40.dp.roundToPx() }),
+                onDismissRequest = null,
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { fenrirCategoryHintSeen(ctx) }) {
+                    Box(
+                        Modifier
+                            .size(width = 12.dp, height = 6.dp)
+                            .drawBehind {
+                                val path = androidx.compose.ui.graphics.Path().apply {
+                                    moveTo(size.width / 2f, 0f); lineTo(size.width, size.height); lineTo(0f, size.height); close()
+                                }
+                                drawPath(path, FenrirRed)
+                            },
+                    )
+                    Text(
+                        "Tap here to see all categories",
+                        color = Color.White,
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(FenrirRed)
+                            .padding(horizontal = 12.dp, vertical = 7.dp),
+                    )
+                }
+            }
+        }
+        Row(
+            Modifier
+                .clip(pillShape)
+                .background(FenrirRed.copy(alpha = 0.10f))
+                .border(1.dp, FenrirRed.copy(alpha = 0.45f), pillShape)
+                .padding(start = 9.dp, end = 7.dp, top = 2.dp, bottom = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                androidx.compose.material.icons.Icons.Outlined.GridView,
+                contentDescription = null,
+                tint = FenrirMuted,
+                modifier = Modifier.size(14.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            androidx.compose.animation.AnimatedContent(
+                targetState = current,
+                modifier = Modifier.weight(1f, fill = false),
+                transitionSpec = {
+                    val dir = if (targetState > initialState) 1 else -1
+                    (
+                        androidx.compose.animation.slideInHorizontally(androidx.compose.animation.core.tween(260)) { it * dir / 2 } +
+                            androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(260))
+                        ).togetherWith(
+                        androidx.compose.animation.slideOutHorizontally(androidx.compose.animation.core.tween(180)) { -it * dir / 2 } +
+                            androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(160)),
+                    ).using(androidx.compose.animation.SizeTransform(clip = true))
+                },
+                label = "categoryName",
+            ) { index ->
+                val c = categories[index.coerceIn(0, categories.lastIndex)]
+                val newCount = newCountFor(c)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        c.visualName,
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    if (newCount > 0) {
+                        Spacer(Modifier.width(6.dp))
+                        Text("● $newCount new", color = FenrirRed, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    }
+                }
+            }
+            Spacer(Modifier.width(3.dp))
+            Icon(
+                androidx.compose.material.icons.Icons.Filled.KeyboardArrowDown,
+                contentDescription = null,
+                tint = FenrirRed,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+    }
+}
+
+/** A wooden shelf the covers stand on: drawn under the cover, a little wider than the cell. */
+internal fun Modifier.fenrirShelfLedge(coverPadding: androidx.compose.ui.unit.Dp, ratio: Float): Modifier = drawBehind {
+    val pad = coverPadding.toPx()
+    val coverH = (size.width - pad * 2f) / ratio
+    val top = pad + coverH - 2.dp.toPx()
+    val h = 7.dp.toPx()
+    val reach = 3.dp.toPx()
+    // soft shadow under the shelf
+    drawRect(
+        Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.45f), 1f to Color.Transparent, startY = top + h, endY = top + h + 6.dp.toPx()),
+        topLeft = androidx.compose.ui.geometry.Offset(-reach, top + h),
+        size = androidx.compose.ui.geometry.Size(size.width + reach * 2f, 6.dp.toPx()),
+    )
+    drawRect(
+        Brush.verticalGradient(0f to Color(0xFFA46C40), 0.25f to Color(0xFF8A5A34), 1f to Color(0xFF5A3B26), startY = top, endY = top + h),
+        topLeft = androidx.compose.ui.geometry.Offset(-reach, top),
+        size = androidx.compose.ui.geometry.Size(size.width + reach * 2f, h),
+    )
 }
 
 @Composable
@@ -335,6 +482,7 @@ internal fun FenrirLibraryGridItem(
     val shape = RoundedCornerShape(14.dp)
     Column(
         Modifier
+            .fenrirShelfLedge(5.dp, MangaCover.Book.ratio)
             .padding(5.dp)
             .clip(RoundedCornerShape(16.dp))
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
@@ -420,7 +568,7 @@ internal fun FenrirLibraryGridItem(
             lineHeight = 16.sp,
             maxLines = titleMaxLines.coerceIn(1, 2),
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = 2.dp, end = 2.dp, top = 7.dp),
+            modifier = Modifier.padding(start = 2.dp, end = 2.dp, top = 10.dp),
         )
         Text(
             status,
