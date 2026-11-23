@@ -420,7 +420,7 @@ abstract class PagerViewer(val activity: ReaderActivity) : Viewer {
                 val towardRight = dx < 0
                 val holder = (currentPage as? ReaderPage)?.let(::getPageHolder)
                 if (holder != null && (if (towardRight) holder.canPanRight() else holder.canPanLeft())) return false
-                val target = pager.currentItem + if (towardRight) 1 else -1
+                val target = (pager.currentItem + if (towardRight) 1 else -1).let { if (it in 0 until adapter.count) skipTransition(it) else it }
                 if (target !in 0 until adapter.count) return false
                 startInteractiveFlip(target)
                 return true
@@ -445,6 +445,20 @@ abstract class PagerViewer(val activity: ReaderActivity) : Viewer {
             }
         }
         return flipDrag != 0
+    }
+
+    /**
+     * Book mode turns straight into the next (or previous) chapter: when the page you're turning
+     * to is the "chapter finished" card and the other chapter's page is already there, go to it.
+     */
+    private fun skipTransition(target: Int): Int {
+        val step = if (target > pager.currentItem) 1 else -1
+        val item = adapter.items.getOrNull(target)
+        if (item is ChapterTransition) {
+            val beyond = adapter.items.getOrNull(target + step)
+            if (beyond is ReaderPage) return target + step
+        }
+        return target
     }
 
     private fun ensureCurl(parent: android.view.ViewGroup, w: Int, h: Int): eu.kanade.tachiyomi.ui.reader.viewer.text.webview.PageCurlView {
@@ -517,7 +531,8 @@ abstract class PagerViewer(val activity: ReaderActivity) : Viewer {
         }
     }
 
-    private fun turnTo(target: Int) {
+    private fun turnTo(requested: Int) {
+        val target = if (bookFlipOn && requested in 0 until adapter.count) skipTransition(requested) else requested
         if (!bookFlipOn || flipping || target !in 0 until adapter.count) {
             if (!flipping) pager.setCurrentItem(target, config.usePageTransitions)
             return

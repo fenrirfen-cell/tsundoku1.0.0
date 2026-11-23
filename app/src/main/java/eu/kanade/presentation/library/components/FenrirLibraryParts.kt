@@ -1,5 +1,9 @@
 package eu.kanade.presentation.library.components
 
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import uy.kohesive.injekt.api.get
+import kotlinx.coroutines.launch
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -65,6 +69,7 @@ internal fun Modifier.fenrirGlass(shape: androidx.compose.ui.graphics.Shape): Mo
  * F2: one glass bar for categories. Name of the open one, how many titles have new chapters,
  * page dots, and arrows. Swiping the books left/right also changes category (the pager).
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 internal fun FenrirCategoryBar(
     categories: List<Category>,
@@ -85,7 +90,22 @@ internal fun FenrirCategoryBar(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         ArrowButton(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Previous category", enabled = current > 0) { onGoTo(current - 1) }
-        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+        // Hold the name: new category, rename, move left/right, delete.
+        var menu by remember { mutableStateOf(false) }
+        var dialog by remember { mutableStateOf<String?>(null) } // "new", "rename", "delete"
+        Column(
+            Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).combinedClickable(onClick = {}, onLongClick = { menu = true }),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            FenrirCategoryMenu(
+                categories = categories,
+                current = category,
+                menu = menu,
+                onMenuClose = { menu = false },
+                dialog = dialog,
+                onDialog = { dialog = it },
+                onMoved = { newPos -> onGoTo(newPos) },
+            )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     category.visualName,
@@ -233,8 +253,16 @@ internal class FenrirCollapsingHeader {
             available: androidx.compose.ui.geometry.Offset,
             source: androidx.compose.ui.input.nestedscroll.NestedScrollSource,
         ): androidx.compose.ui.geometry.Offset {
+            if (heightPx == 0 || available.y == 0f) return androidx.compose.ui.geometry.Offset.Zero
+            // Pulling down: bring the categories back first, before the list scrolls or the
+            // library refreshes (so a short list never gets stuck with them hidden).
+            if (available.y > 0f) {
+                if (offsetPx >= 0f) return androidx.compose.ui.geometry.Offset.Zero
+                val old = offsetPx
+                offsetPx = (offsetPx + available.y).coerceIn(-heightPx.toFloat(), 0f)
+                return androidx.compose.ui.geometry.Offset(0f, offsetPx - old)
+            }
             // Scrolling the books up: hide the header first.
-            if (available.y >= 0f || heightPx == 0) return androidx.compose.ui.geometry.Offset.Zero
             val old = offsetPx
             offsetPx = (offsetPx + available.y).coerceIn(-heightPx.toFloat(), 0f)
             return androidx.compose.ui.geometry.Offset(0f, offsetPx - old)
@@ -649,5 +677,99 @@ fun FenrirSourceDownChip(books: List<LibraryManga>, onOpenBook: (Long) -> Unit) 
                 Text("Sources that come back are turned on again by themselves.", color = FenrirMuted, fontSize = 12.sp)
             }
         }
+    }
+}
+
+
+/** Hold-the-category-name menu and its dialogs. Changes save right away; nothing here can crash the library. */
+@Composable
+private fun FenrirCategoryMenu(
+    categories: List<Category>,
+    current: Category,
+    menu: Boolean,
+    onMenuClose: () -> Unit,
+    dialog: String?,
+    onDialog: (String?) -> Unit,
+    onMoved: (Int) -> Unit,
+) {
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val system = current.isSystemCategory
+    val visible = categories.filterNot { it.isSystemCategory }
+    val at = visible.indexOfFirst { it.id == current.id }
+    fun move(by: Int) {
+        val neighbor = visible.getOrNull(at + by) ?: return
+        scope.launch {
+            runCatching {
+                val all = uy.kohesive.injekt.Injekt.get<tachiyomi.domain.category.interactor.GetCategories>().await()
+                    .filterNot { it.isSystemCategory }.sortedBy { it.order }
+                val newIndex = all.indexOfFirst { it.id == neighbor.id }
+                if (newIndex >= 0) {
+                    uy.kohesive.injekt.Injekt.get<tachiyomi.domain.category.interactor.ReorderCategory>().await(current, newIndex)
+                    onMoved(categories.indexOfFirst { it.id == neighbor.id })
+                }
+            }
+        }
+    }
+    androidx.compose.material3.DropdownMenu(expanded = menu, onDismissRequest = onMenuClose) {
+        androidx.compose.material3.DropdownMenuItem(text = { Text("New category") }, onClick = { onMenuClose(); onDialog("new") })
+        if (!system) {
+            androidx.compose.material3.DropdownMenuItem(text = { Text("Rename “${current.visualName}”") }, onClick = { onMenuClose(); onDialog("rename") })
+            if (at > 0) androidx.compose.material3.DropdownMenuItem(text = { Text("Move left") }, onClick = { onMenuClose(); move(-1) })
+            if (at in 0 until visible.lastIndex) androidx.compose.material3.DropdownMenuItem(text = { Text("Move right") }, onClick = { onMenuClose(); move(1) })
+            androidx.compose.material3.DropdownMenuItem(
+                text = { Text("Delete “${current.visualName}”", color = FenrirRed) },
+                onClick = { onMenuClose(); onDialog("delete") },
+            )
+        }
+    }
+    when (dialog) {
+        "new", "rename" -> {
+            var name by remember(dialog) { mutableStateOf(if (dialog == "rename") current.name else "") }
+            val taken = categories.any { it.name.equals(name.trim(), true) && (dialog == "new" || it.id != current.id) }
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { onDialog(null) },
+                title = { Text(if (dialog == "new") "New category" else "Rename category") },
+                text = {
+                    Column {
+                        androidx.compose.material3.OutlinedTextField(value = name, onValueChange = { name = it }, singleLine = true, placeholder = { Text("Name") })
+                        if (taken) Text("A category with that name already exists", color = FenrirRed, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+                    }
+                },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(
+                        enabled = name.isNotBlank() && !taken,
+                        onClick = {
+                            val n = name.trim()
+                            onDialog(null)
+                            scope.launch {
+                                runCatching {
+                                    if (dialog == "new") {
+                                        val type = current.contentType.takeIf { !system } ?: Category.CONTENT_TYPE_ALL
+                                        uy.kohesive.injekt.Injekt.get<tachiyomi.domain.category.interactor.CreateCategoryWithName>().await(n, type)
+                                    } else {
+                                        uy.kohesive.injekt.Injekt.get<tachiyomi.domain.category.interactor.RenameCategory>().await(current, n)
+                                    }
+                                }
+                            }
+                        },
+                    ) { Text(if (dialog == "new") "Add" else "Save") }
+                },
+                dismissButton = { androidx.compose.material3.TextButton(onClick = { onDialog(null) }) { Text("Cancel") } },
+            )
+        }
+        "delete" -> androidx.compose.material3.AlertDialog(
+            onDismissRequest = { onDialog(null) },
+            title = { Text("Delete “${current.visualName}”?") },
+            text = { Text("The books stay in your library; they just move out of this category.") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    onDialog(null)
+                    scope.launch {
+                        runCatching { uy.kohesive.injekt.Injekt.get<tachiyomi.domain.category.interactor.DeleteCategory>().await(current.id) }
+                    }
+                }) { Text("Delete", color = FenrirRed) }
+            },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { onDialog(null) }) { Text("Cancel") } },
+        )
     }
 }

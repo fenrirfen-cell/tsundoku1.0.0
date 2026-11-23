@@ -634,12 +634,36 @@ fun FenrirMangaModeSheet(
             Spacer(Modifier.height(10.dp))
             ModeTabs(manga = true)
             SectionLabel("Page layout")
-            FenrirMangaModes.chunked(3).forEach { row ->
+            val bookFlip by prefs.pagerBookFlip.collectAsState()
+            val horizontal = readingMode == ReadingMode.RIGHT_TO_LEFT || readingMode == ReadingMode.LEFT_TO_RIGHT
+            val bookOn = bookFlip && horizontal
+            // The five layouts plus "Book": pages that curl over like a real book.
+            FenrirMangaModes.chunked(3).forEachIndexed { r, row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 8.dp)) {
                     row.forEach { (mode, title, sub) ->
-                        ChoiceCard(title, sub, readingMode == mode, { viewModel.onChangeReadingMode(mode) }, Modifier.weight(1f))
+                        ChoiceCard(title, sub, readingMode == mode && !bookOn, {
+                            prefs.pagerBookFlip.set(false)
+                            viewModel.onChangeReadingMode(mode)
+                        }, Modifier.weight(1f))
                     }
-                    repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                    if (r == 1) {
+                        ChoiceCard("Book", "Pages curl over", bookOn, {
+                            prefs.pagerBookFlip.set(true)
+                            if (!horizontal) viewModel.onChangeReadingMode(ReadingMode.RIGHT_TO_LEFT)
+                        }, Modifier.weight(1f))
+                    }
+                    repeat(3 - row.size - (if (r == 1) 1 else 0)) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+            if (bookOn) {
+                SectionLabel("Turn pages")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ChoiceCard("Right → left", "Manga", readingMode == ReadingMode.RIGHT_TO_LEFT, {
+                        viewModel.onChangeReadingMode(ReadingMode.RIGHT_TO_LEFT)
+                    }, Modifier.weight(1f))
+                    ChoiceCard("Left → right", "Comics", readingMode == ReadingMode.LEFT_TO_RIGHT, {
+                        viewModel.onChangeReadingMode(ReadingMode.LEFT_TO_RIGHT)
+                    }, Modifier.weight(1f))
                 }
             }
 
@@ -654,18 +678,6 @@ fun FenrirMangaModeSheet(
                 SwitchRow("Chapter", "Ch. 938", prefs.pagerInfoChapter)
                 SwitchRow("Time", "10:42 PM", prefs.pagerInfoTime)
                 SwitchRow("Battery", "🔋 64%", prefs.pagerInfoBattery)
-            }
-
-            if (readingMode == ReadingMode.RIGHT_TO_LEFT || readingMode == ReadingMode.LEFT_TO_RIGHT) {
-                SectionLabel("Page turn")
-                Column(
-                    Modifier
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                        .padding(10.dp),
-                ) {
-                    SwitchRow("Turn pages like a book", "The page curls over when you swipe or tap", prefs.pagerBookFlip)
-                }
             }
 
             SectionLabel("Panel by panel")
