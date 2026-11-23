@@ -571,17 +571,11 @@ internal fun FenrirLibraryGridItem(
                 .fillMaxWidth()
                 .fenrirTomeShadow()
                 .alpha(if (FenrirBookFlight.isFlying(manga.id)) 0f else if (isSelected) 0.8f else 1f),
-            onFrameBounds = { bookRect.value = fenrirTomeCoverRect(it) },
+            onFrameBounds = { bookRect.value = it },
         ) {
             if (isSelected) {
                 Box(Modifier.fillMaxSize().border(4.dp, FenrirRed))
             }
-            // Fenrir: ★ rating badge (tap for why); nothing shows without a sure match.
-            FenrirRatingBadge(
-                title = manga.title,
-                novel = manga.isNovel,
-                modifier = Modifier.align(Alignment.BottomStart).padding(start = 7.dp, bottom = 14.dp),
-            )
             val unread = item.badges.unreadCount
             if (unread > 0) {
                 Text(
@@ -635,13 +629,20 @@ internal fun FenrirLibraryGridItem(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(start = 2.dp, end = 2.dp, top = 2.dp),
         )
-        Text(
-            status,
-            color = if (status == "New") Color(0xFFFF6B73) else Color(0xFFC9B49A),
-            fontSize = 11.sp,
-            maxLines = 1,
-            modifier = Modifier.padding(start = 2.dp, top = 1.dp, bottom = 4.dp),
-        )
+        // Fenrir: "98% read" with the ★ rating beside it (off the cover, so it doesn't hide the art).
+        Row(
+            Modifier.padding(start = 2.dp, top = 1.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                status,
+                color = if (status == "New") Color(0xFFFF6B73) else Color(0xFFC9B49A),
+                fontSize = 11.sp,
+                maxLines = 1,
+            )
+            Spacer(Modifier.width(6.dp))
+            FenrirRatingBadge(title = manga.title, novel = manga.isNovel)
+        }
     }
 }
 

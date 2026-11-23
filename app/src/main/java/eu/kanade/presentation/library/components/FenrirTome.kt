@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
@@ -197,4 +199,69 @@ internal fun fenrirCoverAccent(cover: CoverData): Color {
         value = FenrirCoverAccent.load(context, cover)
     }
     return accent
+}
+
+/** Share of the frame's width/height covered by the cover window's bounding box (left, top, right, bottom). */
+internal val FenrirTomeCoverBox = floatArrayOf(0.2843f, 0.0648f, 0.8387f, 0.6674f)
+
+/**
+ * Fenrir: the back of a tome. The same frame seen from behind (spine on the other side), dark
+ * leather in the window with a glowing wolf and FENRIR in the book's colour. Drawn so it reads
+ * the right way round once the book has turned 180°.
+ */
+@Composable
+internal fun FenrirTomeBack(cover: CoverData, modifier: Modifier = Modifier) {
+    val accent = fenrirCoverAccent(cover)
+    BoxWithConstraints(modifier.aspectRatio(FenrirTomeRatio)) {
+        // the frame, mirrored: spine on the right
+        Box(Modifier.fillMaxSize().graphicsLayer { scaleX = -1f }) {
+            Box(
+                Modifier.fillMaxSize().drawBehind {
+                    val p = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(CoverQuad[0] * size.width, CoverQuad[1] * size.height)
+                        lineTo(CoverQuad[2] * size.width, CoverQuad[3] * size.height)
+                        lineTo(CoverQuad[4] * size.width, CoverQuad[5] * size.height)
+                        lineTo(CoverQuad[6] * size.width, CoverQuad[7] * size.height)
+                        close()
+                    }
+                    drawPath(p, Brush.verticalGradient(listOf(Color(0xFF3A2219), Color(0xFF1E120C))))
+                },
+            )
+            Image(painterResource(R.drawable.fenrir_tome_base), null, Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
+            Image(
+                painterResource(R.drawable.fenrir_tome_tint),
+                null,
+                Modifier.fillMaxSize(),
+                contentScale = ContentScale.FillBounds,
+                colorFilter = ColorFilter.tint(accent),
+            )
+        }
+        // the wolf and the name, centred on the (mirrored) window
+        val cx = 1f - (CoverQuad[0] + CoverQuad[2] + CoverQuad[4] + CoverQuad[6]) / 4f
+        val cy = (CoverQuad[1] + CoverQuad[3] + CoverQuad[5] + CoverQuad[7]) / 4f
+        val markW = maxWidth * 0.3f
+        androidx.compose.foundation.layout.Column(
+            Modifier
+                .offset(maxWidth * cx - markW, maxHeight * cy - markW * 0.75f)
+                .size(markW * 2f, markW * 1.6f),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Image(
+                painterResource(R.drawable.fenrir_wolf_mark),
+                null,
+                Modifier.size(markW).drawBehind {
+                    drawCircle(Brush.radialGradient(listOf(accent.copy(alpha = 0.45f), Color.Transparent)), radius = size.minDimension * 0.75f)
+                },
+                colorFilter = ColorFilter.tint(accent),
+            )
+            androidx.compose.material3.Text(
+                "FENRIR",
+                color = Color(0xFFE8C878),
+                fontSize = with(androidx.compose.ui.platform.LocalDensity.current) { (markW * 0.2f).toSp() },
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                letterSpacing = with(androidx.compose.ui.platform.LocalDensity.current) { (markW * 0.04f).toSp() },
+                maxLines = 1,
+            )
+        }
+    }
 }

@@ -597,7 +597,7 @@ fun FenrirRatingBadge(title: String, novel: Boolean, modifier: Modifier = Modifi
             .height(22.dp)
             .clip(CircleShape)
             .background(Color(0xD10C0C10))
-            .border(1.dp, Color.White.copy(alpha = 0.18f), CircleShape)
+            .border(1.dp, Color(0x99D9A85A), CircleShape)
             .clickable { open = true }
             .padding(start = 6.dp, end = 7.dp),
         verticalAlignment = Alignment.CenterVertically,

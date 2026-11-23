@@ -171,8 +171,26 @@ object HomeScreen : Screen() {
                         }
                         // Fenrir: what's behind the island, so its glass can blur it (like the Watch side).
                         val fenrirHaze = dev.chrisbanes.haze.rememberHazeState()
+                        // Fenrir: every Read page sits on the same dark wood as the library, with gold
+                        // headings and gold-edged lines (the pages' own dark backgrounds go see-through).
+                        val fenrirWood = eu.kanade.tachiyomi.EmbeddedHost.isFenrirStyle
+                        val baseScheme = MaterialTheme.colorScheme
+                        val woodScheme = remember(baseScheme, fenrirWood) {
+                            if (!fenrirWood) baseScheme else baseScheme.copy(
+                                background = androidx.compose.ui.graphics.Color.Transparent,
+                                surface = androidx.compose.ui.graphics.Color.Transparent,
+                                outline = androidx.compose.ui.graphics.Color(0xFF9A7638),
+                                outlineVariant = androidx.compose.ui.graphics.Color(0xFF5C4524),
+                            )
+                        }
+                        val woodBack = if (fenrirWood) eu.kanade.presentation.library.components.fenrirPageWoodModifier() else Modifier
+                        MaterialTheme(colorScheme = woodScheme, typography = MaterialTheme.typography, shapes = MaterialTheme.shapes) {
+                        androidx.compose.runtime.CompositionLocalProvider(
+                            tachiyomi.presentation.core.components.LocalListGroupHeaderColor provides
+                                if (fenrirWood) androidx.compose.ui.graphics.Color(0xFFE8B95A) else androidx.compose.ui.graphics.Color.Unspecified,
+                        ) {
                         AnimatedContent(
-                            modifier = Modifier.hazeSource(state = fenrirHaze),
+                            modifier = Modifier.then(woodBack).hazeSource(state = fenrirHaze),
                             targetState = tabNavigator.current,
                             transitionSpec = {
                                 materialFadeThroughIn(initialScale = 1f, durationMillis = TabFadeDuration) togetherWith
@@ -183,6 +201,8 @@ object HomeScreen : Screen() {
                             tabNavigator.saveableState(key = "currentTab", it) {
                                 it.Content()
                             }
+                        }
+                        }
                         }
                         // Fenrir: "may not work · Install anyway?" for novel plugins whose site is down.
                         eu.kanade.presentation.browse.FenrirInstallCheckDialog()

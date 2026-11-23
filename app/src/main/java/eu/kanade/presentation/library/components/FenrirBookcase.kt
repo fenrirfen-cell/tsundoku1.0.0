@@ -110,6 +110,17 @@ fun fenrirCrownModifier(): Modifier {
     }
 }
 
+/** Fenrir: the dark wood behind every Read page (darker than the shelves, so lists stay easy to read). */
+@Composable
+fun fenrirPageWoodModifier(): Modifier {
+    val back = woodImage(R.drawable.fenrir_wood_back)
+    val brush = remember(back) { ShaderBrush(ImageShader(back, TileMode.Repeated, TileMode.Repeated)) }
+    return Modifier.drawBehind {
+        drawRect(brush)
+        drawRect(Color.Black.copy(alpha = 0.55f))
+    }
+}
+
 /** Two little screws, one at each end of a brass plate. */
 internal fun DrawScope.brassScrews(inset: Dp) {
     val r = 2.6.dp.toPx()

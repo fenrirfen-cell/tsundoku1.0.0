@@ -284,6 +284,23 @@ internal fun FenrirBookFlightOverlay() {
                 }
             }
         }
+        // Fenrir: the tome (frame, spine, ribbon) round the flying cover, so it leaves the cabinet
+        // looking like the book you saw; it melts away just as the cover swings open.
+        val tomeAlpha = 1f - smooth(phase(t, 620f, 180f))
+        if (tomeAlpha > 0.01f && g == 0f) {
+            val cbw = FenrirTomeCoverBox[2] - FenrirTomeCoverBox[0]
+            val frameW = bookW / cbw
+            val frameH = frameW / FenrirTomeRatio
+            val fl = left - FenrirTomeCoverBox[0] * frameW
+            val ft = top - FenrirTomeCoverBox[1] * frameH
+            FenrirTomeBook(
+                cover = flight.cover,
+                modifier = Modifier
+                    .offset { IntOffset(fl.roundToInt(), ft.roundToInt()) }
+                    .size(with(density) { frameW.toDp() }, with(density) { frameH.toDp() })
+                    .graphicsLayer { alpha = tomeAlpha },
+            )
+        }
         if (flood > 0f) Box(Modifier.fillMaxSize().background(PageCream.copy(alpha = flood)))
     }
 }
@@ -548,7 +565,7 @@ private fun FenrirBookTurnOverlay(flight: FenrirBookFlight.Flight) {
         val startL = s.left - origin.x
         val startT = s.top - origin.y - with(density) { 10.dp.toPx() } * lift
         val startW = s.width * (1f + 0.06f * lift)
-        val endW = minOf(wPx * 0.5f, with(density) { 220.dp.toPx() })
+        val endW = minOf(wPx * 0.62f, with(density) { 280.dp.toPx() })
         val bookW = lerp(startW, endW, fly)
         val bookH = bookW * ratio
         val left = lerp(startL, (wPx - endW) / 2f, fly)
@@ -559,33 +576,6 @@ private fun FenrirBookTurnOverlay(flight: FenrirBookFlight.Flight) {
         val depth = bookW * 0.16f
         val wDp = with(density) { bookW.toDp() }
         val hDp = with(density) { bookH.toDp() }
-        // the book's thickness while it's side-on: spine first, then the page edges
-        val sideW = depth * edge
-        if (sideW > 1f) {
-            val sideLeft = left + bookW / 2f - sideW / 2f
-            Box(
-                Modifier
-                    .offset { IntOffset(sideLeft.roundToInt(), top.roundToInt()) }
-                    .size(with(density) { sideW.toDp() }, hDp)
-                    .graphicsLayer { alpha = 1f - fade }
-                    .drawBehind {
-                        if (angle < 90f) {
-                            // spine: leather with two raised bands
-                            drawRect(Brush.horizontalGradient(listOf(Color(0xFF3A1C14), Color(0xFF6A3826), Color(0xFF3A1C14))))
-                            listOf(0.18f, 0.82f).forEach { fy ->
-                                drawRect(Color(0xFFC9A14E).copy(alpha = 0.7f), topLeft = Offset(0f, size.height * fy), size = Size(size.width, 2.dp.toPx()))
-                            }
-                        } else {
-                            drawRect(PageCream)
-                            var y = 2.dp.toPx()
-                            while (y < size.height) {
-                                drawLine(PageLine, Offset(0f, y), Offset(size.width, y), 1f)
-                                y += 3.dp.toPx()
-                            }
-                        }
-                    },
-            )
-        }
         Box(
             Modifier
                 .offset { IntOffset(left.roundToInt(), top.roundToInt()) }
@@ -593,75 +583,19 @@ private fun FenrirBookTurnOverlay(flight: FenrirBookFlight.Flight) {
                 .graphicsLayer {
                     rotationY = angle
                     cameraDistance = 12f * density.density
-                    shadowElevation = (6f + 20f * fly) * density.density
-                    shape = RoundedCornerShape(4.dp)
                     alpha = 1f - fade
                 },
         ) {
             if (angle < 90f) {
-                MangaCover.Book(
-                    data = flight.cover,
-                    modifier = Modifier.fillMaxSize().fenrirHardcover(),
-                    shape = RectangleShape,
-                )
+                // the tome as it stood on the shelf
+                FenrirTomeBook(cover = flight.cover, modifier = Modifier.fillMaxSize())
             } else {
-                // the back cover (drawn mirrored so it reads the right way round once turned)
+                // its back: same frame from behind, wolf and FENRIR in the book's colour
+                // (mirrored here so it reads the right way round once turned)
                 Box(Modifier.fillMaxSize().graphicsLayer { scaleX = -1f }) {
-                    MangaCover.Book(
-                        data = flight.cover,
-                        modifier = Modifier.fillMaxSize(),
-                        shape = RectangleShape,
-                    )
-                    Box(Modifier.fillMaxSize().background(Color(0xE6201410)))
-                    Column(
-                        Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Text(
-                            flight.title,
-                            color = Color(0xFFE8C67A),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center,
-                            maxLines = 3,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Spacer(Modifier.height(10.dp))
-                        Box(Modifier.width(40.dp).height(1.dp).background(Color(0xFFE8C67A).copy(alpha = 0.6f)))
-                        Spacer(Modifier.height(10.dp))
-                        Box(
-                            Modifier
-                                .fillMaxWidth()
-                                .weight(1f)
-                                .drawBehind {
-                                    var y = 4.dp.toPx()
-                                    var i = 0
-                                    while (y < size.height - 4.dp.toPx()) {
-                                        val w = if (i % 5 == 4) 0.6f else 1f
-                                        drawLine(Color.White.copy(alpha = 0.22f), Offset(0f, y), Offset(size.width * w, y), 1.6f)
-                                        y += 9.dp.toPx()
-                                        i++
-                                    }
-                                },
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        // a little barcode in the corner
-                        Row(Modifier.align(Alignment.End).height(18.dp).background(Color(0xFFF1E8D2)).padding(horizontal = 3.dp, vertical = 2.dp)) {
-                            listOf(1, 2, 1, 1, 3, 1, 2, 1, 1, 2, 1, 3).forEachIndexed { i, b ->
-                                Box(Modifier.width((b * 0.8f).dp).fillMaxHeight().background(if (i % 2 == 0) Color(0xFF1A1A1A) else Color.Transparent))
-                            }
-                        }
-                    }
+                    FenrirTomeBack(cover = flight.cover, modifier = Modifier.fillMaxSize())
                 }
             }
-            // light sweeping across while it turns
-            Box(
-                Modifier.fillMaxSize().background(
-                    Brush.horizontalGradient(
-                        listOf(Color.White.copy(alpha = 0.22f * edge), Color.Transparent, Color.Black.copy(alpha = 0.35f * edge)),
-                    ),
-                ),
-            )
         }
     }
 }

@@ -2,6 +2,7 @@ package eu.kanade.presentation.library.components
 
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -192,16 +193,18 @@ fun LibraryContent(
                 androidx.compose.foundation.Image(
                     androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.fenrir_ivy_left),
                     contentDescription = null,
-                    modifier = Modifier.align(androidx.compose.ui.Alignment.TopStart).padding(start = 6.dp)
-                        .wrapContentHeight(androidx.compose.ui.Alignment.Top, unbounded = true).height(118.dp),
-                    contentScale = androidx.compose.ui.layout.ContentScale.FillHeight,
+                    modifier = Modifier.align(androidx.compose.ui.Alignment.TopStart)
+                        .wrapContentHeight(androidx.compose.ui.Alignment.Top, unbounded = true).width(30.dp).height(56.dp),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    alignment = androidx.compose.ui.Alignment.TopStart,
                 )
                 androidx.compose.foundation.Image(
                     androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.fenrir_ivy_right),
                     contentDescription = null,
-                    modifier = Modifier.align(androidx.compose.ui.Alignment.TopEnd).padding(end = 6.dp)
-                        .wrapContentHeight(androidx.compose.ui.Alignment.Top, unbounded = true).height(128.dp),
-                    contentScale = androidx.compose.ui.layout.ContentScale.FillHeight,
+                    modifier = Modifier.align(androidx.compose.ui.Alignment.TopEnd)
+                        .wrapContentHeight(androidx.compose.ui.Alignment.Top, unbounded = true).width(30.dp).height(60.dp),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    alignment = androidx.compose.ui.Alignment.TopEnd,
                 )
             }
         }
