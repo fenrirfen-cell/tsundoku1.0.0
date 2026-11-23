@@ -1,5 +1,6 @@
 package eu.kanade.presentation.library.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.ui.draw.clipToBounds
@@ -136,7 +137,9 @@ fun LibraryContent(
             Modifier
                 .fillMaxWidth()
                 .onSizeChanged { header.heightPx = it.height }
-                .graphicsLayer { translationY = header.offsetPx },
+                .graphicsLayer { translationY = header.offsetPx }
+                // solid behind the top part, so books never show through any gap in it
+                .background(androidx.compose.ui.graphics.Color(0xFF0B0B0F)),
         ) {
             // Fenrir: "Update available" pill (Read side gets app updates too).
             FenrirUpdatePill()

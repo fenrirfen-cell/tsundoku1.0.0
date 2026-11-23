@@ -99,7 +99,6 @@ internal fun FenrirCategoryBar(
     // Fenrir: the bookcase's carved top rail, with a brass nameplate and brass knobs.
     Row(
         modifier = Modifier
-            .padding(top = 6.dp)
             .fillMaxWidth()
             .height(78.dp)
             .fenrirRail()

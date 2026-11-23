@@ -257,7 +257,7 @@ internal fun FenrirContinueReadingCase(manga: LibraryManga, onOpen: () -> Unit) 
     Box(
         Modifier
             .fillMaxWidth()
-            .height(176.dp)
+            .height(214.dp)
             .fenrirRail()
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = tapped)
             .padding(start = 14.dp, end = 14.dp, top = 20.dp, bottom = 12.dp),
@@ -297,7 +297,7 @@ internal fun FenrirContinueReadingCase(manga: LibraryManga, onOpen: () -> Unit) 
                     Box(
                         Modifier
                             .padding(bottom = 9.dp)
-                            .width(64.dp)
+                            .width(100.dp)
                             .aspectRatio(MangaCover.Book.ratio)
                             .drawBehind {
                                 // the book's shadow on the velvet
@@ -309,13 +309,13 @@ internal fun FenrirContinueReadingCase(manga: LibraryManga, onOpen: () -> Unit) 
                             }
                             .onGloballyPositioned { bookRect = it.boundsInRoot() }
                             .alpha(if (flying) 0f else 1f)
-                            .fenrirPageBlock(4.dp),
+                            .fenrirPageBlock(5.dp),
                     ) {
                         MangaCover.Book(
                             data = cover,
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(end = 4.dp, top = 2.5.dp)
+                                .padding(end = 5.dp, top = 3.dp)
                                 .clip(RoundedCornerShape(topEnd = 3.dp, bottomEnd = 3.dp))
                                 .fenrirHardcover(),
                             shape = RectangleShape,
