@@ -1,5 +1,7 @@
 package eu.kanade.presentation.library.components
 
+import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.ui.input.pointer.pointerInput
@@ -730,7 +732,7 @@ private fun FenrirCategoriesDialog(categories: List<Category>, current: Category
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Categories", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f))
-                Text("Hold ≡ and drag to reorder", color = FenrirMuted, fontSize = 11.5.sp)
+                Text("Drag ≡ to reorder", color = FenrirMuted, fontSize = 11.5.sp)
             }
             Spacer(Modifier.height(10.dp))
             androidx.compose.foundation.lazy.LazyColumn(Modifier.heightIn(max = 380.dp), userScrollEnabled = dragId == null) {
@@ -771,8 +773,9 @@ private fun FenrirCategoriesDialog(categories: List<Category>, current: Category
                                     color = if (dragging) Color.White else FenrirMuted,
                                     fontSize = 20.sp,
                                     modifier = Modifier
+                                        .size(width = 40.dp, height = 40.dp)
                                         .pointerInput(c.id) {
-                                            detectDragGesturesAfterLongPress(
+                                            detectDragGestures(
                                                 onDragStart = { dragId = c.id; dragY = 0f },
                                                 onDragEnd = {
                                                     val moved = list.firstOrNull { it.id == dragId }
@@ -783,7 +786,8 @@ private fun FenrirCategoriesDialog(categories: List<Category>, current: Category
                                             ) { change, amount ->
                                                 change.consume()
                                                 dragY += amount.y
-                                                val at = list.indexOfFirst { it.id == c.id }
+                                                val at = list.indexOfFirst { it.id == dragId }
+                                                if (at < 0) return@detectDragGestures
                                                 if (dragY > rowPx / 2 && at < list.lastIndex) {
                                                     list.add(at + 1, list.removeAt(at)); dragY -= rowPx
                                                 } else if (dragY < -rowPx / 2 && at > 0) {
@@ -791,9 +795,9 @@ private fun FenrirCategoriesDialog(categories: List<Category>, current: Category
                                                 }
                                             }
                                         }
-                                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                                        .wrapContentSize(Alignment.Center),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                                 )
-                                Spacer(Modifier.width(6.dp))
                                 Text(c.visualName, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1,
                                     overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                                 Text("✎", color = Color(0xFFC9C9D2), fontSize = 16.sp,
