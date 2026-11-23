@@ -67,6 +67,9 @@ object EmbeddedHost {
     @Volatile
     var dismissAppUpdate: (() -> Unit)? = null
 
+    /** The host's opening animation (shown once per app start, also when the app opens on Read). */
+    var splash: (@androidx.compose.runtime.Composable () -> Unit)? = null
+
     val isFenrirStyle: Boolean get() = openWatch != null && fenrirStyle?.invoke() == true
 
     /** Installed manga extensions (for the host's Settings → Sources). */

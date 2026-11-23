@@ -221,6 +221,8 @@ class MainActivity : BaseActivity() {
                                     .background(MaterialTheme.colorScheme.surfaceContainer),
                             )
                         }
+                        // Fenrir Vault: the opening animation when the app starts on Read.
+                        eu.kanade.tachiyomi.EmbeddedHost.splash?.invoke()
                     }
                 }
 
