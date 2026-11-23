@@ -319,6 +319,11 @@ class ReaderPreferences(
     val pagerBubblePanelLast: Preference<Boolean> = preferenceStore.getBoolean("pref_pager_bubble_panel_last", false)
     val pagerPanelByPanel: Preference<Boolean> = preferenceStore.getBoolean("pref_pager_panel_by_panel", false)
     val pagerPanelFullPageFirst: Preference<Boolean> = preferenceStore.getBoolean("pref_pager_panel_full_page_first", true)
+    // Fenrir: what the manga page line shows besides "5 / 22".
+    val pagerInfoChapter: Preference<Boolean> = preferenceStore.getBoolean("pref_pager_info_chapter", true)
+    val pagerInfoTime: Preference<Boolean> = preferenceStore.getBoolean("pref_pager_info_time", true)
+    val pagerInfoBattery: Preference<Boolean> = preferenceStore.getBoolean("pref_pager_info_battery", true)
+
     // Fenrir: turn manga pages like a book (page curl) in the left/right page modes.
     val pagerBookFlip: Preference<Boolean> = preferenceStore.getBoolean("pref_pager_book_flip", false)
     val novelPagedFlipEffect: Preference<Boolean> =
@@ -447,7 +452,7 @@ class ReaderPreferences(
     )
 
     // Status bar overlay showing time, battery, chapter, and progress during reading
-    val novelStatusBarEnabled: Preference<Boolean> = preferenceStore.getBoolean("pref_novel_status_bar_enabled", false)
+    val novelStatusBarEnabled: Preference<Boolean> = preferenceStore.getBoolean("pref_novel_status_bar_enabled", true)
     val novelStatusBarShowTime: Preference<Boolean> = preferenceStore.getBoolean(
         "pref_novel_status_bar_show_time",
         true,

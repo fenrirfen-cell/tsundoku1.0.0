@@ -110,6 +110,7 @@ object FenrirRatings {
         val k = key(title, novel)
         memory.remove(k)
         runCatching { prefs.edit().remove(k).apply() }
+        publish(k, null, true)
     }
 
     private fun key(title: String, novel: Boolean) = (if (novel) "n4:" else "m4:") + norm(title)
@@ -123,45 +124,82 @@ object FenrirRatings {
         }
     }
 
-    suspend fun get(title: String, novel: Boolean): Rating? {
+    /** What's known so far for a book: the rating (may grow as sites answer) and whether it's still looking. */
+    data class Live(val rating: Rating?, val loading: Boolean)
+    private val live = java.util.concurrent.ConcurrentHashMap<String, MutableStateFlow<Live>>()
+
+    /** Follows a book's rating as each site answers (book page card and Reviews tab). */
+    fun watch(title: String, novel: Boolean): kotlinx.coroutines.flow.StateFlow<Live> {
         val k = key(title, novel)
-        if (memory.containsKey(k)) return memory[k]
+        return live.getOrPut(k) { MutableStateFlow(if (memory.containsKey(k)) Live(memory[k], false) else Live(null, true)) }
+    }
+
+    private fun publish(k: String, r: Rating?, loading: Boolean) {
+        live.getOrPut(k) { MutableStateFlow(Live(r, loading)) }.value = Live(r, loading)
+    }
+
+    private val inFlight = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.Deferred<Rating?>>()
+    private val bgScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
+
+    /**
+     * The rating for a book. [priority] = the book page asking (skips the queue the library covers
+     * use). Each site gets about 9 seconds; the first good answer is shared right away.
+     */
+    suspend fun get(title: String, novel: Boolean, priority: Boolean = false): Rating? {
+        val k = key(title, novel)
+        if (memory.containsKey(k)) return memory[k].also { publish(k, it, false) }
         prefs.getString(k, null)?.let { raw ->
             val parts = raw.split('\u0001', limit = 2)
             val at = parts[0].toLongOrNull() ?: 0L
             val r0 = parts.getOrNull(1)?.let { decode(it) }
             // Found: keep a week. Nothing found (or the site was down): try again after 6 hours.
             if (System.currentTimeMillis() - at < if (r0 != null) 7 * 24 * 3600_000L else 6 * 3600_000L) {
-                val r = r0
-                memory[k] = r
-                return r
+                memory[k] = r0
+                publish(k, r0, false)
+                return r0
             }
         }
-        val r = permits.withPermit {
-            withContext(Dispatchers.IO) {
-                coroutineScope {
-                    val ani = async { runCatching { aniList(title, novel) }.getOrNull() }
-                    val mal = async { runCatching { jikan(title) }.getOrNull() }
-                    val wn = async { if (novel) runCatching { webnovel(title) }.getOrNull() else null }
-                    val nu = async { if (novel) runCatching { novelUpdates(title) }.getOrNull() else null }
-                    val rr = async { if (novel) runCatching { royalRoad(title) }.getOrNull() else null }
-                    val rdb = async { if (novel) runCatching { ranobeDb(title) }.getOrNull() else null }
-                    val ap = async { if (!novel) runCatching { animePlanet(title) }.getOrNull() else null }
-                    // Novels lead with Webnovel when it has the book (that's where the reviews are).
-                    val all = if (novel) {
-                        listOfNotNull(wn.await(), ani.await(), mal.await(), nu.await(), rr.await())
-                    } else {
-                        listOfNotNull(ani.await(), mal.await(), ap.await())
-                    }
-                    val main = all.firstOrNull()
-                    val others = (all.drop(1).map { o -> Other(o.site, o.score, o.rank ?: one(o.score), o.votes, o.url) } + listOfNotNull(rdb.await()))
-                        .distinctBy { it.site }
-                    main?.copy(also = others)
+        // One look-up per book at a time, shared by everyone asking.
+        val job = inFlight.getOrPut(k) {
+            bgScope.async {
+                try {
+                    if (priority) lookUp(k, title, novel) else permits.withPermit { lookUp(k, title, novel) }
+                } finally {
+                    inFlight.remove(k)
                 }
             }
         }
+        return runCatching { job.await() }.getOrNull()
+    }
+
+    private suspend fun lookUp(k: String, title: String, novel: Boolean): Rating? {
+        publish(k, null, true)
+        suspend fun <T> site(block: suspend () -> T?): T? = withTimeoutOrNull(9_000) { runCatching { block() }.getOrNull() }
+        val r = coroutineScope {
+            val ani = async { site { aniList(title, novel) } }
+            val mal = async { site { jikan(title) } }
+            val wn = async { if (novel) site { webnovel(title) } else null }
+            val nu = async { if (novel) site { novelUpdates(title) } else null }
+            val rr = async { if (novel) site { royalRoad(title) } else null }
+            val rdb = async { if (novel) site { ranobeDb(title) } else null }
+            val ap = async { if (!novel) site { animePlanet(title) } else null }
+            // Show the main site as soon as it answers; the rest fill in.
+            val first = if (novel) (wn.await() ?: ani.await()) else (ani.await() ?: mal.await())
+            if (first != null) publish(k, first, true)
+            // Novels lead with Webnovel when it has the book (that's where the reviews are).
+            val all = if (novel) {
+                listOfNotNull(wn.await(), ani.await(), mal.await(), nu.await(), rr.await())
+            } else {
+                listOfNotNull(ani.await(), mal.await(), ap.await())
+            }
+            val main = all.firstOrNull()
+            val others = (all.drop(1).map { o -> Other(o.site, o.score, o.rank ?: one(o.score), o.votes, o.url) } + listOfNotNull(rdb.await()))
+                .distinctBy { it.site }
+            main?.copy(also = others)
+        }
         memory[k] = r
-        prefs.edit().putString(k, "${System.currentTimeMillis()}\u0001${r?.let { encode(it) }.orEmpty()}").apply()
+        runCatching { prefs.edit().putString(k, "${System.currentTimeMillis()}\u0001${r?.let { encode(it) }.orEmpty()}").apply() }
+        publish(k, r, false)
         return r
     }
 

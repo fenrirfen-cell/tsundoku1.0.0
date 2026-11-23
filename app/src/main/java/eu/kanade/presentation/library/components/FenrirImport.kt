@@ -318,55 +318,103 @@ fun FenrirImportSheet(onDismiss: () -> Unit, openImporter: (List<String>) -> Uni
                     }
                 }
                 is FenrirImport.Result.Page -> {
+                    // Search the found books; if nothing here matches, look on the site itself.
+                    var find by remember(r) { mutableStateOf("") }
+                    val shown = r.links.filter { (name, url) ->
+                        find.isBlank() || name.contains(find.trim(), true) || url.contains(find.trim().replace(' ', '-'), true)
+                    }
+                    fun downloadAll(urls: List<String>) {
+                        busy = true
+                        scope.launch {
+                            val got = mutableListOf<String>()
+                            val stops = mutableListOf<String>()
+                            urls.forEachIndexed { i, url ->
+                                progress = "Downloading ${i + 1} of ${urls.size}…"
+                                when (val one = FenrirImport.check(context, url)) {
+                                    is FenrirImport.Result.Book -> got += one.uri.toString()
+                                    is FenrirImport.Result.Stop -> stops += one.title
+                                    else -> stops += "Not a book"
+                                }
+                            }
+                            busy = false; progress = null
+                            if (got.isNotEmpty()) { onDismiss(); openImporter(got) } else {
+                                result = FenrirImport.Result.Stop("None could be imported", stops.distinct().joinToString())
+                            }
+                        }
+                    }
                     Row(Modifier.padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text("Found ${r.links.size} book${if (r.links.size > 1) "s" else ""}", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
                             Text("on ${r.host}", color = Muted, fontSize = 12.sp)
                         }
                         Text(
-                            if (picked.size == r.links.size) "Select none" else "Select all",
+                            if (shown.isNotEmpty() && shown.all { it.second in picked }) "Select none" else "Select all",
                             color = Red,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.clickable {
-                                if (picked.size == r.links.size) picked.clear() else { picked.clear(); picked.addAll(r.links.map { it.second }) }
+                                if (shown.all { it.second in picked }) picked.removeAll(shown.map { it.second }.toSet())
+                                else picked.addAll(shown.map { it.second }.filterNot { it in picked })
                             },
                         )
                     }
+                    androidx.compose.material3.OutlinedTextField(
+                        value = find,
+                        onValueChange = { find = it },
+                        placeholder = { Text("🔍  Search these books") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    )
+                    if (shown.isEmpty() && find.isNotBlank()) {
+                        Text(
+                            "Nothing here matches “${find.trim()}”.",
+                            color = Muted,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(top = 10.dp),
+                        )
+                        Pill("Search ${r.host} for “${find.trim()}”", primary = false, enabled = !busy) {
+                            busy = true
+                            val q = java.net.URLEncoder.encode(find.trim(), "UTF-8")
+                            scope.launch {
+                                // Common search addresses; the first that lists books wins.
+                                val tries = listOf("search?q=$q", "search?query=$q", "?s=$q", "search?keywords=$q", "search/$q")
+                                var found: FenrirImport.Result? = null
+                                for (t in tries) {
+                                    progress = "Searching ${r.host}…"
+                                    val res = FenrirImport.check(context, "https://${r.host}/$t")
+                                    if (res is FenrirImport.Result.Page && res.links.isNotEmpty() || res is FenrirImport.Result.Book) { found = res; break }
+                                }
+                                busy = false; progress = null
+                                result = found ?: FenrirImport.Result.Stop("No results", "${r.host} didn't list any books for “${find.trim()}”. Try the site's own search in your browser and paste that page here.")
+                                picked.clear()
+                            }
+                        }
+                    }
                     Column(Modifier.padding(top = 6.dp)) {
-                        r.links.forEach { (name, url) ->
+                        shown.forEach { (name, url) ->
                             Row(Modifier.fillMaxWidth().clickable { if (url in picked) picked.remove(url) else picked.add(url) }, verticalAlignment = Alignment.CenterVertically) {
                                 Checkbox(
                                     checked = url in picked,
                                     onCheckedChange = { if (it) picked.add(url) else picked.remove(url) },
                                     colors = CheckboxDefaults.colors(checkedColor = Red),
                                 )
-                                Text(name, color = Color.White, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(name, color = Color.White, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                                // Download just this one.
+                                Text(
+                                    "⤓",
+                                    color = Red,
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.clip(CircleShape).clickable(enabled = !busy) { downloadAll(listOf(url)) }.padding(horizontal = 10.dp, vertical = 4.dp),
+                                )
                             }
                         }
                     }
-                    Row(Modifier.padding(top = 8.dp)) {
-                        Spacer(Modifier.weight(1f))
-                        Pill("Download ${picked.size}", primary = true, enabled = picked.isNotEmpty() && !busy) {
-                            busy = true
-                            scope.launch {
-                                val got = mutableListOf<String>()
-                                val stops = mutableListOf<String>()
-                                picked.toList().forEachIndexed { i, url ->
-                                    progress = "Downloading ${i + 1} of ${picked.size}…"
-                                    when (val one = FenrirImport.check(context, url)) {
-                                        is FenrirImport.Result.Book -> got += one.uri.toString()
-                                        is FenrirImport.Result.Stop -> stops += one.title
-                                        else -> stops += "Not a book"
-                                    }
-                                }
-                                busy = false; progress = null
-                                if (got.isNotEmpty()) { onDismiss(); openImporter(got) } else {
-                                    result = FenrirImport.Result.Stop("None could be imported", stops.distinct().joinToString())
-                                }
-                            }
-                        }
-                    }
+                    Pill(
+                        if (picked.isEmpty()) "Tick books or tap ⤓ to download" else "⤓ Download ${picked.size} book${if (picked.size > 1) "s" else ""}",
+                        primary = true,
+                        enabled = picked.isNotEmpty() && !busy,
+                    ) { downloadAll(picked.toList()) }
                 }
                 is FenrirImport.Result.Stop -> {
                     Column(
@@ -380,7 +428,7 @@ fun FenrirImportSheet(onDismiss: () -> Unit, openImporter: (List<String>) -> Uni
                 null -> Unit
             }
             Text(
-                "Tip: on a book's download page in your browser, tap Share → Fenrir Read.\nFree & DRM-free books: Standard Ebooks, Project Gutenberg, Humble Bundle.",
+                "Tip: on a book's download page in your browser, tap Share → Fenrir Vault.\nFree & DRM-free books: Standard Ebooks, Project Gutenberg, Humble Bundle.",
                 color = Muted,
                 fontSize = 12.sp,
                 modifier = Modifier.padding(top = 18.dp),

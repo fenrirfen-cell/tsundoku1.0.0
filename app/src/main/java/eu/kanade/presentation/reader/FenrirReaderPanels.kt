@@ -643,6 +643,19 @@ fun FenrirMangaModeSheet(
                 }
             }
 
+            SectionLabel("While reading, show")
+            Column(
+                Modifier
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    .padding(10.dp),
+            ) {
+                SwitchRow("Page number", "5 / 22 at the bottom", prefs.showPageNumber)
+                SwitchRow("Chapter", "Ch. 938", prefs.pagerInfoChapter)
+                SwitchRow("Time", "10:42 PM", prefs.pagerInfoTime)
+                SwitchRow("Battery", "🔋 64%", prefs.pagerInfoBattery)
+            }
+
             if (readingMode == ReadingMode.RIGHT_TO_LEFT || readingMode == ReadingMode.LEFT_TO_RIGHT) {
                 SectionLabel("Page turn")
                 Column(

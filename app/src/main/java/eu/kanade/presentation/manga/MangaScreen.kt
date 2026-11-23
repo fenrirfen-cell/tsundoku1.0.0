@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -369,6 +370,7 @@ private fun MangaScreenSmallImpl(
     val fenrirTarget = remember(state.chapters, state.manga) { state.chapters.getNextUnread(state.manga) }
     // Fenrir: on the Pages tab the button follows the chapter you pick; Continue asks when you went back.
     var fenrirPicked by remember(state.manga.id) { mutableStateOf<tachiyomi.domain.chapter.model.Chapter?>(null) }
+    var fenrirPopup by remember(state.manga.id) { mutableStateOf<String?>(null) }
     androidx.compose.runtime.LaunchedEffect(fenrirTab) { if (fenrirTab != FenrirBookTab.Pages) fenrirPicked = null }
     val fenrirContext = androidx.compose.ui.platform.LocalContext.current
     val fenrirContinue = rememberFenrirContinue(state.manga, fenrirOrdered) {
@@ -431,9 +433,7 @@ private fun MangaScreenSmallImpl(
             }
             if (!isAnySelected) {
                 val anyRead = remember(state.chapters) { state.chapters.fastAny { it.chapter.read } }
-                FenrirBookPillBar(
-                    tab = fenrirTab,
-                    onTab = { fenrirTab = if (fenrirTab == it) FenrirBookTab.Chapters else it },
+                FenrirBookBar(
                     continueLabel = when {
                         fenrirTab == FenrirBookTab.Pages && fenrirPicked != null -> "Read Ch. ${fenrirChapterNumber(fenrirPicked!!)}"
                         fenrirTarget != null && anyRead -> "Continue · Ch. ${fenrirChapterNumber(fenrirTarget)}"
@@ -443,18 +443,12 @@ private fun MangaScreenSmallImpl(
                     },
                     onContinue = {
                         val picked = fenrirPicked
-                        if (fenrirTab == FenrirBookTab.Pages && picked != null) {
-                            fenrirOpenAt(fenrirContext, state.manga.id, picked, 0)
-                        } else {
-                            fenrirContinue()
-                        }
+                        if (fenrirTab == FenrirBookTab.Pages && picked != null) fenrirOpenAt(fenrirContext, state.manga.id, picked, 0) else fenrirContinue()
                     },
-                    onIncognito = {
-                        runCatching { Injekt.get<eu.kanade.domain.base.BasePreferences>().incognitoMode.set(true) }
-                        if (fenrirTarget != null) onContinueReading() else fenrirOrdered.firstOrNull()?.let(onChapterClicked)
-                    },
-                    onFromStart = { fenrirOrdered.firstOrNull()?.let(onChapterClicked) },
-                    onDownloadNext5 = onDownloadActionClicked?.let { dl -> { dl(DownloadAction.NEXT_5_CHAPTERS) } },
+                    bookmarksOpen = fenrirPopup == "bookmarks",
+                    onBookmarks = { fenrirPopup = if (fenrirPopup == "bookmarks") null else "bookmarks" },
+                    menuOpen = fenrirPopup == "menu",
+                    onMenu = { fenrirPopup = if (fenrirPopup == "menu") null else "menu" },
                 )
             }
             if (isAnySelected) SharedMangaBottomActionMenu(
@@ -586,7 +580,13 @@ private fun MangaScreenSmallImpl(
                         )
                     }
 
-                    when (FenrirBookTab.Chapters as FenrirBookTab) {
+                    item(key = "fenrir-reviews-card", contentType = "fenrir-reviews-card") {
+                        eu.kanade.presentation.library.components.FenrirReviewsCard(state.manga.title, state.isNovel) { fenrirTab = FenrirBookTab.Reviews }
+                    }
+                    item(key = "fenrir-tabs", contentType = "fenrir-tabs") {
+                        FenrirBookTabs(fenrirTab, { fenrirTab = it })
+                    }
+                    when (fenrirTab) {
                         FenrirBookTab.Chapters -> {
                     item(key = "fenrir-skipped", contentType = "fenrir-skipped") {
                         FenrirSkippedChip(
@@ -634,31 +634,65 @@ private fun MangaScreenSmallImpl(
                                 onPickChapter = { fenrirPicked = it },
                             )
                         }
-                        FenrirBookTab.Bookmarks -> item(key = "fenrir-bookmarks", contentType = "fenrir-bookmarks") {
-                            FenrirBookmarksTab(
-                                manga = state.manga,
-                                ordered = fenrirOrdered,
-                                onOpenChapter = onChapterClicked,
-                            )
+                        FenrirBookTab.Bookmarks -> {}
+                        FenrirBookTab.Reviews -> item(key = "fenrir-reviews", contentType = "fenrir-reviews") {
+                            androidx.compose.foundation.layout.Box(Modifier.fillParentMaxHeight()) {
+                                eu.kanade.presentation.library.components.FenrirReviewsPanel(state.manga.title, state.isNovel, Modifier.fillMaxSize())
+                            }
                         }
-                        FenrirBookTab.Reviews -> {}
                     }
                     item(key = "fenrir-bottom-space") { androidx.compose.foundation.layout.Spacer(Modifier.height(96.dp)) }
                 }
             }
         }
-            // Fenrir: Pages / Bookmarks / Reviews sheet (under the pill bar).
-        FenrirBookSheet(
-            section = fenrirTab.takeIf { it != FenrirBookTab.Chapters },
-            onSection = { fenrirTab = it ?: FenrirBookTab.Chapters },
-            manga = state.manga,
-            source = state.source,
-            ordered = fenrirOrdered,
-            startChapterId = fenrirTarget?.id,
-            isNovel = state.isNovel,
-            onOpenChapter = onChapterClicked,
-            onPickChapter = { fenrirPicked = it },
-        )
+            // Fenrir: the tabs pin under the top bar once scrolled up to it.
+        val fenrirDensity = androidx.compose.ui.platform.LocalDensity.current
+        val fenrirTopPx = with(fenrirDensity) { topPadding.toPx() }
+        val fenrirTabsPinned by remember {
+            androidx.compose.runtime.derivedStateOf {
+                val items = chapterListState.layoutInfo.visibleItemsInfo
+                val tabs = items.firstOrNull { it.key == "fenrir-tabs" }
+                if (tabs != null) {
+                    tabs.offset < fenrirTopPx
+                } else {
+                    val k = items.firstOrNull()?.key
+                    k == MangaScreenItem.CHAPTER_HEADER || (k is String && (k.startsWith("chapter-") || k.startsWith("missing-count") ||
+                        k in setOf("fenrir-skipped", "fenrir-pages", "fenrir-reviews", "fenrir-bottom-space")))
+                }
+            }
+        }
+        if (fenrirTabsPinned) {
+            FenrirBookTabs(fenrirTab, { fenrirTab = it }, Modifier.padding(top = topPadding))
+        }
+        // Fenrir: 🔖 bookmarks and ⋯ reading options pop up above the bottom bar.
+        FenrirBookPopup(
+            title = when (fenrirPopup) {
+                "bookmarks" -> "🔖 Bookmarks"
+                "menu" -> "Read"
+                else -> null
+            },
+            onDismiss = { fenrirPopup = null },
+        ) {
+            when (fenrirPopup) {
+                "bookmarks" -> FenrirBookmarksTab(
+                    manga = state.manga,
+                    ordered = fenrirOrdered,
+                    onOpenChapter = { fenrirPopup = null; onChapterClicked(it) },
+                )
+                "menu" -> FenrirReadMenu(
+                    manga = state.manga,
+                    ordered = fenrirOrdered,
+                    onIncognito = {
+                        runCatching { Injekt.get<eu.kanade.domain.base.BasePreferences>().incognitoMode.set(true) }
+                        if (fenrirTarget != null) onContinueReading() else fenrirOrdered.firstOrNull()?.let(onChapterClicked)
+                    },
+                    onFromStart = { fenrirOrdered.firstOrNull()?.let(onChapterClicked) },
+                    onDownloadNext5 = onDownloadActionClicked?.let { dl -> { dl(DownloadAction.NEXT_5_CHAPTERS) } },
+                    close = { fenrirPopup = null },
+                )
+            }
+        }
+
     }
 }
 
@@ -768,6 +802,7 @@ fun MangaScreenLargeImpl(
     val fenrirTarget = remember(state.chapters, state.manga) { state.chapters.getNextUnread(state.manga) }
     // Fenrir: on the Pages tab the button follows the chapter you pick; Continue asks when you went back.
     var fenrirPicked by remember(state.manga.id) { mutableStateOf<tachiyomi.domain.chapter.model.Chapter?>(null) }
+    var fenrirPopup by remember(state.manga.id) { mutableStateOf<String?>(null) }
     androidx.compose.runtime.LaunchedEffect(fenrirTab) { if (fenrirTab != FenrirBookTab.Pages) fenrirPicked = null }
     val fenrirContext = androidx.compose.ui.platform.LocalContext.current
     val fenrirContinue = rememberFenrirContinue(state.manga, fenrirOrdered) {
@@ -822,30 +857,22 @@ fun MangaScreenLargeImpl(
                 if (!isAnySelected) {
                     val anyRead = remember(state.chapters) { state.chapters.fastAny { it.chapter.read } }
                     Box(Modifier.fillMaxWidth(0.5f)) {
-                        FenrirBookPillBar(
-                            tab = fenrirTab,
-                            onTab = { fenrirTab = if (fenrirTab == it) FenrirBookTab.Chapters else it },
+                        FenrirBookBar(
                             continueLabel = when {
                                 fenrirTab == FenrirBookTab.Pages && fenrirPicked != null -> "Read Ch. ${fenrirChapterNumber(fenrirPicked!!)}"
-                        fenrirTarget != null && anyRead -> "Continue · Ch. ${fenrirChapterNumber(fenrirTarget)}"
+                                fenrirTarget != null && anyRead -> "Continue · Ch. ${fenrirChapterNumber(fenrirTarget)}"
                                 fenrirTarget != null -> "Start · Ch. ${fenrirChapterNumber(fenrirTarget)}"
                                 fenrirOrdered.isNotEmpty() -> "Read again"
                                 else -> null
                             },
                             onContinue = {
                                 val picked = fenrirPicked
-                                if (fenrirTab == FenrirBookTab.Pages && picked != null) {
-                                    fenrirOpenAt(fenrirContext, state.manga.id, picked, 0)
-                                } else {
-                                    fenrirContinue()
-                                }
+                                if (fenrirTab == FenrirBookTab.Pages && picked != null) fenrirOpenAt(fenrirContext, state.manga.id, picked, 0) else fenrirContinue()
                             },
-                            onIncognito = {
-                                runCatching { Injekt.get<eu.kanade.domain.base.BasePreferences>().incognitoMode.set(true) }
-                                if (fenrirTarget != null) onContinueReading() else fenrirOrdered.firstOrNull()?.let(onChapterClicked)
-                            },
-                            onFromStart = { fenrirOrdered.firstOrNull()?.let(onChapterClicked) },
-                            onDownloadNext5 = onDownloadActionClicked?.let { dl -> { dl(DownloadAction.NEXT_5_CHAPTERS) } },
+                            bookmarksOpen = fenrirPopup == "bookmarks",
+                            onBookmarks = { fenrirPopup = if (fenrirPopup == "bookmarks") null else "bookmarks" },
+                            menuOpen = fenrirPopup == "menu",
+                            onMenu = { fenrirPopup = if (fenrirPopup == "menu") null else "menu" },
                         )
                     }
                 }
@@ -965,7 +992,13 @@ fun MangaScreenLargeImpl(
                                 bottom = contentPadding.calculateBottomPadding(),
                             ),
                         ) {
-                            when (FenrirBookTab.Chapters as FenrirBookTab) {
+                            item(key = "fenrir-reviews-card", contentType = "fenrir-reviews-card") {
+                        eu.kanade.presentation.library.components.FenrirReviewsCard(state.manga.title, state.isNovel) { fenrirTab = FenrirBookTab.Reviews }
+                    }
+                    item(key = "fenrir-tabs", contentType = "fenrir-tabs") {
+                        FenrirBookTabs(fenrirTab, { fenrirTab = it })
+                    }
+                    when (fenrirTab) {
                                 FenrirBookTab.Chapters -> {
                             item(key = "fenrir-skipped", contentType = "fenrir-skipped") {
                                 FenrirSkippedChip(
@@ -1013,14 +1046,12 @@ fun MangaScreenLargeImpl(
                                         onPickChapter = { fenrirPicked = it },
                                     )
                                 }
-                                FenrirBookTab.Bookmarks -> item(key = "fenrir-bookmarks", contentType = "fenrir-bookmarks") {
-                                    FenrirBookmarksTab(
-                                        manga = state.manga,
-                                        ordered = fenrirOrdered,
-                                        onOpenChapter = onChapterClicked,
-                                    )
-                                }
-                                FenrirBookTab.Reviews -> {}
+                                FenrirBookTab.Bookmarks -> {}
+                                FenrirBookTab.Reviews -> item(key = "fenrir-reviews", contentType = "fenrir-reviews") {
+                            androidx.compose.foundation.layout.Box(Modifier.fillParentMaxHeight()) {
+                                eu.kanade.presentation.library.components.FenrirReviewsPanel(state.manga.title, state.isNovel, Modifier.fillMaxSize())
+                            }
+                        }
                             }
                             item(key = "fenrir-bottom-space") { androidx.compose.foundation.layout.Spacer(Modifier.height(96.dp)) }
                         }
@@ -1028,18 +1059,35 @@ fun MangaScreenLargeImpl(
                 },
             )
         }
-            // Fenrir: Pages / Bookmarks / Reviews sheet (under the pill bar).
-        FenrirBookSheet(
-            section = fenrirTab.takeIf { it != FenrirBookTab.Chapters },
-            onSection = { fenrirTab = it ?: FenrirBookTab.Chapters },
-            manga = state.manga,
-            source = state.source,
-            ordered = fenrirOrdered,
-            startChapterId = fenrirTarget?.id,
-            isNovel = state.isNovel,
-            onOpenChapter = onChapterClicked,
-            onPickChapter = { fenrirPicked = it },
-        )
+            // Fenrir: 🔖 bookmarks and ⋯ reading options pop up above the bottom bar.
+        FenrirBookPopup(
+            title = when (fenrirPopup) {
+                "bookmarks" -> "🔖 Bookmarks"
+                "menu" -> "Read"
+                else -> null
+            },
+            onDismiss = { fenrirPopup = null },
+        ) {
+            when (fenrirPopup) {
+                "bookmarks" -> FenrirBookmarksTab(
+                    manga = state.manga,
+                    ordered = fenrirOrdered,
+                    onOpenChapter = { fenrirPopup = null; onChapterClicked(it) },
+                )
+                "menu" -> FenrirReadMenu(
+                    manga = state.manga,
+                    ordered = fenrirOrdered,
+                    onIncognito = {
+                        runCatching { Injekt.get<eu.kanade.domain.base.BasePreferences>().incognitoMode.set(true) }
+                        if (fenrirTarget != null) onContinueReading() else fenrirOrdered.firstOrNull()?.let(onChapterClicked)
+                    },
+                    onFromStart = { fenrirOrdered.firstOrNull()?.let(onChapterClicked) },
+                    onDownloadNext5 = onDownloadActionClicked?.let { dl -> { dl(DownloadAction.NEXT_5_CHAPTERS) } },
+                    close = { fenrirPopup = null },
+                )
+            }
+        }
+
     }
 }
 

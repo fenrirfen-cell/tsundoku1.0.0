@@ -207,34 +207,6 @@ fun FenrirBookInfoCard(manga: Manga, source: Source, chapters: List<Chapter>, is
                 Text(health.second, color = health.first, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
             }
         }
-        // Rating (AniList / MyAnimeList / Webnovel); tap for why it's rated that way.
-        val rating by produceState<eu.kanade.presentation.library.components.FenrirRatings.Rating?>(null, manga.title) {
-            value = eu.kanade.presentation.library.components.FenrirRatings.get(manga.title, isNovel)
-        }
-        rating?.let { r ->
-            var openWhy by remember { mutableStateOf(false) }
-            if (isNovel) {
-                // Novels: no score up front, just the readers' reviews.
-                InfoRow("Reviews") {
-                    Text(
-                        (r.reviewCount?.let { "Read $it reviews" } ?: "Read reviews") + " · ${r.site} ›",
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.clickable { openWhy = true },
-                    )
-                }
-            } else {
-                InfoRow("Rating") {
-                    Row(Modifier.clickable { openWhy = true }, verticalAlignment = Alignment.CenterVertically) {
-                        Text("★ ", color = eu.kanade.presentation.library.components.fenrirRatingColor(r.score), fontSize = 14.sp)
-                        Text(String.format(java.util.Locale.US, "%.1f", r.score), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                        Text(" · ${r.site} ›", color = Muted, fontSize = 13.sp)
-                    }
-                }
-            }
-            if (openWhy) eu.kanade.presentation.library.components.FenrirRatingSheet(manga.title, r) { openWhy = false }
-        }
         val lang = remember(source.lang) {
             runCatching { java.util.Locale.forLanguageTag(source.lang).displayLanguage }.getOrNull()?.takeIf { it.isNotBlank() } ?: source.lang
         }
@@ -1072,4 +1044,168 @@ private fun FenrirNovelPages(manga: Manga, source: Source, ordered: List<Chapter
             }
         }
     }
+}
+
+
+/* ---------------------------------------------------------------- tabs, bar and pop-ups */
+
+/** Chapters · Pages · Reviews. Sits under the reviews card and pins under the top bar when scrolled. */
+@Composable
+fun FenrirBookTabs(selected: FenrirBookTab, onSelect: (FenrirBookTab) -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxWidth()) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(Color(0xFF0B0B0F))
+            .padding(horizontal = 8.dp),
+    ) {
+        listOf(FenrirBookTab.Chapters to "Chapters", FenrirBookTab.Pages to "Pages", FenrirBookTab.Reviews to "Reviews").forEach { (tab, label) ->
+            val on = tab == selected
+            Column(
+                Modifier.weight(1f).clickable { onSelect(tab) }.padding(top = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(label, color = if (on) Color.White else Color(0xFF8E8E99), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(9.dp))
+                Box(Modifier.fillMaxWidth(0.8f).height(3.dp).clip(CircleShape).background(if (on) Red else Color.Transparent))
+            }
+        }
+    }
+    Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF22222B)))
+    }
+}
+
+/** Small glass pill at the bottom: 🔖 · Continue · ⋯. */
+@Composable
+fun FenrirBookBar(
+    continueLabel: String?,
+    onContinue: () -> Unit,
+    bookmarksOpen: Boolean,
+    onBookmarks: () -> Unit,
+    menuOpen: Boolean,
+    onMenu: () -> Unit,
+) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(bottom = 14.dp, top = 6.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(
+            Modifier
+                .shadow(16.dp, CircleShape)
+                .clip(CircleShape)
+                .background(Color(0xF51C1C23))
+                .border(1.dp, Color.White.copy(alpha = 0.16f), CircleShape)
+                .padding(5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Box(
+                Modifier.size(44.dp).clip(CircleShape).background(if (bookmarksOpen) Red.copy(alpha = 0.25f) else Color.Transparent).clickable(onClick = onBookmarks),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Outlined.BookmarkBorder, contentDescription = "Bookmarks", tint = if (bookmarksOpen) Red else Color.White, modifier = Modifier.size(21.dp))
+            }
+            if (continueLabel != null) {
+                Row(
+                    Modifier.height(44.dp).clip(CircleShape).background(Red).clickable(onClick = onContinue).padding(horizontal = 18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.AutoMirrored.Outlined.MenuBook, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(7.dp))
+                    Text(continueLabel, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+                }
+            }
+            Box(
+                Modifier.size(44.dp).clip(CircleShape).background(if (menuOpen) Color.White.copy(alpha = 0.12f) else Color.Transparent).clickable(onClick = onMenu),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("⋯", color = Color(0xFFC9C9D2), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+/** A card that pops up just above the bottom bar; tap outside or ✕ to close. */
+@Composable
+fun FenrirBookPopup(title: String?, onDismiss: () -> Unit, content: @Composable () -> Unit) {
+    androidx.activity.compose.BackHandler(enabled = title != null) { onDismiss() }
+    androidx.compose.animation.AnimatedVisibility(
+        visible = title != null,
+        enter = androidx.compose.animation.fadeIn(),
+        exit = androidx.compose.animation.fadeOut(),
+    ) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.4f))
+                .clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null, onClick = onDismiss),
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            Column(
+                Modifier
+                    .navigationBarsPadding()
+                    .padding(start = 14.dp, end = 14.dp, bottom = 84.dp)
+                    .fillMaxWidth()
+                    .heightIn(max = 460.dp)
+                    .shadow(20.dp, RoundedCornerShape(22.dp))
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(Color(0xFF17171D))
+                    .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(22.dp))
+                    .clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null) {}
+                    .padding(top = 12.dp, bottom = 6.dp),
+            ) {
+                Row(Modifier.padding(horizontal = 16.dp).padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(title.orEmpty(), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f))
+                    Text("✕", color = Muted, fontSize = 15.sp, modifier = Modifier.clip(CircleShape).clickable(onClick = onDismiss).padding(6.dp))
+                }
+                Column(Modifier.verticalScroll(rememberScrollState())) { content() }
+            }
+        }
+    }
+}
+
+@Composable
+fun FenrirMenuRow(icon: String, title: String, sub: String? = null, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 18.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(icon, fontSize = 17.sp, color = Color.White, modifier = Modifier.width(26.dp))
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, color = Color.White, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
+            sub?.let { Text(it, color = Muted, fontSize = 12.sp) }
+        }
+    }
+}
+
+/** The ⋯ "Read" pop-up: where you stopped, newest, and the reading options. */
+@Composable
+fun FenrirReadMenu(
+    manga: Manga,
+    ordered: List<Chapter>,
+    onIncognito: () -> Unit,
+    onFromStart: () -> Unit,
+    onDownloadNext5: (() -> Unit)?,
+    close: () -> Unit,
+) {
+    val context = LocalContext.current
+    val last = remember(ordered) { FenrirSpot.last(manga.id)?.let { (id, at) -> ordered.firstOrNull { it.id == id }?.let { it to at } } }
+    last?.let { (ch, at) ->
+        FenrirMenuRow(
+            "↩",
+            "Ch. ${formatNumber(ch.chapterNumber)}" + if (!ch.read && ch.lastPageRead > 0) " · page ${ch.lastPageRead + 1}" else "",
+            "Where you stopped" + whenText(at),
+        ) { close(); fenrirOpenAt(context, manga.id, ch, if (ch.read) 0 else ch.lastPageRead.toInt()) }
+    }
+    ordered.lastOrNull()?.let { ch ->
+        FenrirMenuRow("⏩", "Ch. ${formatNumber(ch.chapterNumber)}", "Newest") { close(); fenrirOpenAt(context, manga.id, ch, 0) }
+    }
+    Box(Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth().height(1.dp).background(Color(0xFF26262E)))
+    FenrirMenuRow("🕶", "Read incognito") { close(); onIncognito() }
+    FenrirMenuRow("⏮", "Start from chapter 1") { close(); onFromStart() }
+    if (onDownloadNext5 != null) FenrirMenuRow("⤓", "Download next 5") { close(); onDownloadNext5() }
 }

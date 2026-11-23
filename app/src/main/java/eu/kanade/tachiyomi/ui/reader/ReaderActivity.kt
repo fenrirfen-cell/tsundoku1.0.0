@@ -461,12 +461,22 @@ class ReaderActivity : BaseActivity() {
         Box(modifier = Modifier.fillMaxSize()) {
             val isNovelMode = state.viewer is NovelViewer || state.viewer is NovelWebViewViewer
             if (!state.menuVisible && showPageNumber && !isNovelMode) {
+                val infoChapter by readerPreferences.pagerInfoChapter.collectAsState()
+                val infoTime by readerPreferences.pagerInfoTime.collectAsState()
+                val infoBattery by readerPreferences.pagerInfoBattery.collectAsState()
+                val fenrirInfo = eu.kanade.presentation.reader.rememberFenrirReaderInfo(
+                    chapterNumber = state.currentChapter?.chapter?.chapter_number?.toDouble(),
+                    showChapter = infoChapter,
+                    showTime = infoTime,
+                    showBattery = infoBattery,
+                )
                 ReaderPageIndicator(
                     currentPage = state.currentPage,
                     totalPages = state.totalPages,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .navigationBarsPadding(),
+                    extra = fenrirInfo,
                 )
             }
 

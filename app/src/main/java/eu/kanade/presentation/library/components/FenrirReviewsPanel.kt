@@ -22,6 +22,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,16 +53,15 @@ fun FenrirReviewsPanel(title: String, novel: Boolean, modifier: Modifier = Modif
     val uri = LocalUriHandler.current
     var query by remember(title) { mutableStateOf(title) }
     var attempt by remember { mutableStateOf(0) }
-    var loading by remember { mutableStateOf(true) }
-    var rating by remember { mutableStateOf<FenrirRatings.Rating?>(null) }
-    LaunchedEffect(query, attempt) {
-        loading = true
-        rating = runCatching { FenrirRatings.get(query, novel) }.getOrNull()
-        loading = false
-    }
-    val r = rating
+    LaunchedEffect(query, attempt) { runCatching { FenrirRatings.get(query, novel, priority = true) } }
+    val live by remember(query, attempt) { FenrirRatings.watch(query, novel) }.collectAsState()
+    val r = live.rating
+    val loading = live.loading && r == null
     if (loading) {
-        Box(modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = PRed) }
+        Column(modifier.fillMaxWidth().padding(36.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            CircularProgressIndicator(color = PRed)
+            Text("Checking review sites…", color = PMuted, fontSize = 12.5.sp, modifier = Modifier.padding(top = 10.dp))
+        }
         return
     }
     if (r == null) {
@@ -102,12 +103,22 @@ fun FenrirReviewsPanel(title: String, novel: Boolean, modifier: Modifier = Modif
         return
     }
     val sites = remember(r) { (listOf(r.site) + r.also.map { it.site }).distinct() }
-    var site by remember(r) { mutableStateOf(if (novel && "Webnovel" in sites) "Webnovel" else r.site) }
+    var site by remember(r.site) { mutableStateOf(if (novel && "Webnovel" in sites) "Webnovel" else r.site) }
     val chips: @Composable () -> Unit = {
         Row(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            if (live.loading) {
+                Row(
+                    Modifier.clip(CircleShape).border(1.dp, Color.White.copy(alpha = 0.18f), CircleShape).padding(horizontal = 12.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CircularProgressIndicator(Modifier.size(11.dp), strokeWidth = 1.5.dp, color = PMuted)
+                    Spacer(Modifier.width(6.dp))
+                    Text("More sites…", color = PMuted, fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+                }
+            }
             sites.forEach { s ->
                 val on = s == site
                 val score = if (s == r.site) r.score else r.also.firstOrNull { it.site == s }?.score
@@ -177,6 +188,66 @@ fun FenrirReviewsPanel(title: String, novel: Boolean, modifier: Modifier = Modif
                 }
                 item { Spacer(Modifier.height(bottomPad)) }
             }
+        }
+    }
+}
+
+/**
+ * Small card on the book page: score, stars, the best review and "All ›". Hidden when no site
+ * has the book; a slim loading line while sites are being asked.
+ */
+@Composable
+fun FenrirReviewsCard(title: String, novel: Boolean, onAll: () -> Unit) {
+    LaunchedEffect(title) { runCatching { FenrirRatings.get(title, novel, priority = true) } }
+    val live by remember(title) { FenrirRatings.watch(title, novel) }.collectAsState()
+    val r = live.rating
+    if (r == null) {
+        if (live.loading) {
+            Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 1.5.dp, color = PMuted)
+                Spacer(Modifier.width(8.dp))
+                Text("Looking up reviews…", color = PMuted, fontSize = 12.sp)
+            }
+        }
+        return
+    }
+    val five = r.score / 2
+    Column(
+        Modifier.padding(horizontal = 16.dp, vertical = 6.dp).fillMaxWidth().clip(RoundedCornerShape(18.dp))
+            .background(Color(0xFF15151B)).border(1.dp, Color(0xFF24242C), RoundedCornerShape(18.dp))
+            .clickable(onClick = onAll).padding(horizontal = 14.dp, vertical = 12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (!novel) {
+                Text(String.format(java.util.Locale.US, "%.1f", r.score), color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
+                Spacer(Modifier.width(8.dp))
+            }
+            (1..5).forEach { i ->
+                Text("★", color = if (five >= i - 0.25) Color(0xFFFFB547) else Color(0xFF3A3A44), fontSize = 14.sp)
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(
+                listOfNotNull(r.reviewCount?.let { "$it reviews" }, r.site).joinToString(" · "),
+                color = PMuted,
+                fontSize = 12.sp,
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+            )
+            Text("All ›", color = PRed, fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+        }
+        val best = r.top?.takeIf { !it.spoiler }
+        if (best != null) {
+            Text(
+                "“${best.summary}”",
+                color = Color(0xFFE4E4EA),
+                fontSize = 13.sp,
+                maxLines = 2,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            Text("${best.user} · most liked", color = Color(0xFF8E8E99), fontSize = 11.5.sp, modifier = Modifier.padding(top = 3.dp))
+        } else if (r.tags.isNotEmpty()) {
+            Text(r.tags.joinToString(" · "), color = Color(0xFF8FE3B4), fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
         }
     }
 }
