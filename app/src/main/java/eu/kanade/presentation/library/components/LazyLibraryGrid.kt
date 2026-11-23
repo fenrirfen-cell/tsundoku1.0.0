@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.height
@@ -42,6 +43,24 @@ internal fun LazyLibraryGrid(
             }
         }
         val headerDp = with(androidx.compose.ui.platform.LocalDensity.current) { (header?.heightPx ?: 0).toDp() }
+        // Fenrir: how many shelves fit on the screen under the header. A spot's height is taken
+        // from the grid once it's laid out (a close guess until then).
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val cellW = (maxWidth - 16.dp - CommonMangaItemDefaults.GridHorizontalSpacer * (perRow - 1)) / perRow
+        val guessH = cellW / eu.kanade.presentation.manga.components.MangaCover.Book.ratio + 64.dp
+        val measuredPx by androidx.compose.runtime.remember(gridState) {
+            androidx.compose.runtime.derivedStateOf {
+                gridState.layoutInfo.visibleItemsInfo.firstOrNull { it.contentType != "fenrir_header_space" && it.contentType != "library_global_search_item" }?.size?.height ?: 0
+            }
+        }
+        val rowH = if (measuredPx > 0) with(density) { measuredPx.toDp() } else guessH
+        val bottomPad = contentPadding.calculateBottomPadding()
+        val room = maxHeight - headerDp - bottomPad - 16.dp
+        val screenRows = if (room > 0.dp) {
+            kotlin.math.ceil(room / (rowH + CommonMangaItemDefaults.GridVerticalSpacer) - 0.2f).toInt().coerceAtLeast(1)
+        } else {
+            1
+        }
         FastScrollLazyVerticalGrid(
             columns = if (columns == 0) GridCells.Adaptive(128.dp) else GridCells.Fixed(columns),
             state = gridState,
@@ -57,12 +76,15 @@ internal fun LazyLibraryGrid(
                 }
             }
             content()
-            // Fenrir: finish the bookcase. Empty spots fill the last shelf, then a few empty
-            // shelves follow, so the case never just stops where your books do.
+            // Fenrir: finish the bookcase down to the bottom of the screen (no further): an
+            // "Add a book" spot after your books, then empty spots with a few decorations.
             if (shelfFill >= 0) {
-                val fill = (perRow - shelfFill % perRow) % perRow + perRow * 3
-                items(count = fill, contentType = { "fenrir_empty_shelf" }) {
-                    FenrirEmptyShelfCell(titleMaxLines)
+                val used = shelfFill + 1
+                val rows = maxOf((used + perRow - 1) / perRow, screenRows)
+                val fill = rows * perRow - used
+                item(contentType = { "fenrir_add_book" }) { FenrirAddBookCell(titleMaxLines) }
+                items(count = fill, contentType = { "fenrir_empty_shelf" }) { i ->
+                    FenrirEmptyShelfCell(titleMaxLines, i)
                 }
             }
         }

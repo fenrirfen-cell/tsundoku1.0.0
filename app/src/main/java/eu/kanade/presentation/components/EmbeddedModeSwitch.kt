@@ -1,6 +1,13 @@
 package eu.kanade.presentation.components
 
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.FilterList
+import androidx.compose.material.icons.outlined.Casino
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 
 import androidx.compose.ui.unit.sp
 
@@ -169,34 +176,17 @@ private fun FenrirReadHeader(modifier: Modifier, openWatch: (Activity) -> Unit) 
     androidx.compose.foundation.layout.Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.background)
+            // Fenrir: the carved wood top of the bookcase, all the way up behind the status bar.
+            .then(eu.kanade.presentation.library.components.fenrirCrownModifier())
             .windowInsetsPadding(WindowInsets.statusBars)
-            .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 8.dp),
+            .padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 10.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().height(46.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "FENRIR",
-                    color = white,
-                    fontSize = 25.sp,
-                    letterSpacing = 5.75.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    modifier = Modifier.alignByBaseline(),
-                )
-                Spacer(Modifier.width(7.dp))
-                Text(
-                    text = "READ",
-                    color = accent,
-                    fontSize = 15.sp,
-                    letterSpacing = 4.6.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    modifier = Modifier.alignByBaseline(),
-                )
+            Box(Modifier.weight(1f)) {
+                FenrirReadWordmarkMenu()
             }
             val appUpdate by eu.kanade.tachiyomi.EmbeddedHost.appUpdate.collectAsState()
             Box {
@@ -367,4 +357,121 @@ private fun FenrirUpdateMenuItem(u: eu.kanade.tachiyomi.EmbeddedHost.AppUpdateIn
             )
         }
     }
+}
+
+/**
+ * Fenrir: FENRIR READ ▾ as a glass pill. On the library it opens a glass menu with the library's
+ * tools (search, For you, filter & sort, a random book, checking for new chapters, more).
+ */
+@Composable
+private fun FenrirReadWordmarkMenu() {
+    val accent = eu.kanade.presentation.reader.FenrirAccent
+    val white = androidx.compose.ui.graphics.Color.White
+    val entry = FenrirReadMenu.current.value
+    var open by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var more by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    Box {
+        Row(
+            modifier = Modifier
+                .height(42.dp)
+                .fenrirReaderGlassPill()
+                .then(if (entry != null) Modifier.clickable(role = Role.Button) { more = false; open = true } else Modifier)
+                .padding(start = 16.dp, end = if (entry != null) 10.dp else 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "FENRIR",
+                color = white,
+                fontSize = 19.sp,
+                letterSpacing = 4.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                modifier = Modifier.alignByBaseline(),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = "READ",
+                color = accent,
+                fontSize = 11.5.sp,
+                letterSpacing = 3.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                modifier = Modifier.alignByBaseline(),
+            )
+            if (entry != null) {
+                Spacer(Modifier.width(4.dp))
+                Icon(
+                    imageVector = Icons.Outlined.KeyboardArrowDown,
+                    contentDescription = "Library menu",
+                    tint = accent,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+        if (entry != null) {
+            androidx.compose.material3.DropdownMenu(
+                expanded = open,
+                onDismissRequest = { open = false },
+                modifier = Modifier.width(248.dp).padding(horizontal = 6.dp),
+                shape = RoundedCornerShape(26.dp),
+                containerColor = androidx.compose.ui.graphics.Color(0xFF1C1C22).copy(alpha = 0.94f),
+                tonalElevation = 0.dp,
+                shadowElevation = 18.dp,
+                border = androidx.compose.foundation.BorderStroke(
+                    0.8.dp,
+                    Brush.verticalGradient(listOf(white.copy(alpha = 0.32f), white.copy(alpha = 0.05f), white.copy(alpha = 0.12f))),
+                ),
+            ) {
+                fun run(action: () -> Unit) {
+                    open = false
+                    action()
+                }
+                if (!more) {
+                    FenrirMenuRow("Search your library", Icons.Outlined.Search) { run(entry.search) }
+                    FenrirMenuRow("For you", Icons.Filled.AutoAwesome, tint = accent) { run(entry.forYou) }
+                    FenrirMenuRow("Filter & sort", Icons.Outlined.FilterList, tint = if (entry.hasFilters) accent else white) { run(entry.filter) }
+                    androidx.compose.material3.HorizontalDivider(
+                        color = white.copy(alpha = 0.08f),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                    )
+                    FenrirMenuRow("Open a random book", Icons.Outlined.Casino) { run(entry.random) }
+                    FenrirMenuRow("Check for new chapters", Icons.Outlined.Refresh) { run(entry.checkNew) }
+                    if (entry.more.isNotEmpty()) {
+                        FenrirMenuRow("More options", Icons.Outlined.MoreVert) { more = true }
+                    }
+                } else {
+                    FenrirMenuRow("Back", Icons.AutoMirrored.Outlined.ArrowBack, tint = accent) { more = false }
+                    androidx.compose.material3.HorizontalDivider(
+                        color = white.copy(alpha = 0.08f),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                    )
+                    entry.more.forEach { (label, action) ->
+                        FenrirMenuRow(label, null) { run(action) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FenrirMenuRow(
+    label: String,
+    icon: ImageVector?,
+    tint: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.White,
+    onClick: () -> Unit,
+) {
+    androidx.compose.material3.DropdownMenuItem(
+        text = { Text(label, color = androidx.compose.ui.graphics.Color.White, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1) },
+        leadingIcon = if (icon != null) {
+            { Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp)) }
+        } else {
+            null
+        },
+        onClick = onClick,
+        modifier = Modifier
+            .padding(vertical = 1.dp)
+            .height(46.dp)
+            .clip(RoundedCornerShape(18.dp)),
+    )
 }

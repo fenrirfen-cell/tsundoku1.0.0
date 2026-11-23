@@ -153,9 +153,12 @@ internal fun FenrirCategoryBar(
                 } else {
                     Text("${current + 1} / ${categories.size}", color = FenrirBrassLight, fontSize = 10.5.sp)
                 }
+                val books = countFor(category)
+                Spacer(Modifier.width(8.dp))
+                Text(if (books == 1) "1 book" else "$books books", color = FenrirBrassLight, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                 if (newCount > 0) {
-                    Spacer(Modifier.width(8.dp))
-                    Text("● $newCount new", color = Color(0xFFFF6B73), fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    Text(" · ", color = FenrirBrassLight, fontSize = 10.5.sp, maxLines = 1)
+                    Text("$newCount new", color = Color(0xFFFF6B73), fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                 }
             }
         }
@@ -551,8 +554,9 @@ internal fun FenrirLibraryGridItem(
             .combinedClickable(
                 onClick = {
                     if (flyOnClick) {
-                        // Fenrir: the book slides off the shelf, flies out and opens.
-                        FenrirBookFlight.start(manga.id, coverData, bookRect.value, onClick, FenrirFirstPage.prefetch(manga))
+                        // Fenrir: the book lifts off the shelf and turns round to its back cover,
+                        // then its page opens.
+                        FenrirBookFlight.start(manga.id, coverData, bookRect.value, onClick, turn = true, title = manga.title)
                     } else {
                         onClick()
                     }
@@ -662,23 +666,6 @@ internal fun FenrirLibraryGridItem(
             maxLines = 1,
             modifier = Modifier.padding(start = 2.dp, top = 1.dp, bottom = 4.dp),
         )
-    }
-}
-
-/** An empty spot on a shelf: just the plank, the same size as a book's spot. */
-@Composable
-internal fun FenrirEmptyShelfCell(titleMaxLines: Int = 2) {
-    Column(Modifier.fenrirPlank(5.dp, MangaCover.Book.ratio, 5.dp, bookShadow = false).padding(5.dp)) {
-        Box(Modifier.fillMaxWidth().aspectRatio(MangaCover.Book.ratio))
-        Text(
-            " ",
-            fontSize = 12.5.sp,
-            lineHeight = 16.sp,
-            minLines = titleMaxLines.coerceIn(1, 2),
-            maxLines = titleMaxLines.coerceIn(1, 2),
-            modifier = Modifier.padding(start = 2.dp, end = 2.dp, top = 10.dp),
-        )
-        Text(" ", fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(start = 2.dp, top = 1.dp, bottom = 4.dp))
     }
 }
 

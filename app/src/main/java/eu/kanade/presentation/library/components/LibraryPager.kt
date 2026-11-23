@@ -71,6 +71,8 @@ fun LibraryPager(
         androidx.compose.runtime.CompositionLocalProvider(LocalFenrirPage provides page) pageBlock@{
         val category = getCategoryForPage(page)
         val items = getItemsForCategory(category)
+        val novelShelf = remember(items) { items.count { it.libraryManga.manga.isNovel } * 2 >= items.size }
+        androidx.compose.runtime.CompositionLocalProvider(LocalFenrirShelfNovel provides novelShelf) shelfBlock@{
         val fenrirHeaderDp = with(androidx.compose.ui.platform.LocalDensity.current) { (LocalFenrirHeader.current?.heightPx ?: 0).toDp() }
         val listPadding = contentPadding + PaddingValues(top = fenrirHeaderDp)
 
@@ -96,7 +98,7 @@ fun LibraryPager(
                     onGlobalSearchClicked = onGlobalSearchClicked,
                 )
             }
-            return@pageBlock
+            return@shelfBlock
         }
 
         val onLoadMoreForCategory: (() -> Unit)? = if (paginationEnabled) {
@@ -168,6 +170,7 @@ fun LibraryPager(
                     loadMoreKey = loadMoreKey,
                 )
             }
+        }
         }
         }
         }

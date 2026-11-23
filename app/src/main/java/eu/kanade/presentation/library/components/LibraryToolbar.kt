@@ -92,6 +92,30 @@ private fun LibraryRegularToolbar(
     onClickFindDuplicates: (() -> Unit)? = null,
     onClickCategoryActions: (() -> Unit)? = null,
 ) {
+    // Fenrir: no "Library" title row. Its buttons move into the FENRIR READ ▾ menu at the top;
+    // the search bar still shows here while searching.
+    if (eu.kanade.tachiyomi.EmbeddedHost.isFenrirStyle) {
+        val entry = androidx.compose.runtime.remember { eu.kanade.presentation.components.FenrirReadMenu.Entry() }
+        val reload = "Reload library"
+        entry.search = { onSearchQueryChange("") }
+        entry.forYou = { FenrirReadForYou.show() }
+        entry.filter = onClickFilter
+        entry.hasFilters = hasFilters
+        entry.random = onClickOpenRandomManga
+        entry.checkNew = onClickGlobalUpdate
+        entry.more = buildList {
+            add(reload to onClickRefresh)
+            onClickImportEpub?.let { add("Import EPUB" to it) }
+            onClickMassImport?.let { add("Mass import" to it) }
+            onClickFindDuplicates?.let { add("Find duplicates" to it) }
+            onClickCategoryActions?.let { add("Clear this category" to it) }
+        }
+        androidx.compose.runtime.DisposableEffect(entry) {
+            eu.kanade.presentation.components.FenrirReadMenu.register(entry)
+            onDispose { eu.kanade.presentation.components.FenrirReadMenu.unregister(entry) }
+        }
+        if (searchQuery == null) return
+    }
     val pillAlpha = if (isSystemInDarkTheme()) 0.12f else 0.08f
     SearchToolbar(
         titleContent = {

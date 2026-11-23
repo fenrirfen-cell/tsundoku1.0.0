@@ -95,6 +95,29 @@ internal fun Modifier.fenrirRail(): Modifier = composed {
     }
 }
 
+/**
+ * Fenrir: the carved crown on top of the Read side (behind the status bar and the top buttons).
+ * Same wood as the rail, so it runs straight into the glass case and the bookcase under it.
+ */
+@Composable
+fun fenrirCrownModifier(): Modifier {
+    val rail = woodImage(R.drawable.fenrir_wood_rail)
+    return Modifier.drawBehind {
+        drawImage(
+            rail,
+            srcOffset = IntOffset.Zero,
+            srcSize = IntSize(rail.width, rail.height),
+            dstOffset = IntOffset.Zero,
+            dstSize = IntSize(size.width.toInt(), size.height.toInt()),
+            filterQuality = FilterQuality.Medium,
+        )
+        // a little darker behind the clock and icons so they stay easy to read
+        drawRect(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.35f), 0.45f to Color.Transparent))
+        // thin dark seam where the crown meets what's under it
+        drawRect(Color.Black.copy(alpha = 0.35f), topLeft = Offset(0f, size.height - 1.dp.toPx()), size = Size(size.width, 1.dp.toPx()))
+    }
+}
+
 /** Two little screws, one at each end of a brass plate. */
 internal fun DrawScope.brassScrews(inset: Dp) {
     val r = 2.6.dp.toPx()
@@ -216,6 +239,7 @@ internal fun Modifier.fenrirPlank(coverPadding: Dp, ratio: Float, pageInset: Dp,
             val w = right - left
             val h = topDepth + front
             val k = plank.width / screenW
+            fenrirShelfLight()
             drawImage(
                 plank,
                 srcOffset = IntOffset(((x + left) * k).toInt().coerceIn(0, plank.width - 1), 0),
