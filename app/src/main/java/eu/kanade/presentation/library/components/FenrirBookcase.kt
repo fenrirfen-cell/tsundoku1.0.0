@@ -223,9 +223,16 @@ internal fun Modifier.fenrirBookcaseBack(): Modifier = composed {
 internal fun Modifier.fenrirPlank(coverPadding: Dp, ratio: Float, pageInset: Dp, bookShadow: Boolean = true): Modifier = composed {
     val plank = woodImage(R.drawable.fenrir_wood_plank)
     val screenW = with(LocalDensity.current) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
-    val xHolder = remember { floatArrayOf(0f) }
+    // Where this spot sits across the screen. Kept as state so the plank is drawn again once the
+    // spot moves (a category page laid out off to the side used to keep a plank sampled from
+    // outside the wood picture, so its shelves showed up empty). Taken modulo the screen width,
+    // so a page that hasn't slid in yet still gets the right piece of wood.
+    val xState = remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
     this
-        .onGloballyPositioned { xHolder[0] = it.positionInRoot().x }
+        .onGloballyPositioned {
+            val raw = it.positionInRoot().x
+            xState.floatValue = ((raw % screenW) + screenW) % screenW
+        }
         .drawBehind {
             val pad = coverPadding.toPx()
             val coverW = size.width - pad * 2f
@@ -234,7 +241,7 @@ internal fun Modifier.fenrirPlank(coverPadding: Dp, ratio: Float, pageInset: Dp,
             val topDepth = 6.dp.toPx()
             val front = 8.dp.toPx()
             val top = bottom - topDepth * 0.55f
-            val x = xHolder[0]
+            val x = xState.floatValue
             val edge = 26.dp.toPx()
             val gap = 2.dp.toPx()
             val left = if (x < edge) -x else -gap
@@ -243,10 +250,12 @@ internal fun Modifier.fenrirPlank(coverPadding: Dp, ratio: Float, pageInset: Dp,
             val h = topDepth + front
             val k = plank.width / screenW
             fenrirShelfLight()
+            val sx = ((x + left) * k).toInt().coerceIn(0, plank.width - 1)
+            val sw = (w * k).toInt().coerceIn(1, plank.width - sx)
             drawImage(
                 plank,
-                srcOffset = IntOffset(((x + left) * k).toInt().coerceIn(0, plank.width - 1), 0),
-                srcSize = IntSize((w * k).toInt().coerceIn(1, plank.width), plank.height),
+                srcOffset = IntOffset(sx, 0),
+                srcSize = IntSize(sw, plank.height),
                 dstOffset = IntOffset(left.toInt(), top.toInt()),
                 dstSize = IntSize(w.toInt(), h.toInt()),
                 filterQuality = FilterQuality.Medium,
