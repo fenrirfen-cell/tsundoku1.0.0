@@ -116,7 +116,7 @@ object FenrirRatings {
 
     /** Webnovel page for a book whose source is Webnovel (any Webnovel extension), else null. */
     fun webnovelUrlOf(manga: tachiyomi.domain.manga.model.Manga): String? = runCatching {
-        val src = Injekt.get<eu.kanade.tachiyomi.source.SourceManager>().get(manga.source) as? eu.kanade.tachiyomi.source.online.HttpSource
+        val src = Injekt.get<tachiyomi.domain.source.service.SourceManager>().get(manga.source) as? eu.kanade.tachiyomi.source.online.HttpSource
             ?: return@runCatching null
         if (!src.name.contains("webnovel", true) && !src.baseUrl.contains("webnovel", true)) return@runCatching null
         val u = manga.url

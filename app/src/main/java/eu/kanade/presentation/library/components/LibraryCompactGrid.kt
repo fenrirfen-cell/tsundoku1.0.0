@@ -28,6 +28,8 @@ internal fun LibraryCompactGrid(
         modifier = Modifier.fillMaxSize(),
         columns = columns,
         contentPadding = contentPadding,
+        shelfFill = if (showTitle && onLoadMore == null && searchQuery.isNullOrEmpty()) items.size else -1,
+        titleMaxLines = 2,
     ) {
         globalSearchItem(searchQuery, onGlobalSearchClicked)
 

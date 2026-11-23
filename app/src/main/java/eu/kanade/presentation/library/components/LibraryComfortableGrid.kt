@@ -28,6 +28,8 @@ internal fun LibraryComfortableGrid(
         modifier = Modifier.fillMaxSize(),
         columns = columns,
         contentPadding = contentPadding,
+        shelfFill = if (true && onLoadMore == null && searchQuery.isNullOrEmpty()) items.size else -1,
+        titleMaxLines = titleMaxLines,
     ) {
         globalSearchItem(searchQuery, onGlobalSearchClicked)
 

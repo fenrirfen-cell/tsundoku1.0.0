@@ -646,6 +646,23 @@ internal fun FenrirLibraryGridItem(
     }
 }
 
+/** An empty spot on a shelf: just the plank, the same size as a book's spot. */
+@Composable
+internal fun FenrirEmptyShelfCell(titleMaxLines: Int = 2) {
+    Column(Modifier.fenrirPlank(5.dp, MangaCover.Book.ratio, 5.dp).padding(5.dp)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(MangaCover.Book.ratio))
+        Text(
+            " ",
+            fontSize = 12.5.sp,
+            lineHeight = 16.sp,
+            minLines = titleMaxLines.coerceIn(1, 2),
+            maxLines = titleMaxLines.coerceIn(1, 2),
+            modifier = Modifier.padding(start = 2.dp, end = 2.dp, top = 10.dp),
+        )
+        Text(" ", fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(start = 2.dp, top = 1.dp, bottom = 4.dp))
+    }
+}
+
 private fun Modifier.androidxShadow(shape: androidx.compose.ui.graphics.Shape): Modifier =
     this.then(Modifier.shadow(6.dp, shape))
 

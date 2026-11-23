@@ -10,6 +10,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.lazy.grid.items
 import tachiyomi.presentation.core.components.FastScrollLazyVerticalGrid
 import tachiyomi.presentation.core.util.plus
 
@@ -18,16 +20,35 @@ internal fun LazyLibraryGrid(
     modifier: Modifier = Modifier,
     columns: Int,
     contentPadding: PaddingValues,
+    shelfFill: Int = -1,
+    titleMaxLines: Int = 2,
     content: LazyGridScope.() -> Unit,
 ) {
-    FastScrollLazyVerticalGrid(
-        columns = if (columns == 0) GridCells.Adaptive(128.dp) else GridCells.Fixed(columns),
-        modifier = modifier,
-        contentPadding = contentPadding + PaddingValues(8.dp),
-        verticalArrangement = Arrangement.spacedBy(CommonMangaItemDefaults.GridVerticalSpacer),
-        horizontalArrangement = Arrangement.spacedBy(CommonMangaItemDefaults.GridHorizontalSpacer),
-        content = content,
-    )
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier) {
+        // Fenrir: how many books fit on one shelf (same rule the grid uses below).
+        val perRow = if (columns > 0) {
+            columns
+        } else {
+            ((maxWidth - 16.dp + CommonMangaItemDefaults.GridHorizontalSpacer) / (128.dp + CommonMangaItemDefaults.GridHorizontalSpacer)).toInt().coerceAtLeast(1)
+        }
+        FastScrollLazyVerticalGrid(
+            columns = if (columns == 0) GridCells.Adaptive(128.dp) else GridCells.Fixed(columns),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = contentPadding + PaddingValues(8.dp),
+            verticalArrangement = Arrangement.spacedBy(CommonMangaItemDefaults.GridVerticalSpacer),
+            horizontalArrangement = Arrangement.spacedBy(CommonMangaItemDefaults.GridHorizontalSpacer),
+        ) {
+            content()
+            // Fenrir: finish the bookcase. Empty spots fill the last shelf, then a few empty
+            // shelves follow, so the case never just stops where your books do.
+            if (shelfFill >= 0) {
+                val fill = (perRow - shelfFill % perRow) % perRow + perRow * 3
+                items(count = fill, contentType = { "fenrir_empty_shelf" }) {
+                    FenrirEmptyShelfCell(titleMaxLines)
+                }
+            }
+        }
+    }
 }
 
 /**

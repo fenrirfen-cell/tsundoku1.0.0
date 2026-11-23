@@ -141,9 +141,6 @@ fun LibraryContent(
                 // solid behind the top part, so books never show through any gap in it
                 .background(androidx.compose.ui.graphics.Color(0xFF0B0B0F)),
         ) {
-            // Fenrir: "Update available" pill (Read side gets app updates too).
-            FenrirUpdatePill()
-
             // Fenrir: "● 1 source down · 4 books ›" when a source your books use stopped working.
             if (searchQuery.isNullOrEmpty() && selection.isEmpty()) {
                 val allBooks = categories.flatMap { getItemsForCategory(it) }.map { it.libraryManga }
