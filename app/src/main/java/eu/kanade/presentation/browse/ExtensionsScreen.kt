@@ -377,7 +377,7 @@ private fun ExtensionItem(
                                 .align(Alignment.BottomEnd)
                                 .size(11.dp)
                                 .clip(androidx.compose.foundation.shape.CircleShape)
-                                .background(androidx.compose.ui.graphics.Color(0xFF0B0B0F))
+                                .background(androidx.compose.ui.graphics.Color(0xFF140E0A))
                                 .padding(2.dp)
                                 .clip(androidx.compose.foundation.shape.CircleShape)
                                 .background(dot),

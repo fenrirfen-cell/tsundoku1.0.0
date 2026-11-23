@@ -44,16 +44,17 @@ import androidx.compose.ui.unit.sp
 /** Fenrir Read look on the Read side (matches the Watch side). */
 object FenrirReadUi {
     val Accent = Color(0xFFFF4D57)
-    val Muted = Color(0xFF9A9AA6)
-    val Card = Color(0xFF15151B)
-    val CardBorder = Color(0xFF24242C)
+    val Muted = Color(0xFFA89A88)
+    val Card = Color(0xFF1E1610)
+    val CardBorder = Color(0xFF3E2E1C)
 }
 
 fun Modifier.fenrirReadGlass(shape: Shape): Modifier = this
     .clip(shape)
-    .background(Color(0xEB26262E))
+    .background(Color(0xEB2A1F17))
     .background(Brush.verticalGradient(0f to Color.White.copy(alpha = 0.12f), 0.55f to Color.Transparent))
-    .border(1.dp, Color.White.copy(alpha = 0.28f), shape)
+    // Fenrir: a thin gold rim, like the library's gold trim
+    .border(1.dp, Brush.verticalGradient(listOf(Color(0xCCF0CD7A), Color(0x88B07A2C))), shape)
 
 /**
  * A glass switch with a lit-up red choice (Updates: New chapters / Calendar; Browse tabs).
@@ -324,7 +325,7 @@ fun FenrirScrollPill(
                 .height(110.dp)
                 .background(
                     Brush.verticalGradient(
-                        0f to Color(0xFF0B0B0F),
+                        0f to Color(0xFF140E0A),
                         0.35f to Color(0xF20B0B0F),
                         1f to Color.Transparent,
                     ),

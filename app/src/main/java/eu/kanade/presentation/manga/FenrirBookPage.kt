@@ -1056,7 +1056,7 @@ fun FenrirBookTabs(selected: FenrirBookTab, onSelect: (FenrirBookTab) -> Unit, m
     Row(
         Modifier
             .fillMaxWidth()
-            .background(Color(0xFF0B0B0F))
+            .background(Color(0xFF140E0A))
             .padding(horizontal = 8.dp),
     ) {
         listOf(FenrirBookTab.Chapters to "Chapters", FenrirBookTab.Pages to "Pages", FenrirBookTab.Reviews to "Reviews").forEach { (tab, label) ->

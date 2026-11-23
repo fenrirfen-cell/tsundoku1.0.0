@@ -173,7 +173,7 @@ fun AppBarTitle(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 // Fenrir: polished gold page titles, to match the wood and gold library
-                style = if (false) {
+                style = if (eu.kanade.tachiyomi.EmbeddedHost.isFenrirStyle) {
                     androidx.compose.material3.LocalTextStyle.current.copy(
                         brush = androidx.compose.ui.graphics.Brush.verticalGradient(
                             listOf(androidx.compose.ui.graphics.Color(0xFFFFE49A), androidx.compose.ui.graphics.Color(0xFFDB9A30)),
