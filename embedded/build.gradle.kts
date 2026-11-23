@@ -118,6 +118,7 @@ dependencies {
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.materialIcons)
+    implementation("dev.chrisbanes.haze:haze:1.7.3")
     implementation(libs.androidx.compose.animation)
     implementation(libs.androidx.compose.animationGraphics)
     implementation(libs.androidx.compose.uiUtil)

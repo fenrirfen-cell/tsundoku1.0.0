@@ -65,6 +65,8 @@ import eu.kanade.tachiyomi.ui.manga.MangaScreen
 import eu.kanade.tachiyomi.ui.more.MoreTab
 import eu.kanade.tachiyomi.ui.updates.UpdatesTab
 import kotlinx.coroutines.channels.Channel
+import androidx.compose.ui.draw.drawBehind
+import dev.chrisbanes.haze.hazeSource
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -167,7 +169,10 @@ object HomeScreen : Screen() {
                         val bottomNavVisible by produceState(initialValue = true) {
                             showBottomNavEvent.receiveAsFlow().collectLatest { value = it }
                         }
+                        // Fenrir: what's behind the island, so its glass can blur it (like the Watch side).
+                        val fenrirHaze = dev.chrisbanes.haze.rememberHazeState()
                         AnimatedContent(
+                            modifier = Modifier.hazeSource(state = fenrirHaze),
                             targetState = tabNavigator.current,
                             transitionSpec = {
                                 materialFadeThroughIn(initialScale = 1f, durationMillis = TabFadeDuration) togetherWith
@@ -190,7 +195,7 @@ object HomeScreen : Screen() {
                                 exit = androidx.compose.animation.slideOutVertically(androidx.compose.animation.core.tween(260)) { it } +
                                     androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(200)),
                             ) {
-                                FenrirGlassNavBar(tabs)
+                                FenrirGlassNavBar(tabs, fenrirHaze)
                             }
                         }
                     }
@@ -236,8 +241,8 @@ object HomeScreen : Screen() {
     }
 
     @Composable
-    private fun FenrirGlassNavBar(tabs: List<eu.kanade.presentation.util.Tab>) {
-        val shape = androidx.compose.foundation.shape.RoundedCornerShape(34.dp)
+    private fun FenrirGlassNavBar(tabs: List<eu.kanade.presentation.util.Tab>, hazeState: dev.chrisbanes.haze.HazeState) {
+        val shape = androidx.compose.foundation.shape.RoundedCornerShape(50)
         androidx.compose.foundation.layout.Box(
             Modifier
                 .fillMaxWidth()
@@ -245,25 +250,22 @@ object HomeScreen : Screen() {
                 .padding(start = 22.dp, end = 22.dp, top = 6.dp, bottom = 12.dp),
             contentAlignment = Alignment.Center,
         ) {
-            androidx.compose.foundation.layout.Row(
+            androidx.compose.foundation.layout.Box(
                 Modifier
                     .widthIn(max = 440.dp)
                     .fillMaxWidth()
-                    .height(68.dp)
-                    .shadow(18.dp, shape)
-                    .clip(shape)
-                    .background(androidx.compose.ui.graphics.Color(0xF01C1C22))
-                    .background(
-                        androidx.compose.ui.graphics.Brush.verticalGradient(
-                            0f to androidx.compose.ui.graphics.Color.White.copy(alpha = 0.13f),
-                            0.6f to androidx.compose.ui.graphics.Color.Transparent,
-                        ),
-                    )
-                    .border(1.dp, androidx.compose.ui.graphics.Color.White.copy(alpha = 0.22f), shape)
-                    .padding(horizontal = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                    .height(68.dp),
             ) {
-                tabs.fastForEach { GlassNavItem(it) }
+                // Fenrir: the same see-through glass as the Watch side's island (blurs what's behind)
+                androidx.compose.foundation.layout.Box(Modifier.matchParentSize().clip(shape)) {
+                    eu.kanade.presentation.components.glass.GlassBarSurface(hazeState, Modifier.matchParentSize())
+                }
+                androidx.compose.foundation.layout.Row(
+                    Modifier.matchParentSize().padding(horizontal = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    tabs.fastForEach { GlassNavItem(it) }
+                }
             }
         }
     }
@@ -280,8 +282,32 @@ object HomeScreen : Screen() {
             Modifier
                 .weight(1f)
                 .height(56.dp)
-                .clip(androidx.compose.foundation.shape.RoundedCornerShape(28.dp))
-                .background(if (selected) accent.copy(alpha = 0.16f) else androidx.compose.ui.graphics.Color.Transparent)
+                .then(
+                    if (selected) {
+                        Modifier
+                            .drawBehind {
+                                drawRoundRect(
+                                    androidx.compose.ui.graphics.Brush.radialGradient(
+                                        listOf(accent.copy(alpha = 0.32f), androidx.compose.ui.graphics.Color.Transparent),
+                                        center = center,
+                                        radius = size.maxDimension * 0.62f,
+                                    ),
+                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f),
+                                )
+                            }
+                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(28.dp))
+                            .background(accent.copy(alpha = 0.18f))
+                            .border(
+                                0.8.dp,
+                                androidx.compose.ui.graphics.Brush.verticalGradient(
+                                    listOf(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.32f), androidx.compose.ui.graphics.Color.White.copy(alpha = 0.04f)),
+                                ),
+                                androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
+                            )
+                    } else {
+                        Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(28.dp))
+                    },
+                )
                 .clickable {
                     if (!selected) {
                         tabNavigator.current = tab
