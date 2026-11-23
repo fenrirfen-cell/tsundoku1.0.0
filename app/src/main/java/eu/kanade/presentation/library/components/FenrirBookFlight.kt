@@ -115,11 +115,10 @@ internal fun FenrirBookFlightOverlay() {
     fun finish() {
         if (finished) return
         finished = true
+        // Let go first: if this screen is left (and later shown again on Back), the flight
+        // must not start over and open the book a second time.
+        FenrirBookFlight.clear()
         flight.onDone()
-        scope.launch {
-            delay(700) // the next screen is up by now; let the book go
-            FenrirBookFlight.clear()
-        }
     }
     LaunchedEffect(flight) {
         clock.animateTo(total, tween(total.toInt(), easing = LinearEasing))

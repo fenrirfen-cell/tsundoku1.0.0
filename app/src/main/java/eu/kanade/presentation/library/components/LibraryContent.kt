@@ -45,6 +45,7 @@ fun LibraryContent(
     onChangeCurrentPage: (Int) -> Unit,
     onClickManga: (Long) -> Unit,
     onContinueReadingClicked: ((LibraryManga) -> Unit)?,
+    onResumeBook: ((LibraryManga) -> Unit)? = null,
     onToggleSelection: (Category, LibraryManga) -> Unit,
     onToggleRangeSelection: (Category, LibraryManga) -> Unit,
     onRefresh: () -> Boolean,
@@ -72,6 +73,7 @@ fun LibraryContent(
     var isRefreshing by remember(pagerState.currentPage) { mutableStateOf(false) }
     val headerHeightDp = with(density) { header.heightPx.toDp() }
     LaunchedEffect(pagerState.currentPage) { header.show() }
+    LaunchedEffect(Unit) { fenrirAutoCheckAppUpdate(context) }
 
     Box(
         modifier = Modifier
@@ -136,6 +138,9 @@ fun LibraryContent(
                 .onSizeChanged { header.heightPx = it.height }
                 .graphicsLayer { translationY = header.offsetPx },
         ) {
+            // Fenrir: "Update available" pill (Read side gets app updates too).
+            FenrirUpdatePill()
+
             // Fenrir: "● 1 source down · 4 books ›" when a source your books use stopped working.
             if (searchQuery.isNullOrEmpty() && selection.isEmpty()) {
                 val allBooks = categories.flatMap { getItemsForCategory(it) }.map { it.libraryManga }
@@ -156,7 +161,8 @@ fun LibraryContent(
                     FenrirContinueReadingCase(
                         manga = lastRead,
                         onOpen = {
-                            val resume = onContinueReadingClicked
+                            // straight into the next chapter
+                            val resume = onResumeBook ?: onContinueReadingClicked
                             if (resume != null) resume(lastRead) else onClickManga(lastRead.manga.id)
                         },
                     )

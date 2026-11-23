@@ -651,6 +651,15 @@ private fun Modifier.androidxShadow(shape: androidx.compose.ui.graphics.Shape): 
     this.then(Modifier.shadow(6.dp, shape))
 
 
+private var fenrirAutoChecked = false
+
+/** Once per app start, when the Read library first shows: quietly look for a new app version. */
+internal fun fenrirAutoCheckAppUpdate(context: android.content.Context) {
+    if (fenrirAutoChecked) return
+    fenrirAutoChecked = true
+    fenrirCheckAppUpdate(context)
+}
+
 /** Pull to refresh on the Read side: ask the host app for a new version (a pill shows if found). */
 internal fun fenrirCheckAppUpdate(@Suppress("UNUSED_PARAMETER") context: android.content.Context) {
     eu.kanade.tachiyomi.EmbeddedHost.checkAppUpdate?.invoke { }

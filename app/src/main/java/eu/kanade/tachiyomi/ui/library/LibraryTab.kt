@@ -253,6 +253,19 @@ data object LibraryTab : Tab {
                             }
                             Unit
                         }.takeIf { state.showMangaContinueButton },
+                        onResumeBook = { it: LibraryManga ->
+                            scope.launchIO {
+                                val chapter = viewModel.getNextUnreadChapter(it.manga)
+                                if (chapter != null) {
+                                    context.startActivity(
+                                        ReaderActivity.newIntent(context, chapter.mangaId, chapter.id),
+                                    )
+                                } else {
+                                    snackbarHostState.showSnackbar(context.stringResource(MR.strings.no_next_chapter))
+                                }
+                            }
+                            Unit
+                        },
                         onToggleSelection = viewModel::toggleSelection,
                         onToggleRangeSelection = { category, manga ->
                             viewModel.toggleRangeSelection(category, manga)
