@@ -194,7 +194,7 @@ internal fun Modifier.fenrirBookcaseBack(): Modifier = composed {
  * A plank under one cell of books: top surface + front edge, with shadows. The texture is sampled
  * by the cell's spot on screen, so the grain runs on across cells like one long board.
  */
-internal fun Modifier.fenrirPlank(coverPadding: Dp, ratio: Float, pageInset: Dp): Modifier = composed {
+internal fun Modifier.fenrirPlank(coverPadding: Dp, ratio: Float, pageInset: Dp, bookShadow: Boolean = true): Modifier = composed {
     val plank = woodImage(R.drawable.fenrir_wood_plank)
     val screenW = with(LocalDensity.current) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
     val xHolder = remember { floatArrayOf(0f) }
@@ -243,13 +243,13 @@ internal fun Modifier.fenrirPlank(coverPadding: Dp, ratio: Float, pageInset: Dp)
                 topLeft = Offset(left, top + h),
                 size = Size(w, 14.dp.toPx()),
             )
-            // the book's own shadow on the back wall and on the plank
-            drawRect(
+            // the book's own shadow on the back wall and on the plank (not on an empty spot)
+            if (bookShadow) drawRect(
                 Brush.horizontalGradient(0f to Color.Black.copy(alpha = 0.4f), 1f to Color.Transparent, startX = pad + coverW, endX = pad + coverW + 9.dp.toPx()),
                 topLeft = Offset(pad + coverW, pad + 6.dp.toPx()),
                 size = Size(9.dp.toPx(), coverH - 6.dp.toPx() - topDepth * 0.4f),
             )
-            drawOval(
+            if (bookShadow) drawOval(
                 Brush.radialGradient(
                     listOf(Color.Black.copy(alpha = 0.6f), Color.Transparent),
                     center = Offset(pad + coverW / 2f, bottom),

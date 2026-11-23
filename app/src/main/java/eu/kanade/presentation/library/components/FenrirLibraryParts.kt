@@ -650,7 +650,7 @@ internal fun FenrirLibraryGridItem(
 /** An empty spot on a shelf: just the plank, the same size as a book's spot. */
 @Composable
 internal fun FenrirEmptyShelfCell(titleMaxLines: Int = 2) {
-    Column(Modifier.fenrirPlank(5.dp, MangaCover.Book.ratio, 5.dp).padding(5.dp)) {
+    Column(Modifier.fenrirPlank(5.dp, MangaCover.Book.ratio, 5.dp, bookShadow = false).padding(5.dp)) {
         Box(Modifier.fillMaxWidth().aspectRatio(MangaCover.Book.ratio))
         Text(
             " ",

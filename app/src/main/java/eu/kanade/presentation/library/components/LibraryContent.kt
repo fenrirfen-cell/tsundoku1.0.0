@@ -2,6 +2,7 @@ package eu.kanade.presentation.library.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
@@ -72,8 +73,6 @@ fun LibraryContent(
     val pagerState = rememberPagerState(currentPage) { categories.size }
     val scope = rememberCoroutineScope()
     var isRefreshing by remember(pagerState.currentPage) { mutableStateOf(false) }
-    val headerHeightDp = with(density) { header.heightPx.toDp() }
-    LaunchedEffect(pagerState.currentPage) { header.show() }
     LaunchedEffect(Unit) { fenrirAutoCheckAppUpdate(context) }
 
     Box(
@@ -83,65 +82,12 @@ fun LibraryContent(
                 start = contentPadding.calculateStartPadding(LocalLayoutDirection.current),
                 end = contentPadding.calculateEndPadding(LocalLayoutDirection.current),
             )
-            .clipToBounds()
-            .nestedScroll(header.connection),
+            .clipToBounds(),
     ) {
-        PullRefresh(
-            refreshing = isRefreshing,
-            enabled = selection.isEmpty(),
-            indicatorPadding = PaddingValues(top = headerHeightDp),
-            onRefresh = {
-                // Fenrir: also check quietly for a new app version (only says something if there is one).
-                fenrirCheckAppUpdate(context)
-                val started = onRefresh()
-                if (!started) return@PullRefresh
-                scope.launch {
-                    // Fake refresh status but hide it after a second as it's a long running task
-                    isRefreshing = true
-                    delay(1.seconds)
-                    isRefreshing = false
-                }
-            },
-        ) {
-            LibraryPager(
-                state = pagerState,
-                contentPadding = PaddingValues(top = headerHeightDp, bottom = contentPadding.calculateBottomPadding()),
-                hasActiveFilters = hasActiveFilters,
-                selection = selection,
-                searchQuery = searchQuery,
-                onGlobalSearchClicked = onGlobalSearchClicked,
-                getCategoryForPage = { page -> categories[page] },
-                getDisplayMode = getDisplayMode,
-                getColumnsForOrientation = getColumnsForOrientation,
-                getItemsForCategory = getItemsForCategory,
-                onClickManga = { category, manga ->
-                    if (selection.isNotEmpty()) {
-                        onToggleSelection(category, manga)
-                    } else {
-                        onClickManga(manga.manga.id)
-                    }
-                },
-                onLongClickManga = onToggleRangeSelection,
-                onClickContinueReading = onContinueReadingClicked,
-                titleMaxLines = titleMaxLines,
-                showUrlInList = showUrlInList,
-                paginationEnabled = paginationEnabled,
-                onCategoryFirstVisible = onCategoryFirstVisible,
-                onLoadMore = onLoadMore,
-                getLoadMoreKey = getLoadMoreKey,
-                isCategoryLoading = isCategoryLoading,
-            )
-        }
-
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .onSizeChanged { header.heightPx = it.height }
-                .graphicsLayer { translationY = header.offsetPx }
-                // solid behind the top part, so books never show through any gap in it
-                .background(androidx.compose.ui.graphics.Color(0xFF0B0B0F)),
-        ) {
-            // Fenrir: "● 1 source down · 4 books ›" when a source your books use stopped working.
+      Column(Modifier.fillMaxSize()) {
+        // Fenrir: Continue reading + the category rail stay put at the top; only the books scroll.
+        Column(Modifier.fillMaxWidth().background(androidx.compose.ui.graphics.Color(0xFF0B0B0F))) {
+                        // Fenrir: "● 1 source down · 4 books ›" when a source your books use stopped working.
             if (searchQuery.isNullOrEmpty() && selection.isEmpty()) {
                 val allBooks = categories.flatMap { getItemsForCategory(it) }.map { it.libraryManga }
                 FenrirSourceDownChip(books = allBooks, onOpenBook = onClickManga)
@@ -184,7 +130,57 @@ fun LibraryContent(
                     countFor = { category -> getItemsForCategory(category).size },
                 )
             }
+        
         }
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+        PullRefresh(
+            refreshing = isRefreshing,
+            enabled = selection.isEmpty(),
+            onRefresh = {
+                // Fenrir: also check quietly for a new app version (only says something if there is one).
+                fenrirCheckAppUpdate(context)
+                val started = onRefresh()
+                if (!started) return@PullRefresh
+                scope.launch {
+                    // Fake refresh status but hide it after a second as it's a long running task
+                    isRefreshing = true
+                    delay(1.seconds)
+                    isRefreshing = false
+                }
+            },
+        ) {
+            LibraryPager(
+                state = pagerState,
+                contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding()),
+                hasActiveFilters = hasActiveFilters,
+                selection = selection,
+                searchQuery = searchQuery,
+                onGlobalSearchClicked = onGlobalSearchClicked,
+                getCategoryForPage = { page -> categories[page] },
+                getDisplayMode = getDisplayMode,
+                getColumnsForOrientation = getColumnsForOrientation,
+                getItemsForCategory = getItemsForCategory,
+                onClickManga = { category, manga ->
+                    if (selection.isNotEmpty()) {
+                        onToggleSelection(category, manga)
+                    } else {
+                        onClickManga(manga.manga.id)
+                    }
+                },
+                onLongClickManga = onToggleRangeSelection,
+                onClickContinueReading = onContinueReadingClicked,
+                titleMaxLines = titleMaxLines,
+                showUrlInList = showUrlInList,
+                paginationEnabled = paginationEnabled,
+                onCategoryFirstVisible = onCategoryFirstVisible,
+                onLoadMore = onLoadMore,
+                getLoadMoreKey = getLoadMoreKey,
+                isCategoryLoading = isCategoryLoading,
+            )
+        }
+
+        }
+      }
 
         if (isQueryRunning && selection.isEmpty()) {
             LinearProgressIndicator(

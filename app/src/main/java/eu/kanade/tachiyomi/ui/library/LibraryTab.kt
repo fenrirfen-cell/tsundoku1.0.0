@@ -294,7 +294,7 @@ data object LibraryTab : Tab {
             )
             eu.kanade.presentation.components.FenrirScrollPill(
                 label = state.getToolbarTitle(defaultTitle = "Library", defaultCategoryTitle = "Default", page = state.coercedActiveCategoryIndex).text,
-                visible = !fenrirPillShown && !state.selectionMode && state.toolbarQuery == null && !state.isLoading,
+                visible = false && !fenrirPillShown && !state.selectionMode && state.toolbarQuery == null && !state.isLoading,
                 modifier = Modifier.align(androidx.compose.ui.Alignment.TopCenter),
                 actions = listOf(
                     androidx.compose.material.icons.Icons.Outlined.Search to {

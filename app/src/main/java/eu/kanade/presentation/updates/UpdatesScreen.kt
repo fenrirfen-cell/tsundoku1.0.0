@@ -251,7 +251,7 @@ fun UpdateScreen(
         }
             eu.kanade.presentation.components.FenrirScrollPill(
             label = "Updates",
-            visible = !fenrirBarsShown && state.selected.isEmpty(),
+            visible = false && !fenrirBarsShown && state.selected.isEmpty(),
             modifier = Modifier.align(androidx.compose.ui.Alignment.TopCenter),
             actions = listOf(androidx.compose.material.icons.Icons.Outlined.CalendarMonth to { onCalendarClicked() }, androidx.compose.material.icons.Icons.Outlined.Refresh to { onUpdateLibrary(); Unit }),
         )

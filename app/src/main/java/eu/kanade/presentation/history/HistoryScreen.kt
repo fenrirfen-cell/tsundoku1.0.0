@@ -178,7 +178,7 @@ fun HistoryScreen(
         }
             eu.kanade.presentation.components.FenrirScrollPill(
             label = stringResource(MR.strings.history),
-            visible = !fenrirBarsShown && state.searchQuery == null,
+            visible = false && !fenrirBarsShown && state.searchQuery == null,
             modifier = Modifier.align(androidx.compose.ui.Alignment.TopCenter),
             actions = listOf(androidx.compose.material.icons.Icons.Outlined.Search to { eu.kanade.presentation.components.FenrirBars.shown.value = true; onSearchQueryChange("") }),
         )
