@@ -643,6 +643,18 @@ fun FenrirMangaModeSheet(
                 }
             }
 
+            if (readingMode == ReadingMode.RIGHT_TO_LEFT || readingMode == ReadingMode.LEFT_TO_RIGHT) {
+                SectionLabel("Page turn")
+                Column(
+                    Modifier
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        .padding(10.dp),
+                ) {
+                    SwitchRow("Turn pages like a book", "The page curls over when you swipe or tap", prefs.pagerBookFlip)
+                }
+            }
+
             SectionLabel("Panel by panel")
             Column(
                 Modifier

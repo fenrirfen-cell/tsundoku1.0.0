@@ -105,7 +105,7 @@ object FenrirRatings {
 
     fun init() { prefs }
 
-    private fun key(title: String, novel: Boolean) = (if (novel) "n3:" else "m3:") + norm(title)
+    private fun key(title: String, novel: Boolean) = (if (novel) "n4:" else "m4:") + norm(title)
     fun norm(t: String) = t.lowercase().filter { it.isLetterOrDigit() }
 
     fun matches(query: String, candidates: List<String>): Boolean {
@@ -122,8 +122,10 @@ object FenrirRatings {
         prefs.getString(k, null)?.let { raw ->
             val parts = raw.split('\u0001', limit = 2)
             val at = parts[0].toLongOrNull() ?: 0L
-            if (System.currentTimeMillis() - at < 7 * 24 * 3600_000L) {
-                val r = parts.getOrNull(1)?.let { decode(it) }
+            val r0 = parts.getOrNull(1)?.let { decode(it) }
+            // Found: keep a week. Nothing found (or the site was down): try again after 6 hours.
+            if (System.currentTimeMillis() - at < if (r0 != null) 7 * 24 * 3600_000L else 6 * 3600_000L) {
+                val r = r0
                 memory[k] = r
                 return r
             }
@@ -138,7 +140,12 @@ object FenrirRatings {
                     val rr = async { if (novel) runCatching { royalRoad(title) }.getOrNull() else null }
                     val rdb = async { if (novel) runCatching { ranobeDb(title) }.getOrNull() else null }
                     val ap = async { if (!novel) runCatching { animePlanet(title) }.getOrNull() else null }
-                    val all = listOfNotNull(ani.await(), mal.await(), wn.await(), nu.await(), rr.await(), ap.await())
+                    // Novels lead with Webnovel when it has the book (that's where the reviews are).
+                    val all = if (novel) {
+                        listOfNotNull(wn.await(), ani.await(), mal.await(), nu.await(), rr.await())
+                    } else {
+                        listOfNotNull(ani.await(), mal.await(), ap.await())
+                    }
                     val main = all.firstOrNull()
                     val others = (all.drop(1).map { o -> Other(o.site, o.score, o.rank ?: one(o.score), o.votes, o.url) } + listOfNotNull(rdb.await()))
                         .distinctBy { it.site }
@@ -302,17 +309,65 @@ object FenrirRatings {
         )
     }
 
-    // ---- Webnovel (public search page; can stop working if the site changes) ----
+    // ---- Webnovel: score and real reader reviews from the book's page (public HTML) ----
     private suspend fun webnovel(title: String): Rating? {
-        val url = "https://www.webnovel.com/search?keywords=" + java.net.URLEncoder.encode(title.take(100), "UTF-8")
-        val html = withTimeoutOrNull(15_000) {
-            client.newCall(Request.Builder().url(url).header("User-Agent", "Mozilla/5.0").build()).execute().use { it.body?.string() }
-        } ?: return null
-        // Each result carries the book name and a score out of 5 close together.
-        val re = Regex("""(?s)"bookName"\s*:\s*"([^"]{1,200})".{0,1500}?"(?:totalScore|score)"\s*:\s*"?([0-9]+(?:\.[0-9]+)?)""")
-        val hit = re.findAll(html).firstOrNull { matches(title, listOf(it.groupValues[1])) } ?: return null
-        val five = hit.groupValues[2].toDoubleOrNull()?.takeIf { it in 0.1..5.0 } ?: return null
-        return Rating(five * 2, "Webnovel", null, "${one(five)} / 5", url, emptyList(), emptyList(), null, null, null)
+        val searchUrl = "https://www.webnovel.com/search?keywords=" + java.net.URLEncoder.encode(title.take(100), "UTF-8").replace("+", "%20")
+        val searchHtml = wnPage(searchUrl) ?: return null
+        val doc = org.jsoup.Jsoup.parse(searchHtml, "https://www.webnovel.com")
+        val hit = doc.select(".j_list_container li .g_thumb, .j_list_container li a[title]")
+            .firstOrNull { a -> matches(title, listOf(a.attr("title"))) && a.attr("href").contains("/book/") } ?: return null
+        val bookUrl = hit.absUrl("href").ifBlank { "https://www.webnovel.com" + hit.attr("href") }.substringBefore('?')
+        val html = wnPage(bookUrl) ?: return null
+        val book = org.jsoup.Jsoup.parse(html, bookUrl)
+        val five = book.selectFirst(".g_star_num small")?.text()?.trim()?.toDoubleOrNull()
+        val votes = Regex("""([\d,.]+)\s*(k)?\s*ratings""", RegexOption.IGNORE_CASE).find(book.select(".g_star_num").text())?.let { m ->
+            val n = m.groupValues[1].replace(",", "").toDoubleOrNull() ?: return@let null
+            (if (m.groupValues[2].isNotEmpty()) n * 1000 else n).toInt()
+        }
+        data class WnReview(val text: String, val stars: Double, val user: String, val likes: Int, val spoiler: Boolean)
+        val reviews = book.select(".j_pageReviewList").mapNotNull { el ->
+            val spoilerBox = el.selectFirst(".m-comment-spoiler")
+            val text = (spoilerBox?.selectFirst(".j_book_review_content") ?: el.selectFirst(".j_book_review_content"))
+                ?.text()?.trim()?.takeIf { it.length >= 20 } ?: return@mapNotNull null
+            val star = el.selectFirst(".g_star")
+            val stars = (star?.select("svg._on")?.size ?: 0) + 0.5 * (star?.select("svg._half")?.size ?: 0)
+            val userEl = el.selectFirst(".m-comment-hd-mn a.c_l")
+            val user = userEl?.attr("title")?.ifBlank { null } ?: userEl?.text()?.trim()?.ifBlank { null } ?: "a reader"
+            val likes = el.selectFirst(".j_like_num")?.text()?.trim()?.toIntOrNull() ?: 0
+            WnReview(text, stars, user, likes, spoilerBox != null)
+        }
+        if (five == null && reviews.isEmpty()) return null
+        fun toReview(r: WnReview) = Review(
+            summary = if (r.text.length > 420) r.text.take(420).trimEnd() + "…" else r.text,
+            score = (r.stars * 20).toInt(),
+            user = r.user,
+            url = bookUrl,
+            spoiler = r.spoiler,
+        )
+        val top = reviews.sortedWith(compareByDescending<WnReview> { it.likes }.thenByDescending { it.stars }).firstOrNull()
+        val low = reviews.filter { it.stars > 0 && it !== top }.minByOrNull { it.stars }?.takeIf { top == null || it.stars < top.stars }
+        val score = five?.let { it * 2 } ?: reviews.filter { it.stars > 0 }.map { it.stars * 2 }.average().takeIf { !it.isNaN() } ?: return null
+        return Rating(
+            score = score,
+            site = "Webnovel",
+            votes = votes,
+            rank = five?.let { "${one(it)} / 5" },
+            url = bookUrl,
+            tags = emptyList(),
+            dist = emptyList(),
+            top = top?.let { toReview(it) },
+            low = low?.let { toReview(it) },
+            reviewCount = reviews.size.takeIf { it > 0 },
+        )
+    }
+
+    private suspend fun wnPage(url: String): String? = withTimeoutOrNull(15_000) {
+        client.newCall(
+            Request.Builder().url(url)
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36")
+                .header("Referer", "https://www.webnovel.com")
+                .build(),
+        ).execute().use { r -> if (r.isSuccessful) r.body?.string() else null }
     }
 
     // ---- other sites (public pages; any of these can stop working if a site changes) ----
@@ -435,7 +490,7 @@ private fun one(d: Double) = String.format(java.util.Locale.US, "%.1f", d)
 fun FenrirRatingBadge(title: String, novel: Boolean, modifier: Modifier = Modifier) {
     FenrirRatings.init()
     val show by FenrirRatings.showBadges.collectAsState()
-    if (!show) return
+    if (!show || novel) return // novels: no cover badge; reviews are on the book page
     val rating by produceState<FenrirRatings.Rating?>(initialValue = null, title, novel) {
         value = FenrirRatings.get(title, novel)
     }

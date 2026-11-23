@@ -319,6 +319,8 @@ class ReaderPreferences(
     val pagerBubblePanelLast: Preference<Boolean> = preferenceStore.getBoolean("pref_pager_bubble_panel_last", false)
     val pagerPanelByPanel: Preference<Boolean> = preferenceStore.getBoolean("pref_pager_panel_by_panel", false)
     val pagerPanelFullPageFirst: Preference<Boolean> = preferenceStore.getBoolean("pref_pager_panel_full_page_first", true)
+    // Fenrir: turn manga pages like a book (page curl) in the left/right page modes.
+    val pagerBookFlip: Preference<Boolean> = preferenceStore.getBoolean("pref_pager_book_flip", false)
     val novelPagedFlipEffect: Preference<Boolean> =
         preferenceStore.getBoolean("pref_novel_paged_flip_effect", false)
 

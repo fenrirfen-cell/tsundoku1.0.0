@@ -57,7 +57,34 @@ open class Pager(
     /**
      * Dispatches a touch event.
      */
+    /**
+     * Fenrir book flip: when set, the pager stops sliding and a quick sideways swipe calls this
+     * instead (true = swiped toward the left, like moving to the page on the right).
+     */
+    var bookFlipSwipe: ((Boolean) -> Unit)? = null
+    private var flipDownX = 0f
+    private var flipDownY = 0f
+    private var flipDownAt = 0L
+    private var flipMulti = false
+
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        bookFlipSwipe?.let { swipe ->
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    flipDownX = ev.x; flipDownY = ev.y; flipDownAt = ev.eventTime; flipMulti = false
+                }
+                MotionEvent.ACTION_POINTER_DOWN -> flipMulti = true
+                MotionEvent.ACTION_UP -> {
+                    val dx = ev.x - flipDownX
+                    val dy = ev.y - flipDownY
+                    if (!flipMulti && kotlin.math.abs(dx) > width * 0.18f && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.5f &&
+                        ev.eventTime - flipDownAt < 700
+                    ) {
+                        swipe(dx < 0)
+                    }
+                }
+            }
+        }
         val handled = super.dispatchTouchEvent(ev)
         if (isGestureDetectorEnabled) {
             gestureDetector.onTouchEvent(ev)
@@ -70,6 +97,7 @@ open class Pager(
      * views manipulate [requestDisallowInterceptTouchEvent].
      */
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+        if (bookFlipSwipe != null) return false
         return try {
             super.onInterceptTouchEvent(ev)
         } catch (e: IllegalArgumentException) {
@@ -82,6 +110,7 @@ open class Pager(
      * [requestDisallowInterceptTouchEvent].
      */
     override fun onTouchEvent(ev: MotionEvent): Boolean {
+        if (bookFlipSwipe != null) return true
         return try {
             super.onTouchEvent(ev)
         } catch (e: NullPointerException) {

@@ -209,11 +209,24 @@ fun FenrirBookInfoCard(manga: Manga, source: Source, chapters: List<Chapter>, is
         }
         rating?.let { r ->
             var openWhy by remember { mutableStateOf(false) }
-            InfoRow("Rating") {
-                Row(Modifier.clickable { openWhy = true }, verticalAlignment = Alignment.CenterVertically) {
-                    Text("★ ", color = eu.kanade.presentation.library.components.fenrirRatingColor(r.score), fontSize = 14.sp)
-                    Text(String.format(java.util.Locale.US, "%.1f", r.score), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    Text(" · ${r.site} ›", color = Muted, fontSize = 13.sp)
+            if (isNovel) {
+                // Novels: no score up front, just the readers' reviews.
+                InfoRow("Reviews") {
+                    Text(
+                        (r.reviewCount?.let { "Read $it reviews" } ?: "Read reviews") + " · ${r.site} ›",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.clickable { openWhy = true },
+                    )
+                }
+            } else {
+                InfoRow("Rating") {
+                    Row(Modifier.clickable { openWhy = true }, verticalAlignment = Alignment.CenterVertically) {
+                        Text("★ ", color = eu.kanade.presentation.library.components.fenrirRatingColor(r.score), fontSize = 14.sp)
+                        Text(String.format(java.util.Locale.US, "%.1f", r.score), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Text(" · ${r.site} ›", color = Muted, fontSize = 13.sp)
+                    }
                 }
             }
             if (openWhy) eu.kanade.presentation.library.components.FenrirRatingSheet(manga.title, r) { openWhy = false }

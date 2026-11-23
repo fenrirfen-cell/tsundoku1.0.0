@@ -1,5 +1,7 @@
 package eu.kanade.tachiyomi.ui.reader.viewer.pager
 
+import uy.kohesive.injekt.api.get
+import kotlinx.coroutines.launch
 import android.graphics.PointF
 import android.view.InputDevice
 import android.view.KeyEvent
@@ -101,6 +103,10 @@ abstract class PagerViewer(val activity: ReaderActivity) : Viewer {
         pager.id = R.id.reader_pager
         pager.adapter = adapter
         pager.addOnPageChangeListener(pagerListener)
+        scope.launch {
+            uy.kohesive.injekt.Injekt.get<eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences>().pagerBookFlip.changes()
+                .collect { setBookFlip(it) }
+        }
         pager.tapListener = { event ->
             val viewPosition = IntArray(2)
             pager.getLocationOnScreen(viewPosition)
@@ -338,7 +344,7 @@ abstract class PagerViewer(val activity: ReaderActivity) : Viewer {
             if (holder != null && config.navigateToPan && holder.canPanRight()) {
                 holder.panRight()
             } else {
-                pager.setCurrentItem(pager.currentItem + 1, config.usePageTransitions)
+                turnTo(pager.currentItem + 1)
             }
         }
     }
@@ -353,8 +359,99 @@ abstract class PagerViewer(val activity: ReaderActivity) : Viewer {
             if (holder != null && config.navigateToPan && holder.canPanLeft()) {
                 holder.panLeft()
             } else {
-                pager.setCurrentItem(pager.currentItem - 1, config.usePageTransitions)
+                turnTo(pager.currentItem - 1)
             }
+        }
+    }
+
+    // ---- Fenrir: turn pages like a book -----------------------------------------------------
+    private var bookFlipOn = false
+    private var curlView: eu.kanade.tachiyomi.ui.reader.viewer.text.webview.PageCurlView? = null
+    private var flipping = false
+
+    private fun setBookFlip(on: Boolean) {
+        bookFlipOn = on && this !is VerticalPagerViewer
+        pager.bookFlipSwipe = if (bookFlipOn) { towardLeft -> if (towardLeft) moveRight() else moveLeft() } else null
+    }
+
+    private fun turnTo(target: Int) {
+        if (!bookFlipOn || flipping || target !in 0 until adapter.count) {
+            if (!flipping) pager.setCurrentItem(target, config.usePageTransitions)
+            return
+        }
+        val mirrored = this is R2LPagerViewer
+        val forward = if (mirrored) target < pager.currentItem else target > pager.currentItem
+        val parent = pager.parent as? android.view.ViewGroup
+        val w = pager.width
+        val h = pager.height
+        if (parent == null || w <= 0 || h <= 0) {
+            pager.setCurrentItem(target, false)
+            return
+        }
+        flipping = true
+        capturePager { shot ->
+            if (shot == null) {
+                flipping = false
+                pager.setCurrentItem(target, false)
+                return@capturePager
+            }
+            val bmp = if (mirrored) {
+                android.graphics.Bitmap.createBitmap(shot.width, shot.height, android.graphics.Bitmap.Config.ARGB_8888).also { m ->
+                    android.graphics.Canvas(m).apply { scale(-1f, 1f, shot.width / 2f, 0f); drawBitmap(shot, 0f, 0f, null) }
+                    shot.recycle()
+                }
+            } else {
+                shot
+            }
+            val v = curlView ?: eu.kanade.tachiyomi.ui.reader.viewer.text.webview.PageCurlView(activity).also { cv ->
+                curlView = cv
+            }
+            if (v.parent !== parent) {
+                (v.parent as? android.view.ViewGroup)?.removeView(v)
+                val index = parent.indexOfChild(pager) + 1
+                parent.addView(v, index, android.view.ViewGroup.LayoutParams(w, h))
+            }
+            v.x = pager.x
+            v.y = pager.y
+            v.scaleX = if (mirrored) -1f else 1f
+            v.backColor = android.graphics.Color.rgb(226, 223, 214)
+            val fw = bmp.width.toFloat()
+            val fh = bmp.height.toFloat()
+            v.begin(bmp, forward, false, if (forward) fw - 1f else -fw, fh - 1f)
+            v.visibility = View.VISIBLE
+            pager.setCurrentItem(target, false)
+            v.animateTo(if (forward) -fw else fw, fh, fh * 0.12f, 430L) {
+                v.visibility = View.INVISIBLE
+                v.clear()
+                flipping = false
+            }
+        }
+    }
+
+    private fun capturePager(onResult: (android.graphics.Bitmap?) -> Unit) {
+        val w = pager.width
+        val h = pager.height
+        val bmp = runCatching { android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888) }.getOrNull()
+            ?: return onResult(null)
+        val loc = IntArray(2)
+        pager.getLocationInWindow(loc)
+        try {
+            android.view.PixelCopy.request(
+                activity.window,
+                android.graphics.Rect(loc[0], loc[1], loc[0] + w, loc[1] + h),
+                bmp,
+                { result ->
+                    if (result == android.view.PixelCopy.SUCCESS) {
+                        onResult(bmp)
+                    } else {
+                        bmp.recycle(); onResult(null)
+                    }
+                },
+                android.os.Handler(android.os.Looper.getMainLooper()),
+            )
+        } catch (e: Throwable) {
+            bmp.recycle()
+            onResult(null)
         }
     }
 
