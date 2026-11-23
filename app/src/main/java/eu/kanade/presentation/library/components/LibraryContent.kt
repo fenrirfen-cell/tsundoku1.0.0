@@ -96,6 +96,7 @@ fun LibraryContent(
                 pagerState = pagerState,
                 newCountFor = { category -> getItemsForCategory(category).count { it.unreadCount > 0 } },
                 onGoTo = { scope.launch { pagerState.animateScrollToPage(it) } },
+                countFor = { category -> getItemsForCategory(category).size },
             )
         }
 

@@ -84,6 +84,7 @@ internal fun FenrirCategoryBar(
     pagerState: PagerState,
     newCountFor: (Category) -> Int,
     onGoTo: (Int) -> Unit,
+    countFor: (Category) -> Int = { 0 },
 ) {
     val current = pagerState.currentPage.coerceIn(0, categories.lastIndex)
     val category = categories[current]
@@ -98,14 +99,28 @@ internal fun FenrirCategoryBar(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         ArrowButton(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Previous category", enabled = current > 0) { onGoTo(current - 1) }
-        // Hold the bar: the Categories pop-up (reorder, rename, delete, add).
+        // Hold the bar: "Jump to" (every category with counts); Edit opens the Categories editor.
+        var jump by remember { mutableStateOf(false) }
         var manage by remember { mutableStateOf(false) }
+        var startNew by remember { mutableStateOf(false) }
         Column(
-            Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).combinedClickable(onClick = {}, onLongClick = { manage = true }),
+            Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).combinedClickable(onClick = { jump = true }, onLongClick = { jump = true }),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            if (jump) {
+                FenrirCategoryJump(
+                    categories = categories,
+                    current = current,
+                    countFor = countFor,
+                    newCountFor = newCountFor,
+                    onPick = { jump = false; onGoTo(it) },
+                    onEdit = { jump = false; startNew = false; manage = true },
+                    onNew = { jump = false; startNew = true; manage = true },
+                    onDismiss = { jump = false },
+                )
+            }
             if (manage) {
-                FenrirCategoriesDialog(categories = categories, current = category, onDismiss = { manage = false })
+                FenrirCategoriesDialog(categories = categories, current = category, onDismiss = { manage = false }, startNew = startNew)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -682,9 +697,81 @@ fun FenrirSourceDownChip(books: List<LibraryManga>, onOpenBook: (Long) -> Unit) 
 }
 
 
+/** "Jump to": every category with its book count and new-chapter count; tap one to go there. */
+@Composable
+private fun FenrirCategoryJump(
+    categories: List<Category>,
+    current: Int,
+    countFor: (Category) -> Int,
+    newCountFor: (Category) -> Int,
+    onPick: (Int) -> Unit,
+    onEdit: () -> Unit,
+    onNew: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(26.dp))
+                .background(Color(0xFF15151B))
+                .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(26.dp))
+                .padding(horizontal = 16.dp, vertical = 18.dp),
+        ) {
+            Text("Jump to", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold)
+            Spacer(Modifier.height(12.dp))
+            androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(2),
+                modifier = Modifier.heightIn(max = 420.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                items(categories.size) { i ->
+                    val c = categories[i]
+                    val on = i == current
+                    val count = remember(c.id) { runCatching { countFor(c) }.getOrDefault(0) }
+                    val fresh = remember(c.id) { runCatching { newCountFor(c) }.getOrDefault(0) }
+                    Column(
+                        Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(if (on) FenrirRed.copy(alpha = 0.16f) else Color(0xFF1C1C23))
+                            .border(1.dp, if (on) FenrirRed else Color.White.copy(alpha = 0.06f), RoundedCornerShape(16.dp))
+                            .clickable { onPick(i) }
+                            .padding(12.dp),
+                    ) {
+                        Text(c.visualName, color = Color.White, fontSize = 14.5.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Row(Modifier.padding(top = 2.dp)) {
+                            Text("$count book${if (count == 1) "" else "s"}", color = FenrirMuted, fontSize = 11.5.sp)
+                            if (fresh > 0) Text(" · ● $fresh new", color = FenrirRed, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            }
+            Row(Modifier.padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "✎  Edit categories",
+                    color = Color.White,
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.weight(1f).clip(CircleShape).background(Color(0xFF26262E)).clickable(onClick = onEdit).padding(vertical = 11.dp),
+                )
+                Text(
+                    "＋  New",
+                    color = Color.White,
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.weight(1f).clip(CircleShape).background(Color(0xFF26262E)).clickable(onClick = onNew).padding(vertical = 11.dp),
+                )
+            }
+        }
+    }
+}
+
 /** The Categories pop-up: drag ≡ to reorder, ✎ rename, 🗑 delete, ＋ new. Saves as you go. */
 @Composable
-private fun FenrirCategoriesDialog(categories: List<Category>, current: Category, onDismiss: () -> Unit) {
+private fun FenrirCategoriesDialog(categories: List<Category>, current: Category, onDismiss: () -> Unit, startNew: Boolean = false) {
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val list = remember { androidx.compose.runtime.mutableStateListOf<Category>() }
     // Follow the library's list (renames/new/deleted) unless a drag is in progress.
@@ -697,7 +784,7 @@ private fun FenrirCategoriesDialog(categories: List<Category>, current: Category
     }
     var dragY by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
     var rowPx by remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
-    var editing by remember { mutableStateOf<Long?>(null) } // category id, or -1 for "new"
+    var editing by remember { mutableStateOf<Long?>(if (startNew) -1L else null) } // category id, or -1 for "new"
     var deleting by remember { mutableStateOf<Long?>(null) }
     var name by remember { mutableStateOf("") }
     val type = current.contentType.takeIf { !current.isSystemCategory } ?: Category.CONTENT_TYPE_ALL
