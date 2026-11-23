@@ -20,6 +20,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.shape.RoundedCornerShape
 
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 
 import androidx.compose.foundation.border
 
@@ -373,31 +374,36 @@ private fun FenrirReadWordmarkMenu() {
     Box {
         Row(
             modifier = Modifier
-                .height(42.dp)
+                .heightIn(min = 42.dp)
                 .fenrirReaderGlassPill()
                 .then(if (entry != null) Modifier.clickable(role = Role.Button) { more = false; open = true } else Modifier)
-                .padding(start = 16.dp, end = if (entry != null) 10.dp else 16.dp),
+                .padding(start = 16.dp, end = if (entry != null) 10.dp else 16.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = "FENRIR",
-                color = white,
-                fontSize = 19.sp,
-                letterSpacing = 4.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                modifier = Modifier.alignByBaseline(),
-            )
-            Spacer(Modifier.width(6.dp))
-            Text(
-                text = "READ",
-                color = accent,
-                fontSize = 11.5.sp,
-                letterSpacing = 3.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                modifier = Modifier.alignByBaseline(),
-            )
+            // the two words share one baseline; the row keeps them in the middle of the pill
+            Row {
+                Text(
+                    text = "FENRIR",
+                    color = white,
+                    fontSize = 17.sp,
+                    letterSpacing = 3.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.alignByBaseline(),
+                )
+                Spacer(Modifier.width(5.dp))
+                Text(
+                    text = "READ",
+                    color = accent,
+                    fontSize = 10.5.sp,
+                    letterSpacing = 2.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.alignByBaseline(),
+                )
+            }
             if (entry != null) {
                 Spacer(Modifier.width(4.dp))
                 Icon(

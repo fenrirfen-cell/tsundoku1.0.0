@@ -2,6 +2,8 @@ package eu.kanade.presentation.library.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -54,7 +56,13 @@ internal fun LazyLibraryGrid(
             }
         }
         val rowH = if (measuredPx > 0) with(density) { measuredPx.toDp() } else guessH
-        val bottomPad = contentPadding.calculateBottomPadding()
+        // Fenrir: keep the last shelf's titles clear of the glass island at the bottom.
+        val islandPad = if (header != null) {
+            92.dp + androidx.compose.foundation.layout.WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+        } else {
+            0.dp
+        }
+        val bottomPad = contentPadding.calculateBottomPadding() + islandPad
         val room = maxHeight - headerDp - bottomPad - 16.dp
         val screenRows = if (room > 0.dp) {
             kotlin.math.ceil(room / (rowH + CommonMangaItemDefaults.GridVerticalSpacer) - 0.2f).toInt().coerceAtLeast(1)
@@ -65,7 +73,7 @@ internal fun LazyLibraryGrid(
             columns = if (columns == 0) GridCells.Adaptive(128.dp) else GridCells.Fixed(columns),
             state = gridState,
             modifier = Modifier.fillMaxSize(),
-            contentPadding = contentPadding + PaddingValues(8.dp),
+            contentPadding = contentPadding + PaddingValues(8.dp) + PaddingValues(bottom = islandPad),
             verticalArrangement = Arrangement.spacedBy(CommonMangaItemDefaults.GridVerticalSpacer),
             horizontalArrangement = Arrangement.spacedBy(CommonMangaItemDefaults.GridHorizontalSpacer),
         ) {
