@@ -67,7 +67,7 @@ fun LibraryPager(
             return@HorizontalPager
         }
         // Fenrir: revolving bookcase. Each category is one side of a box that turns as you switch.
-        Box(Modifier.fillMaxSize().fenrirBookcaseTurn(state, page)) {
+        Box(Modifier.fillMaxSize().fenrirBookcaseTurn(state, page).fenrirBookcaseBack()) {
         val category = getCategoryForPage(page)
         val items = getItemsForCategory(category)
 

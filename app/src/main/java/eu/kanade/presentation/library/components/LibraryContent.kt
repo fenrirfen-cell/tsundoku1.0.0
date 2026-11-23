@@ -84,22 +84,6 @@ fun LibraryContent(
             if (allBooks.isNotEmpty()) FenrirAlertsCard()
         }
 
-        if (showPageTabs && categories.isNotEmpty() && (categories.size > 1 || !categories.first().isSystemCategory)) {
-            LaunchedEffect(categories) {
-                if (categories.size <= pagerState.currentPage) {
-                    pagerState.scrollToPage(categories.size - 1)
-                }
-            }
-            // Fenrir: one glass bar (name, new count, dots, arrows); swipe to change category.
-            FenrirCategoryBar(
-                categories = categories,
-                pagerState = pagerState,
-                newCountFor = { category -> getItemsForCategory(category).count { it.unreadCount > 0 } },
-                onGoTo = { scope.launch { pagerState.animateScrollToPage(it) } },
-                countFor = { category -> getItemsForCategory(category).size },
-            )
-        }
-
         // Fenrir: "Continue reading" card for the most recently read book.
         if (searchQuery.isNullOrEmpty() && selection.isEmpty()) {
             val lastRead = run {
@@ -119,6 +103,22 @@ fun LibraryContent(
                     onClickCover = { onClickManga(lastRead.manga.id) },
                 )
             }
+        }
+
+        if (showPageTabs && categories.isNotEmpty() && (categories.size > 1 || !categories.first().isSystemCategory)) {
+            LaunchedEffect(categories) {
+                if (categories.size <= pagerState.currentPage) {
+                    pagerState.scrollToPage(categories.size - 1)
+                }
+            }
+            // Fenrir: one glass bar (name, new count, dots, arrows); swipe to change category.
+            FenrirCategoryBar(
+                categories = categories,
+                pagerState = pagerState,
+                newCountFor = { category -> getItemsForCategory(category).count { it.unreadCount > 0 } },
+                onGoTo = { scope.launch { pagerState.animateScrollToPage(it) } },
+                countFor = { category -> getItemsForCategory(category).size },
+            )
         }
 
         }

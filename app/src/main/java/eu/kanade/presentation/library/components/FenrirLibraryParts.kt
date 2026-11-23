@@ -3,6 +3,8 @@ package eu.kanade.presentation.library.components
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -92,23 +94,24 @@ internal fun FenrirCategoryBar(
     val current = pagerState.currentPage.coerceIn(0, categories.lastIndex)
     val category = categories[current]
     val newCount = newCountFor(category)
+    // Fenrir: the bookcase's carved top rail, with a brass nameplate and brass knobs.
     Row(
         modifier = Modifier
+            .padding(top = 6.dp)
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp)
-            .height(50.dp)
-            .fenrirGlass(RoundedCornerShape(25.dp))
-            .padding(horizontal = 6.dp),
+            .height(78.dp)
+            .fenrirRail()
+            .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ArrowButton(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Previous category", enabled = current > 0) { onGoTo(current - 1) }
+        FenrirBrassKnob(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Previous category", enabled = current > 0) { onGoTo(current - 1) }
         // Hold the bar: "Jump to" (every category with counts); Edit opens the Categories editor.
         val ctx = androidx.compose.ui.platform.LocalContext.current
         var jump by remember { mutableStateOf(false) }
         var manage by remember { mutableStateOf(false) }
         var startNew by remember { mutableStateOf(false) }
         Column(
-            Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).combinedClickable(onClick = { fenrirCategoryHintSeen(ctx); jump = true }, onLongClick = { fenrirCategoryHintSeen(ctx); jump = true }),
+            Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).combinedClickable(onClick = { fenrirCategoryHintSeen(ctx); jump = true }, onLongClick = { fenrirCategoryHintSeen(ctx); jump = true }),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             if (jump) {
@@ -131,25 +134,31 @@ internal fun FenrirCategoryBar(
                 current = current,
                 newCountFor = newCountFor,
             )
-            Spacer(Modifier.height(4.dp))
-            if (categories.size <= 8) {
-                Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                    categories.indices.forEach { i ->
-                        val w by animateDpAsState(if (i == current) 16.dp else 6.dp, label = "dot")
-                        Box(
-                            Modifier
-                                .size(width = w, height = 6.dp)
-                                .clip(CircleShape)
-                                .background(if (i == current) FenrirRed else Color(0xFF44444F))
-                                .clickable { onGoTo(i) },
-                        )
+            Spacer(Modifier.height(5.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (categories.size <= 8) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        categories.indices.forEach { i ->
+                            val w by animateDpAsState(if (i == current) 16.dp else 6.dp, label = "dot")
+                            Box(
+                                Modifier
+                                    .size(width = w, height = 6.dp)
+                                    .clip(CircleShape)
+                                    .background(if (i == current) FenrirBrassLight else Color(0xFF2E1C10))
+                                    .clickable { onGoTo(i) },
+                            )
+                        }
                     }
+                } else {
+                    Text("${current + 1} / ${categories.size}", color = FenrirBrassLight, fontSize = 10.5.sp)
                 }
-            } else {
-                Text("${current + 1} / ${categories.size}", color = FenrirMuted, fontSize = 10.5.sp)
+                if (newCount > 0) {
+                    Spacer(Modifier.width(8.dp))
+                    Text("● $newCount new", color = Color(0xFFFF6B73), fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                }
             }
         }
-        ArrowButton(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Next category", enabled = current < categories.lastIndex) { onGoTo(current + 1) }
+        FenrirBrassKnob(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Next category", enabled = current < categories.lastIndex) { onGoTo(current + 1) }
     }
 }
 
@@ -180,7 +189,7 @@ private fun FenrirCategoryButton(
             .getBoolean(CATEGORY_HINT_KEY, false)
     }
     val showHint = fenrirHintVisible.value == true
-    val pillShape = RoundedCornerShape(14.dp)
+    val pillShape = RoundedCornerShape(7.dp)
     Box(contentAlignment = Alignment.Center) {
         if (showHint) {
             val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "hint")
@@ -227,24 +236,25 @@ private fun FenrirCategoryButton(
                 }
             }
         }
-        Row(
+        Box(
             Modifier
-                .clip(pillShape)
-                .background(FenrirRed.copy(alpha = 0.10f))
-                .border(1.dp, FenrirRed.copy(alpha = 0.45f), pillShape)
-                .padding(start = 9.dp, end = 7.dp, top = 2.dp, bottom = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .widthIn(min = 176.dp, max = 250.dp)
+                .height(32.dp)
+                .fenrirBrass(pillShape)
+                .drawBehind { brassScrews(6.dp) }
+                .padding(horizontal = 14.dp),
+            contentAlignment = Alignment.Center,
         ) {
             Icon(
                 Icons.Outlined.GridView,
                 contentDescription = null,
-                tint = FenrirMuted,
-                modifier = Modifier.size(14.dp),
+                tint = FenrirBrassText.copy(alpha = 0.8f),
+                modifier = Modifier.align(Alignment.CenterStart).size(14.dp),
             )
-            Spacer(Modifier.width(6.dp))
+            // the name, engraved and centred on the plate
             androidx.compose.animation.AnimatedContent(
                 targetState = current,
-                modifier = Modifier.weight(1f, fill = false),
+                modifier = Modifier.padding(horizontal = 22.dp),
                 transitionSpec = {
                     val dir = if (targetState > initialState) 1 else -1
                     androidx.compose.animation.ContentTransform(
@@ -255,32 +265,28 @@ private fun FenrirCategoryButton(
                         sizeTransform = androidx.compose.animation.SizeTransform(clip = true),
                     )
                 },
+                contentAlignment = Alignment.Center,
                 label = "categoryName",
             ) { index ->
                 val c = categories[index.coerceIn(0, categories.lastIndex)]
-                val newCount = newCountFor(c)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        c.visualName,
-                        color = Color.White,
+                Text(
+                    c.visualName,
+                    style = androidx.compose.ui.text.TextStyle(
+                        color = FenrirBrassText,
                         fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
-                    if (newCount > 0) {
-                        Spacer(Modifier.width(6.dp))
-                        Text("● $newCount new", color = FenrirRed, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                    }
-                }
+                        fontWeight = FontWeight.ExtraBold,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        shadow = androidx.compose.ui.graphics.Shadow(Color(0x99FFF0C0), androidx.compose.ui.geometry.Offset(0f, 2f), 0f),
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
-            Spacer(Modifier.width(3.dp))
             Icon(
                 Icons.Filled.KeyboardArrowDown,
                 contentDescription = null,
-                tint = FenrirRed,
-                modifier = Modifier.size(18.dp),
+                tint = Color(0xFFA02424),
+                modifier = Modifier.align(Alignment.CenterEnd).size(18.dp),
             )
         }
     }
@@ -479,18 +485,20 @@ internal fun FenrirLibraryGridItem(
         read <= 0 -> "New"
         else -> "${(progress * 100).toInt().coerceIn(1, 99)}% read"
     }
-    val shape = RoundedCornerShape(14.dp)
+    val shape = RoundedCornerShape(topStart = 2.dp, bottomStart = 2.dp, topEnd = 4.dp, bottomEnd = 4.dp)
     Column(
         Modifier
-            .fenrirShelfLedge(5.dp, MangaCover.Book.ratio)
+            .fenrirPlank(5.dp, MangaCover.Book.ratio, 5.dp)
             .padding(5.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(6.dp))
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     ) {
+        // Fenrir: a standing hardcover; page edges show on the right and along the top.
+        Box(Modifier.fillMaxWidth().aspectRatio(MangaCover.Book.ratio).fenrirPageBlock(5.dp)) {
         Box(
             Modifier
-                .fillMaxWidth()
-                .aspectRatio(MangaCover.Book.ratio)
+                .fillMaxSize()
+                .padding(end = 5.dp, top = 3.dp)
                 .then(
                     if (isSelected) {
                         Modifier.border(3.dp, FenrirRed, shape)
@@ -499,10 +507,12 @@ internal fun FenrirLibraryGridItem(
                     },
                 )
                 .androidxShadow(shape)
-                .clip(shape),
+                .clip(shape)
+                .fenrirHardcover(),
         ) {
             MangaCover.Book(
-                modifier = Modifier.fillMaxWidth().then(if (isSelected) Modifier.alpha(0.76f) else Modifier),
+                modifier = Modifier.fillMaxSize().then(if (isSelected) Modifier.alpha(0.76f) else Modifier),
+                shape = androidx.compose.ui.graphics.RectangleShape,
                 data = tachiyomi.domain.manga.model.MangaCover(
                     mangaId = manga.id,
                     sourceId = manga.source,
@@ -560,6 +570,7 @@ internal fun FenrirLibraryGridItem(
                 }
             }
         }
+        }
         Text(
             manga.title,
             color = Color.White,
@@ -572,7 +583,7 @@ internal fun FenrirLibraryGridItem(
         )
         Text(
             status,
-            color = if (status == "New") FenrirRed else FenrirMuted,
+            color = if (status == "New") Color(0xFFFF6B73) else Color(0xFFC9B49A),
             fontSize = 11.sp,
             maxLines = 1,
             modifier = Modifier.padding(start = 2.dp, top = 1.dp, bottom = 4.dp),
