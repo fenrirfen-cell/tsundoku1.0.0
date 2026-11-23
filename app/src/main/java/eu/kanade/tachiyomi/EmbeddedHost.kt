@@ -67,6 +67,9 @@ object EmbeddedHost {
     @Volatile
     var dismissAppUpdate: (() -> Unit)? = null
 
+    /** The host's app-update notification settings (shown from Read's Settings → App updates). */
+    var updateSettings: (@androidx.compose.runtime.Composable () -> Unit)? = null
+
     /** The host's opening animation (shown once per app start, also when the app opens on Read). */
     var splash: (@androidx.compose.runtime.Composable () -> Unit)? = null
 

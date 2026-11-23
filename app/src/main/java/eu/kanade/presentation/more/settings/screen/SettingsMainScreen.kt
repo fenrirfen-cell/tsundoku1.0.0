@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.outlined.SystemUpdate
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -131,10 +133,33 @@ object SettingsMainScreen : Screen() {
                     null
                 }
 
+                // Fenrir: app update notifications (same settings as on Watch).
+                val fenrirUpdates = eu.kanade.tachiyomi.EmbeddedHost.updateSettings
+                var showFenrirUpdates by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+                if (showFenrirUpdates && fenrirUpdates != null) {
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { showFenrirUpdates = false },
+                        confirmButton = {
+                            androidx.compose.material3.TextButton(onClick = { showFenrirUpdates = false }) { androidx.compose.material3.Text("Done") }
+                        },
+                        title = { androidx.compose.material3.Text("App updates") },
+                        text = { fenrirUpdates() },
+                    )
+                }
                 LazyColumn(
                     state = state,
                     contentPadding = contentPadding,
                 ) {
+                    if (fenrirUpdates != null) {
+                        item(key = "fenrir-updates") {
+                            TextPreferenceWidget(
+                                title = "App updates",
+                                subtitle = "Get a notification when a new Fenrir Vault is out",
+                                icon = androidx.compose.material.icons.Icons.Outlined.SystemUpdate,
+                                onPreferenceClick = { showFenrirUpdates = true },
+                            )
+                        }
+                    }
                     itemsIndexed(
                         items = visibleItems,
                         key = { _, item -> item.hashCode() },
