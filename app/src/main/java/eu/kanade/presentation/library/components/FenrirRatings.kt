@@ -50,6 +50,7 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -60,6 +61,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
+import eu.kanade.tachiyomi.network.await
 import okhttp3.RequestBody.Companion.toRequestBody
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -105,6 +107,22 @@ object FenrirRatings {
 
     fun init() { prefs }
 
+    /** The book's own Webnovel page, when its source is Webnovel (skips searching for it). */
+    private val webnovelHints = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    fun hintWebnovel(title: String, url: String?) {
+        if (url != null && url.contains("webnovel.com") && url.contains("/book/")) webnovelHints[norm(title)] = url.substringBefore('?')
+    }
+
+    /** Webnovel page for a book whose source is Webnovel (any Webnovel extension), else null. */
+    fun webnovelUrlOf(manga: tachiyomi.domain.manga.model.Manga): String? = runCatching {
+        val src = Injekt.get<eu.kanade.tachiyomi.source.SourceManager>().get(manga.source) as? eu.kanade.tachiyomi.source.online.HttpSource
+            ?: return@runCatching null
+        if (!src.name.contains("webnovel", true) && !src.baseUrl.contains("webnovel", true)) return@runCatching null
+        val u = manga.url
+        if (u.startsWith("http")) u else src.baseUrl.trimEnd('/') + "/" + u.trimStart('/')
+    }.getOrNull()
+
     /** Drops the saved answer for a title so the next look-up asks the sites again. */
     fun forget(title: String, novel: Boolean) {
         val k = key(title, novel)
@@ -113,7 +131,7 @@ object FenrirRatings {
         publish(k, null, true)
     }
 
-    private fun key(title: String, novel: Boolean) = (if (novel) "n4:" else "m4:") + norm(title)
+    private fun key(title: String, novel: Boolean) = (if (novel) "n5:" else "m4:") + norm(title)
     fun norm(t: String) = t.lowercase().filter { it.isLetterOrDigit() }
 
     fun matches(query: String, candidates: List<String>): Boolean {
@@ -175,10 +193,18 @@ object FenrirRatings {
     private suspend fun lookUp(k: String, title: String, novel: Boolean): Rating? {
         publish(k, null, true)
         suspend fun <T> site(block: suspend () -> T?): T? = withTimeoutOrNull(9_000) { runCatching { block() }.getOrNull() }
+        var wnFailed = false
         val r = coroutineScope {
             val ani = async { site { aniList(title, novel) } }
             val mal = async { site { jikan(title) } }
-            val wn = async { if (novel) site { webnovel(title) } else null }
+            // Webnovel first for every web novel, whatever source it came from. It needs a search
+            // and a book page, so it gets more time; a failure (not "not found") is retried soon.
+            val wn = async {
+                if (!novel) return@async null
+                runCatching { withTimeout(25_000) { webnovel(title) } }
+                    .onFailure { if (it !is kotlinx.coroutines.CancellationException || it is kotlinx.coroutines.TimeoutCancellationException) wnFailed = true }
+                    .getOrNull()
+            }
             val nu = async { if (novel) site { novelUpdates(title) } else null }
             val rr = async { if (novel) site { royalRoad(title) } else null }
             val rdb = async { if (novel) site { ranobeDb(title) } else null }
@@ -198,7 +224,11 @@ object FenrirRatings {
             main?.copy(also = others)
         }
         memory[k] = r
-        runCatching { prefs.edit().putString(k, "${System.currentTimeMillis()}\u0001${r?.let { encode(it) }.orEmpty()}").apply() }
+        // If Webnovel couldn't be reached, keep this answer only about an hour, then ask again.
+        val keep = if (r != null) 7 * 24 * 3600_000L else 6 * 3600_000L
+        val savedAt = if (novel && wnFailed && r?.site != "Webnovel") System.currentTimeMillis() - keep + 3600_000L else System.currentTimeMillis()
+        if (novel && wnFailed && r?.site != "Webnovel") memory.remove(k)
+        runCatching { prefs.edit().putString(k, "$savedAt\u0001${r?.let { encode(it) }.orEmpty()}").apply() }
         publish(k, r, false)
         return r
     }
@@ -356,12 +386,27 @@ object FenrirRatings {
 
     // ---- Webnovel: score and real reader reviews from the book's page (public HTML) ----
     private suspend fun webnovel(title: String): Rating? {
-        val searchUrl = "https://www.webnovel.com/search?keywords=" + java.net.URLEncoder.encode(title.take(100), "UTF-8").replace("+", "%20")
-        val searchHtml = wnPage(searchUrl) ?: return null
-        val doc = org.jsoup.Jsoup.parse(searchHtml, "https://www.webnovel.com")
-        val hit = doc.select(".j_list_container li .g_thumb, .j_list_container li a[title]")
-            .firstOrNull { a -> matches(title, listOf(a.attr("title"))) && a.attr("href").contains("/book/") } ?: return null
-        val bookUrl = hit.absUrl("href").ifBlank { "https://www.webnovel.com" + hit.attr("href") }.substringBefore('?')
+        val bookUrl = webnovelHints[norm(title)] ?: run {
+            // Try the title as it is, then cleaned-up versions ("(WN)", "[Web Novel]", subtitle…).
+            val variants = listOf(
+                title,
+                title.replace(Regex("""[(\[{].*?[)\]}]"""), " ").replace(Regex("""\s+"""), " ").trim(),
+                title.substringBefore(":").substringBefore(" - ").trim(),
+            ).filter { it.length >= 2 }.distinct()
+            var found: String? = null
+            for (q in variants) {
+                val searchUrl = "https://www.webnovel.com/search?keywords=" + java.net.URLEncoder.encode(q.take(100), "UTF-8").replace("+", "%20")
+                val searchHtml = wnPage(searchUrl) ?: throw java.io.IOException("Webnovel unreachable")
+                val doc = org.jsoup.Jsoup.parse(searchHtml, "https://www.webnovel.com")
+                val hit = doc.select(".j_list_container li .g_thumb, .j_list_container li a[title], a[href*=/book/][title]")
+                    .firstOrNull { a -> a.attr("href").contains("/book/") && (matches(title, listOf(a.attr("title"))) || matches(q, listOf(a.attr("title")))) }
+                if (hit != null) {
+                    found = hit.absUrl("href").ifBlank { "https://www.webnovel.com" + hit.attr("href") }.substringBefore('?')
+                    break
+                }
+            }
+            found
+        } ?: return null
         val html = wnPage(bookUrl) ?: return null
         val book = org.jsoup.Jsoup.parse(html, bookUrl)
         val five = book.selectFirst(".g_star_num small")?.text()?.trim()?.toDoubleOrNull()
@@ -406,13 +451,16 @@ object FenrirRatings {
         )
     }
 
-    private suspend fun wnPage(url: String): String? = withTimeoutOrNull(15_000) {
-        client.newCall(
-            Request.Builder().url(url)
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36")
-                .header("Referer", "https://www.webnovel.com")
-                .build(),
-        ).execute().use { r -> if (r.isSuccessful) r.body?.string() else null }
+    private suspend fun wnPage(url: String): String? = withTimeoutOrNull(12_000) {
+        runCatching {
+            // await() can be stopped by the timeout (execute() would keep waiting)
+            client.newCall(
+                Request.Builder().url(url)
+                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36")
+                    .header("Referer", "https://www.webnovel.com")
+                    .build(),
+            ).await().use { r -> if (r.isSuccessful) r.body?.string() else null }
+        }.getOrNull()
     }
 
     // ---- other sites (public pages; any of these can stop working if a site changes) ----
@@ -420,12 +468,14 @@ object FenrirRatings {
         client.newBuilder().apply { interceptors().removeAll { it.javaClass.simpleName == "CloudflareInterceptor" } }.build()
     }
 
-    private suspend fun page(url: String): String? = withTimeoutOrNull(15_000) {
-        plain.newCall(
-            Request.Builder().url(url)
-                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36")
-                .build(),
-        ).execute().use { if (it.isSuccessful) it.body?.string() else null }
+    private suspend fun page(url: String): String? = withTimeoutOrNull(12_000) {
+        runCatching {
+            plain.newCall(
+                Request.Builder().url(url)
+                    .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36")
+                    .build(),
+            ).await().use { if (it.isSuccessful) it.body?.string() else null }
+        }.getOrNull()
     }
 
     private fun enc(t: String) = java.net.URLEncoder.encode(t.take(100), "UTF-8")

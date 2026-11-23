@@ -63,6 +63,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Request
+import eu.kanade.tachiyomi.network.await
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
@@ -101,8 +102,8 @@ object FenrirWebnovelReviews {
             // Opening the book page once gives us Webnovel's request token (a cookie).
             var token = csrf(bookUrl)
             if (token == null) {
-                withTimeoutOrNull(15_000) {
-                    client.newCall(Request.Builder().url(bookUrl).header("User-Agent", UA).build()).execute().close()
+                withTimeoutOrNull(12_000) {
+                    runCatching { client.newCall(Request.Builder().url(bookUrl).header("User-Agent", UA).build()).await().close() }
                 }
                 token = csrf(bookUrl) ?: java.util.UUID.randomUUID().toString()
             }
@@ -117,7 +118,7 @@ object FenrirWebnovelReviews {
                         .header("X-Requested-With", "XMLHttpRequest")
                         .header("Cookie", "_csrfToken=$token")
                         .build(),
-                ).execute().use { if (it.isSuccessful) it.body?.string() else null }
+                ).await().use { if (it.isSuccessful) it.body?.string() else null }
             } ?: return@runCatching null
             val data = (json.parseToJsonElement(text) as? JsonObject)?.get("data") as? JsonObject ?: return@runCatching null
             val list = (data["bookReviewInfos"] as? JsonArray).orEmpty().mapNotNull { e ->

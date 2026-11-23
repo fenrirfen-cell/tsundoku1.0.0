@@ -589,7 +589,15 @@ private fun MangaScreenSmallImpl(
                     }
 
                     item(key = "fenrir-reviews-card", contentType = "fenrir-reviews-card") {
-                        eu.kanade.presentation.library.components.FenrirReviewsCard(state.manga.title, state.isNovel) { fenrirTab = FenrirBookTab.Reviews }
+                        run {
+                            androidx.compose.runtime.remember(state.manga.id) {
+                                eu.kanade.presentation.library.components.FenrirRatings.hintWebnovel(
+                                    state.manga.title,
+                                    eu.kanade.presentation.library.components.FenrirRatings.webnovelUrlOf(state.manga),
+                                )
+                            }
+                            eu.kanade.presentation.library.components.FenrirReviewsCard(state.manga.title, state.isNovel) { fenrirTab = FenrirBookTab.Reviews }
+                        }
                     }
                     item(key = "fenrir-tabs", contentType = "fenrir-tabs") {
                         FenrirBookTabs(fenrirTab, { fenrirTab = it })
@@ -1009,7 +1017,15 @@ fun MangaScreenLargeImpl(
                             ),
                         ) {
                             item(key = "fenrir-reviews-card", contentType = "fenrir-reviews-card") {
-                        eu.kanade.presentation.library.components.FenrirReviewsCard(state.manga.title, state.isNovel) { fenrirTab = FenrirBookTab.Reviews }
+                        run {
+                            androidx.compose.runtime.remember(state.manga.id) {
+                                eu.kanade.presentation.library.components.FenrirRatings.hintWebnovel(
+                                    state.manga.title,
+                                    eu.kanade.presentation.library.components.FenrirRatings.webnovelUrlOf(state.manga),
+                                )
+                            }
+                            eu.kanade.presentation.library.components.FenrirReviewsCard(state.manga.title, state.isNovel) { fenrirTab = FenrirBookTab.Reviews }
+                        }
                     }
                     item(key = "fenrir-tabs", contentType = "fenrir-tabs") {
                         FenrirBookTabs(fenrirTab, { fenrirTab = it })

@@ -85,14 +85,14 @@ object FenrirRecs {
     suspend fun search(sourceId: Long, query: String): List<SManga> {
         val source = sources.get(sourceId) as? CatalogueSource ?: return emptyList()
         if (query.isBlank()) return emptyList()
-        return withTimeoutOrNull(20_000) {
+        return withTimeoutOrNull(10_000) {
             runCatching { source.getSearchManga(1, query, FilterList()).mangas }.getOrDefault(emptyList())
         }.orEmpty()
     }
 
     suspend fun popular(sourceId: Long): List<SManga> {
         val source = sources.get(sourceId) as? CatalogueSource ?: return emptyList()
-        return withTimeoutOrNull(20_000) {
+        return withTimeoutOrNull(10_000) {
             runCatching { source.getPopularManga(1).mangas }.getOrDefault(emptyList())
         }.orEmpty()
     }
@@ -198,6 +198,93 @@ object FenrirRecs {
             FenrirRecRow("More from ", author, byAuthor.await().filter { it.manga.url !in relUrls }.take(15)).takeIf { it.items.isNotEmpty() },
             FenrirRecRow("Popular on ", sourceName(manga.source), popular.await().take(15)).takeIf { it.items.isNotEmpty() },
         )
+    }
+
+    /**
+     * Same rows as [forBook], but each row shows as soon as it's ready (instead of waiting for the
+     * slowest). "Readers also liked" shows right away from AniList, then fills in which ones your
+     * source has. Results are kept for the session, and loading starts when the book page opens.
+     */
+    private val cache = java.util.concurrent.ConcurrentHashMap<Long, kotlinx.coroutines.flow.MutableStateFlow<RecState>>()
+    private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
+
+    data class RecState(val rows: List<FenrirRecRow>, val loading: Boolean)
+
+    fun rowsFor(manga: Manga): kotlinx.coroutines.flow.StateFlow<RecState> {
+        cache[manga.id]?.let { return it }
+        val flow = kotlinx.coroutines.flow.MutableStateFlow(RecState(emptyList(), true))
+        cache.putIfAbsent(manga.id, flow)?.let { return it }
+        scope.launch { runCatching { load(manga, flow) }; flow.value = flow.value.copy(loading = false) }
+        return flow
+    }
+
+    private suspend fun load(manga: Manga, out: kotlinx.coroutines.flow.MutableStateFlow<RecState>) = kotlinx.coroutines.coroutineScope {
+        val stem = titleStem(manga.title)
+        val author = manga.author?.split(",", "/", "&")?.firstOrNull()?.trim().orEmpty()
+        val slots = arrayOfNulls<FenrirRecRow>(4)
+        val lock = Any()
+        fun put(i: Int, row: FenrirRecRow?) {
+            synchronized(lock) {
+                slots[i] = row?.takeIf { it.items.isNotEmpty() }
+                out.value = out.value.copy(rows = slots.filterNotNull())
+            }
+        }
+        val related = async {
+            val list = if (stem.length < 3) emptyList() else search(manga.source, stem)
+                .filter { !sameTitle(it.title, manga.title) && it.url != manga.url && titleStem(it.title).contains(stem) }
+                .map { FenrirRec(manga.source, it, tagFor(it.title)) }
+            put(1, FenrirRecRow("Sequels, side stories & more", "", list.take(15)))
+            list
+        }
+        launch {
+            val similar = runCatching {
+                withTimeoutOrNull(15_000) { FenrirRatings.similar(manga.title, manga.isNovel) }.orEmpty()
+            }.getOrDefault(emptyList())
+                .filterNot { s -> s.names.any { sameTitle(it, manga.title) } }
+                .take(10)
+            if (similar.isEmpty()) return@launch
+            // Show them straight away (tap = find it in your sources) …
+            val items = similar.map { s ->
+                FenrirRec(
+                    SEARCH_EVERYWHERE,
+                    SManga.create().apply {
+                        this.title = s.names.first()
+                        url = "fenrir-search:" + s.names.first()
+                        thumbnail_url = s.cover
+                    },
+                    "FIND IT",
+                )
+            }.toMutableList()
+            put(0, FenrirRecRow("Readers also liked", "", items.toList()))
+            // … then swap in the ones this source has, a few at a time.
+            val gate = kotlinx.coroutines.sync.Semaphore(4)
+            similar.mapIndexed { i, s ->
+                launch {
+                    val hit = gate.withPermitCompat {
+                        withTimeoutOrNull(12_000) {
+                            s.names.take(2).firstNotNullOfOrNull { name ->
+                                search(manga.source, name).firstOrNull { FenrirRatings.matches(it.title, s.names) }
+                            }
+                        }
+                    }
+                    if (hit != null) {
+                        synchronized(items) { items[i] = FenrirRec(manga.source, hit, null) }
+                        put(0, FenrirRecRow("Readers also liked", "", synchronized(items) { items.sortedBy { if (it.sourceId == SEARCH_EVERYWHERE) 1 else 0 } }))
+                    }
+                }
+            }
+        }
+        launch {
+            val list = if (author.length < 3) emptyList() else search(manga.source, author)
+                .filter { !sameTitle(it.title, manga.title) && it.url != manga.url }
+                .map { FenrirRec(manga.source, it) }
+            val relUrls = runCatching { related.await().map { it.manga.url }.toSet() }.getOrDefault(emptySet())
+            put(2, FenrirRecRow("More from ", author, list.filter { it.manga.url !in relUrls }.take(15)))
+        }
+        launch {
+            val list = popular(manga.source).filter { !sameTitle(it.title, manga.title) && it.url != manga.url }.map { FenrirRec(manga.source, it) }
+            put(3, FenrirRecRow("Popular on ", sourceName(manga.source), list.take(15)))
+        }
     }
 
     private fun tagFor(title: String): String? {
@@ -417,7 +504,8 @@ fun FenrirReadForYouHost(onOpenManga: (Long) -> Unit) {
 @Composable
 fun FenrirYouMayLike(manga: Manga, onOpenManga: (Long) -> Unit) {
     var expanded by remember(manga.id) { mutableStateOf(false) }
-    var rows by remember(manga.id) { mutableStateOf<List<FenrirRecRow>?>(null) }
+    // starts looking as soon as the book page opens, so it's ready when you unfold it
+    val state by remember(manga.id) { FenrirRecs.rowsFor(manga) }.collectAsState()
     val scope = rememberCoroutineScope()
     val navigator = cafe.adriel.voyager.navigator.LocalNavigator.current
     Column(
@@ -431,12 +519,7 @@ fun FenrirYouMayLike(manga: Manga, onOpenManga: (Long) -> Unit) {
         Row(
             Modifier
                 .fillMaxWidth()
-                .clickable {
-                    expanded = !expanded
-                    if (expanded && rows == null) {
-                        scope.launch { rows = runCatching { FenrirRecs.forBook(manga) }.getOrDefault(emptyList()) }
-                    }
-                }
+                .clickable { expanded = !expanded }
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -453,30 +536,29 @@ fun FenrirYouMayLike(manga: Manga, onOpenManga: (Long) -> Unit) {
             )
         }
         if (expanded) {
-            val list = rows
-            when {
-                list == null -> Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = RecRed)
-                }
-                list.isEmpty() -> Text(
-                    "Couldn't find similar books for this one.",
-                    color = Color(0xFFB8B8C2),
-                    fontSize = 13.sp,
-                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 14.dp),
-                )
-                else -> Column(Modifier.padding(bottom = 8.dp)) {
-                    list.forEach { row ->
-                        FenrirRecRowView(row) { rec ->
-                            if (rec.sourceId == FenrirRecs.SEARCH_EVERYWHERE) {
-                                navigator?.push(fenrirFindEverywhere(rec, manga.isNovel))
-                                return@FenrirRecRowView
-                            }
-                            scope.launch {
-                                val id = runCatching { FenrirRecs.open(rec) }.getOrNull() ?: return@launch
-                                onOpenManga(id)
-                            }
+            Column(Modifier.padding(bottom = 8.dp)) {
+                state.rows.forEach { row ->
+                    FenrirRecRowView(row) { rec ->
+                        if (rec.sourceId == FenrirRecs.SEARCH_EVERYWHERE) {
+                            navigator?.push(fenrirFindEverywhere(rec, manga.isNovel))
+                            return@FenrirRecRowView
+                        }
+                        scope.launch {
+                            val id = runCatching { FenrirRecs.open(rec) }.getOrNull() ?: return@launch
+                            onOpenManga(id)
                         }
                     }
+                }
+                when {
+                    state.loading -> Box(Modifier.fillMaxWidth().padding(14.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = RecRed)
+                    }
+                    state.rows.isEmpty() -> Text(
+                        "Couldn't find similar books for this one.",
+                        color = Color(0xFFB8B8C2),
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 6.dp),
+                    )
                 }
             }
         }
