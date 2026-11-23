@@ -35,6 +35,7 @@ import eu.kanade.tachiyomi.ui.browse.source.globalsearch.SourceFilter
 import eu.kanade.tachiyomi.util.system.LocaleHelper
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.presentation.core.components.material.Scaffold
+import uy.kohesive.injekt.api.get
 
 @Composable
 fun GlobalSearchScreen(
