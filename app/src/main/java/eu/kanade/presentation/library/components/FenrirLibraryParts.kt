@@ -14,8 +14,8 @@ import uy.kohesive.injekt.api.get
 import kotlinx.coroutines.launch
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.togetherWith
-import androidx.compose.animation.using
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -236,7 +236,7 @@ private fun FenrirCategoryButton(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                androidx.compose.material.icons.Icons.Outlined.GridView,
+                Icons.Outlined.GridView,
                 contentDescription = null,
                 tint = FenrirMuted,
                 modifier = Modifier.size(14.dp),
@@ -247,13 +247,13 @@ private fun FenrirCategoryButton(
                 modifier = Modifier.weight(1f, fill = false),
                 transitionSpec = {
                     val dir = if (targetState > initialState) 1 else -1
-                    (
-                        androidx.compose.animation.slideInHorizontally(androidx.compose.animation.core.tween(260)) { it * dir / 2 } +
-                            androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(260))
-                        ).togetherWith(
-                        androidx.compose.animation.slideOutHorizontally(androidx.compose.animation.core.tween(180)) { -it * dir / 2 } +
+                    androidx.compose.animation.ContentTransform(
+                        targetContentEnter = androidx.compose.animation.slideInHorizontally(androidx.compose.animation.core.tween(260)) { it * dir / 2 } +
+                            androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(260)),
+                        initialContentExit = androidx.compose.animation.slideOutHorizontally(androidx.compose.animation.core.tween(180)) { -it * dir / 2 } +
                             androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(160)),
-                    ).using(androidx.compose.animation.SizeTransform(clip = true))
+                        sizeTransform = androidx.compose.animation.SizeTransform(clip = true),
+                    )
                 },
                 label = "categoryName",
             ) { index ->
@@ -277,7 +277,7 @@ private fun FenrirCategoryButton(
             }
             Spacer(Modifier.width(3.dp))
             Icon(
-                androidx.compose.material.icons.Icons.Filled.KeyboardArrowDown,
+                Icons.Filled.KeyboardArrowDown,
                 contentDescription = null,
                 tint = FenrirRed,
                 modifier = Modifier.size(18.dp),
