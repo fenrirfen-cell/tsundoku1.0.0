@@ -81,6 +81,7 @@ fun LibraryContent(
         if (searchQuery.isNullOrEmpty() && selection.isEmpty()) {
             val allBooks = categories.flatMap { getItemsForCategory(it) }.map { it.libraryManga }
             FenrirSourceDownChip(books = allBooks, onOpenBook = onClickManga)
+            if (allBooks.isNotEmpty()) FenrirAlertsCard()
         }
 
         if (showPageTabs && categories.isNotEmpty() && (categories.size > 1 || !categories.first().isSystemCategory)) {

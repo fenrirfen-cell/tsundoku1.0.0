@@ -773,3 +773,98 @@ private fun FenrirCategoryMenu(
         )
     }
 }
+
+/**
+ * New-chapter alerts: automatic checks start off (and the Read side never asked for notification
+ * permission), so nothing ever notified. This card turns both on in one tap; shows until set up
+ * or dismissed.
+ */
+@Composable
+internal fun FenrirAlertsCard() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val libPrefs = remember { uy.kohesive.injekt.Injekt.get<tachiyomi.domain.library.service.LibraryPreferences>() }
+    val prefs = remember { context.getSharedPreferences("fenrir_vault", android.content.Context.MODE_PRIVATE) }
+    var dismissed by remember { mutableStateOf(prefs.getBoolean("alerts_card_dismissed", false)) }
+    fun allowed() = android.os.Build.VERSION.SDK_INT < 33 ||
+        context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+    var interval by remember { mutableStateOf(libPrefs.autoUpdateInterval.get()) }
+    var granted by remember { mutableStateOf(allowed()) }
+    val ask = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+    ) { granted = it || allowed() }
+    if (dismissed || (interval > 0 && granted)) return
+    var pick by remember { mutableStateOf(12) }
+    Column(
+        Modifier
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .fillMaxWidth()
+            .fenrirGlass(RoundedCornerShape(20.dp))
+            .padding(14.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("🔔", fontSize = 20.sp)
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Get told about new chapters", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    if (interval > 0) "Checks are on, but notifications aren't allowed yet" else "Fenrir Vault isn't checking your library for new chapters yet",
+                    color = FenrirMuted,
+                    fontSize = 12.sp,
+                )
+            }
+        }
+        if (interval <= 0) {
+            Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(6 to "Every 6 h", 12 to "Every 12 h", 24 to "Daily").forEach { (h, label) ->
+                    val on = pick == h
+                    Text(
+                        label,
+                        color = if (on) Color.White else Color(0xFFC9C9D2),
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clip(CircleShape).background(if (on) FenrirRed else Color(0xFF26262E)).clickable { pick = h }
+                            .padding(horizontal = 12.dp, vertical = 7.dp),
+                    )
+                }
+            }
+        }
+        Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "Not now",
+                color = FenrirMuted,
+                fontSize = 13.sp,
+                modifier = Modifier.clickable {
+                    prefs.edit().putBoolean("alerts_card_dismissed", true).apply()
+                    dismissed = true
+                }.padding(8.dp),
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                "Turn on",
+                color = Color.White,
+                fontSize = 13.5.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.clip(CircleShape).background(FenrirRed).clickable {
+                    if (interval <= 0) {
+                        runCatching {
+                            libPrefs.autoUpdateInterval.set(pick)
+                            eu.kanade.tachiyomi.data.library.LibraryUpdateJob.setupTask(context, pick)
+                        }
+                        interval = pick
+                    }
+                    if (!allowed() && android.os.Build.VERSION.SDK_INT >= 33) {
+                        ask.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                        granted = true
+                    }
+                }.padding(horizontal = 18.dp, vertical = 9.dp),
+            )
+        }
+        Text(
+            "Change it any time in Settings → Library → Automatic updates.",
+            color = Color(0xFF6E6E78),
+            fontSize = 11.sp,
+            modifier = Modifier.padding(top = 6.dp),
+        )
+    }
+}
