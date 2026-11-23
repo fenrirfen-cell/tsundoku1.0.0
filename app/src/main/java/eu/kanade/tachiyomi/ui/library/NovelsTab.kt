@@ -289,7 +289,7 @@ data object NovelsTab : Tab {
                         },
                         onRefresh = { onGlobalUpdate(state.activeCategory) },
                         onGlobalSearchClicked = {
-                            navigator.push(NovelGlobalSearchScreen(viewModel.state.value.searchQuery ?: ""))
+                            navigator.push(eu.kanade.presentation.browse.FenrirSearchKind.let { it.screen(viewModel.state.value.searchQuery ?: "", it.last(eu.kanade.presentation.browse.FenrirSearchKind.Novels)) })
                         },
                         getItemCountForCategory = { state.getItemCountForCategory(it) },
                         getDisplayMode = { viewModel.getDisplayMode() },

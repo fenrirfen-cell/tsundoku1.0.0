@@ -58,11 +58,22 @@ abstract class SearchViewModel(
 
     protected var extensionFilter: String? = null
 
+    // Fenrir: your pin order first, then the sources you open most, then A→Z. The order stays put
+    // while results arrive (moving rows around mid-load made them pile on top of each other);
+    // sources with nothing found drop to the bottom only once every source has answered.
+    private val fenrirPinOrder by lazy {
+        eu.kanade.presentation.browse.FenrirPinPrefs.orderFlow().value.withIndex().associate { it.value to it.index }
+    }
+    protected fun fenrirRank(it: Source): Int = fenrirPinOrder[it.id]
+        ?: if ("${it.id}" in pinnedSources) 50_000 else 100_000 - eu.kanade.presentation.browse.FenrirPinPrefs.usesOf(it.id).coerceAtMost(49_999)
+
     open val sortComparator = { map: Map<Source, SearchItemResult> ->
+        val done = map.values.none { it is SearchItemResult.Loading }
         compareBy<Source>(
-            { (map[it] as? SearchItemResult.Success)?.isEmpty ?: true },
-            { "${it.id}" !in pinnedSources },
+            { done && ((map[it] as? SearchItemResult.Success)?.isEmpty ?: true) },
+            { fenrirRank(it) },
             { "${it.name.lowercase()} (${it.lang})" },
+            { it.id },
         )
     }
 
@@ -91,7 +102,7 @@ abstract class SearchViewModel(
             .filter { it.lang in enabledLanguages && "${it.id}" !in disabledSources }
             .sortedWith(
                 compareBy(
-                    { "${it.id}" !in pinnedSources },
+                    { fenrirRank(it) },
                     { "${it.name.lowercase()} (${it.lang})" },
                 ),
             )

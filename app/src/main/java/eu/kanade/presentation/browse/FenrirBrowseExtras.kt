@@ -1,5 +1,10 @@
 package eu.kanade.presentation.browse
 
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.zIndex
 import android.app.Application
 import android.content.Context
 import androidx.compose.foundation.background
@@ -264,13 +269,44 @@ fun FenrirPinOrderDialog(pinned: List<Source>, onDismiss: () -> Unit) {
                         list.clear(); list.addAll(sorted)
                     }
                 }
-                LazyColumn(Modifier.heightIn(max = 420.dp)) {
+                // Hold and drag the ≡ handle to move a source; the arrows still work too.
+                var dragId by remember { mutableStateOf<Long?>(null) }
+                var dragY by remember { mutableStateOf(0f) }
+                var rowPx by remember { mutableStateOf(1f) }
+                LazyColumn(Modifier.heightIn(max = 420.dp), userScrollEnabled = dragId == null) {
                     itemsIndexed(list, key = { _, s -> s.id }) { index, source ->
+                        val dragging = dragId == source.id
                         Row(
-                            Modifier.fillMaxWidth().padding(vertical = 3.dp).clip(RoundedCornerShape(12.dp)).background(CardBg).padding(horizontal = 8.dp, vertical = 6.dp),
+                            Modifier
+                                .fillMaxWidth()
+                                .zIndex(if (dragging) 1f else 0f)
+                                .graphicsLayer { translationY = if (dragging) dragY else 0f; scaleX = if (dragging) 1.03f else 1f; scaleY = scaleX }
+                                .onSizeChanged { rowPx = it.height.toFloat().coerceAtLeast(1f) }
+                                .padding(vertical = 3.dp).clip(RoundedCornerShape(12.dp))
+                                .background(if (dragging) Color(0xFF2A2A34) else CardBg).padding(horizontal = 8.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Icon(Icons.Filled.DragHandle, contentDescription = null, tint = MutedText, modifier = Modifier.size(20.dp))
+                            Icon(
+                                Icons.Filled.DragHandle,
+                                contentDescription = "Drag to move",
+                                tint = if (dragging) Color.White else MutedText,
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .pointerInput(source.id) {
+                                        detectDragGestures(
+                                            onDragStart = { dragId = source.id; dragY = 0f },
+                                            onDragEnd = { dragId = null; dragY = 0f },
+                                            onDragCancel = { dragId = null; dragY = 0f },
+                                        ) { change, amount ->
+                                            change.consume()
+                                            dragY += amount.y
+                                            val at = list.indexOfFirst { it.id == source.id }
+                                            if (dragY > rowPx / 2 && at < list.lastIndex) { move(at, at + 1); dragY -= rowPx }
+                                            else if (dragY < -rowPx / 2 && at > 0) { move(at, at - 1); dragY += rowPx }
+                                        }
+                                    }
+                                    .padding(4.dp),
+                            )
                             Spacer(Modifier.width(8.dp))
                             Box(Modifier.size(30.dp).clip(RoundedCornerShape(8.dp))) { SourceIcon(source = source) }
                             Spacer(Modifier.width(8.dp))

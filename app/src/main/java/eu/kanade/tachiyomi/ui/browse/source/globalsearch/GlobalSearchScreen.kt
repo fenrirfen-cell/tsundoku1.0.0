@@ -76,6 +76,11 @@ class GlobalSearchScreen(
                 },
                 onClickItem = { navigator.push(MangaScreen(it.id, true)) },
                 onLongClickItem = { navigator.push(MangaScreen(it.id, true)) },
+                searchKind = if (extensionFilter == null) eu.kanade.presentation.browse.FenrirSearchKind.Manga else null,
+                onSearchKind = { k ->
+                    eu.kanade.presentation.browse.FenrirSearchKind.remember(k)
+                    navigator.replace(eu.kanade.presentation.browse.FenrirSearchKind.screen(state.searchQuery.orEmpty(), k))
+                },
             )
         }
     }

@@ -1,6 +1,8 @@
 package eu.kanade.presentation.library.components
 
 import android.content.Context
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.async
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -79,7 +81,11 @@ object FenrirRatings {
         val top: Review?,
         val low: Review?,
         val reviewCount: Int?,
+        val also: List<Other> = emptyList(),
     )
+
+    /** The same book on another site. [score] is out of 10 (null when the site only gives a link). */
+    data class Other(val site: String, val score: Double?, val label: String, val votes: Int?, val url: String?)
 
     val showBadges = MutableStateFlow(true)
     private val prefs by lazy {
@@ -99,7 +105,7 @@ object FenrirRatings {
 
     fun init() { prefs }
 
-    private fun key(title: String, novel: Boolean) = (if (novel) "n:" else "m:") + norm(title)
+    private fun key(title: String, novel: Boolean) = (if (novel) "n3:" else "m3:") + norm(title)
     fun norm(t: String) = t.lowercase().filter { it.isLetterOrDigit() }
 
     private fun matches(query: String, candidates: List<String>): Boolean {
@@ -124,9 +130,20 @@ object FenrirRatings {
         }
         val r = permits.withPermit {
             withContext(Dispatchers.IO) {
-                runCatching { aniList(title, novel) }.getOrNull()
-                    ?: runCatching { jikan(title) }.getOrNull()
-                    ?: if (novel) runCatching { webnovel(title) }.getOrNull() else null
+                coroutineScope {
+                    val ani = async { runCatching { aniList(title, novel) }.getOrNull() }
+                    val mal = async { runCatching { jikan(title) }.getOrNull() }
+                    val wn = async { if (novel) runCatching { webnovel(title) }.getOrNull() else null }
+                    val nu = async { if (novel) runCatching { novelUpdates(title) }.getOrNull() else null }
+                    val rr = async { if (novel) runCatching { royalRoad(title) }.getOrNull() else null }
+                    val rdb = async { if (novel) runCatching { ranobeDb(title) }.getOrNull() else null }
+                    val ap = async { if (!novel) runCatching { animePlanet(title) }.getOrNull() else null }
+                    val all = listOfNotNull(ani.await(), mal.await(), wn.await(), nu.await(), rr.await(), ap.await())
+                    val main = all.firstOrNull()
+                    val others = (all.drop(1).map { o -> Other(o.site, o.score, o.rank ?: one(o.score), o.votes, o.url) } + listOfNotNull(rdb.await()))
+                        .distinctBy { it.site }
+                    main?.copy(also = others)
+                }
             }
         }
         memory[k] = r
@@ -243,7 +260,69 @@ object FenrirRatings {
         val re = Regex("""(?s)"bookName"\s*:\s*"([^"]{1,200})".{0,1500}?"(?:totalScore|score)"\s*:\s*"?([0-9]+(?:\.[0-9]+)?)""")
         val hit = re.findAll(html).firstOrNull { matches(title, listOf(it.groupValues[1])) } ?: return null
         val five = hit.groupValues[2].toDoubleOrNull()?.takeIf { it in 0.1..5.0 } ?: return null
-        return Rating(five * 2, "Webnovel", null, null, url, emptyList(), emptyList(), null, null, null)
+        return Rating(five * 2, "Webnovel", null, "${one(five)} / 5", url, emptyList(), emptyList(), null, null, null)
+    }
+
+    // ---- other sites (public pages; any of these can stop working if a site changes) ----
+    private val plain by lazy {
+        client.newBuilder().apply { interceptors().removeAll { it.javaClass.simpleName == "CloudflareInterceptor" } }.build()
+    }
+
+    private suspend fun page(url: String): String? = withTimeoutOrNull(15_000) {
+        plain.newCall(
+            Request.Builder().url(url)
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36")
+                .build(),
+        ).execute().use { if (it.isSuccessful) it.body?.string() else null }
+    }
+
+    private fun enc(t: String) = java.net.URLEncoder.encode(t.take(100), "UTF-8")
+    private fun unHtml(s: String) = s.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+        .replace("&quot;", "\"").replace("&#039;", "'").replace("&#39;", "'").replace("&#x27;", "'")
+
+    private suspend fun novelUpdates(title: String): Rating? {
+        val search = page("https://www.novelupdates.com/series-finder/?sf=1&sh=${enc(title)}&sort=sdate&order=desc") ?: return null
+        val hit = Regex("""href="(https://www\.novelupdates\.com/series/[^"/]+/?)"[^>]*>([^<]{1,200})</a>""").findAll(search)
+            .firstOrNull { matches(title, listOf(unHtml(it.groupValues[2]))) } ?: return null
+        val url = hit.groupValues[1]
+        val html = page(url) ?: return null
+        val m = Regex("""\(\s*([0-5](?:\.\d+)?)\s*/\s*5(?:\.0)?\s*,\s*([\d,]+)\s*votes""").find(html) ?: return null
+        val five = m.groupValues[1].toDoubleOrNull() ?: return null
+        val votes = m.groupValues[2].replace(",", "").toIntOrNull()
+        val rank = Regex("""Rank\s*#\s*([\d,]+)""").find(html)?.groupValues?.get(1)?.let { "#$it on Novel Updates" }
+        return Rating(five * 2, "Novel Updates", votes, rank ?: "${one(five)} / 5", url, emptyList(), emptyList(), null, null, null)
+    }
+
+    private suspend fun royalRoad(title: String): Rating? {
+        val html = page("https://www.royalroad.com/fictions/search?title=${enc(title)}") ?: return null
+        val links = Regex("""<a href="(/fiction/\d+/[^"]+)"[^>]*>([^<]{1,200})</a>""").findAll(html).toList()
+        links.forEachIndexed { i, l ->
+            if (!matches(title, listOf(unHtml(l.groupValues[2])))) return@forEachIndexed
+            val end = links.getOrNull(i + 1)?.range?.first ?: minOf(html.length, l.range.last + 4000)
+            val chunk = html.substring(l.range.last, maxOf(l.range.last, end))
+            val five = Regex("""(?:title|aria-label)="(?:Rating:\s*)?([0-5]\.\d{1,2})""").find(chunk)?.groupValues?.get(1)?.toDoubleOrNull() ?: return null
+            return Rating(five * 2, "Royal Road", null, "${one(five)} / 5", "https://www.royalroad.com" + l.groupValues[1], emptyList(), emptyList(), null, null, null)
+        }
+        return null
+    }
+
+    private suspend fun animePlanet(title: String): Rating? {
+        val html = unHtml(page("https://www.anime-planet.com/manga/all?name=${enc(title)}") ?: return null)
+        val hits = Regex("""(?s)href="(/manga/[^"?#]+)".{0,800}?<h5[^>]*>(.*?)</h5>.{0,1500}?ttRating['"]?>\s*([0-5](?:\.\d+)?)""").findAll(html)
+        val hit = hits.firstOrNull { matches(title, listOf(it.groupValues[2].replace(Regex("<[^>]+>"), ""))) } ?: return null
+        val five = hit.groupValues[3].toDoubleOrNull() ?: return null
+        return Rating(five * 2, "Anime-Planet", null, "${one(five)} / 5", "https://www.anime-planet.com" + hit.groupValues[1], emptyList(), emptyList(), null, null, null)
+    }
+
+    /** RanobeDB has no public score, so this is a link to its page (release dates, reviews). */
+    private suspend fun ranobeDb(title: String): Other? {
+        val text = page("https://ranobedb.org/api/v0/series?limit=5&q=${enc(title)}") ?: return null
+        val list = (json.parseToJsonElement(text) as? JsonObject)?.get("series") as? JsonArray ?: return null
+        val s = list.mapNotNull { it as? JsonObject }.firstOrNull { o ->
+            matches(title, listOfNotNull(o.str("title"), o.str("romaji"), o.str("title_orig"), o.str("romaji_orig")))
+        } ?: return null
+        val id = s.int("id") ?: return null
+        return Other("RanobeDB", null, "Release dates and reviews", null, "https://ranobedb.org/series/$id")
     }
 
     // ---- tiny JSON helpers ----
@@ -254,7 +333,7 @@ object FenrirRatings {
     private fun JsonObject.bool(k: String): Boolean? = (this[k] as? JsonPrimitive)?.content?.toBooleanStrictOrNull()
 
     // ---- cache encoding (one line per rating) ----
-    private fun esc(s: String?) = (s ?: "").replace('\u0002', ' ').replace('\u0003', ' ')
+    private fun esc(s: String?) = (s ?: "").replace('\u0002', ' ').replace('\u0003', ' ').replace('\u0004', ' ')
     private fun encode(r: Rating): String = listOf(
         r.score.toString(), r.site, r.votes?.toString().orEmpty(), esc(r.rank), esc(r.url),
         r.tags.joinToString("\u0003") { esc(it) },
@@ -262,6 +341,7 @@ object FenrirRatings {
         r.top?.let { "${esc(it.summary)}\u0003${it.score}\u0003${esc(it.user)}\u0003${esc(it.url)}\u0003${it.spoiler}" }.orEmpty(),
         r.low?.let { "${esc(it.summary)}\u0003${it.score}\u0003${esc(it.user)}\u0003${esc(it.url)}\u0003${it.spoiler}" }.orEmpty(),
         r.reviewCount?.toString().orEmpty(),
+        r.also.joinToString("\u0003") { o -> listOf(esc(o.site), o.score?.toString().orEmpty(), esc(o.label), o.votes?.toString().orEmpty(), esc(o.url)).joinToString("\u0004") },
     ).joinToString("\u0002")
 
     private fun decode(s: String): Rating? {
@@ -282,6 +362,10 @@ object FenrirRatings {
             top = rev(p.getOrNull(7)),
             low = rev(p.getOrNull(8)),
             reviewCount = p.getOrNull(9)?.toIntOrNull(),
+            also = p.getOrNull(10)?.split('\u0003')?.mapNotNull { x ->
+                val q = x.split('\u0004').takeIf { it.size >= 5 } ?: return@mapNotNull null
+                Other(q[0], q[1].toDoubleOrNull(), q[2], q[3].toIntOrNull(), q[4].ifBlank { null })
+            }.orEmpty(),
         )
     }
 }
@@ -411,6 +495,36 @@ fun FenrirRatingSheet(title: String, r: FenrirRatings.Rating, onClose: () -> Uni
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(top = 16.dp).clickable { uri.openUri(r.url) },
                 )
+            }
+            if (r.also.isNotEmpty()) {
+                Text("ON OTHER SITES", color = Color(0xFF8E8E99), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, modifier = Modifier.padding(top = 18.dp))
+                Column(
+                    Modifier.padding(top = 8.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFF1B1B22))
+                        .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(16.dp)),
+                ) {
+                    r.also.forEach { o ->
+                        Row(
+                            Modifier.fillMaxWidth().clickable(enabled = o.url != null) { o.url?.let { uri.openUri(it) } }.padding(horizontal = 14.dp, vertical = 11.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(o.site, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    o.label + (o.votes?.let { " · ${"%,d".format(it)} ratings" } ?: ""),
+                                    color = Color(0xFF9A9AA6),
+                                    fontSize = 11.5.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            if (o.score != null) {
+                                Text("★ ${one(o.score)}", color = fenrirRatingColor(o.score), fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
+                            }
+                            Text(" ›", color = Color(0xFF9A9AA6), fontSize = 16.sp)
+                        }
+                    }
+                }
+                Text("Scores out of 10 (sites that rate out of 5 are doubled).", color = Color(0xFF6E6E78), fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
             }
             Row(Modifier.padding(top = 18.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Show rating badges on covers", color = Color(0xFF9A9AA6), fontSize = 12.5.sp, modifier = Modifier.weight(1f))

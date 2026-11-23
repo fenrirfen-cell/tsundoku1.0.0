@@ -1,6 +1,23 @@
 package eu.kanade.presentation.browse
 
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
@@ -31,6 +48,8 @@ fun GlobalSearchScreen(
     onClickSource: (Source) -> Unit,
     onClickItem: (Manga) -> Unit,
     onLongClickItem: (Manga) -> Unit,
+    searchKind: FenrirSearchKind? = null,
+    onSearchKind: (FenrirSearchKind) -> Unit = {},
 ) {
     Scaffold(
         topBar = { scrollBehavior ->
@@ -58,6 +77,7 @@ fun GlobalSearchScreen(
             onClickSource = onClickSource,
             onClickItem = onClickItem,
             onLongClickItem = onLongClickItem,
+            header = searchKind?.let { kind -> { FenrirSearchKindRow(kind, onSearchKind) } },
         )
     }
 }
@@ -71,10 +91,12 @@ internal fun GlobalSearchContent(
     onClickItem: (Manga) -> Unit,
     onLongClickItem: (Manga) -> Unit,
     fromSourceId: Long? = null,
+    header: (@Composable () -> Unit)? = null,
 ) {
     LazyColumn(
         contentPadding = contentPadding,
     ) {
+        if (header != null) item(key = "fenrir-kind") { header() }
         items.forEach { (source, result) ->
             item(key = source.id) {
                 val name = source.nameWithTypeTag()
@@ -82,7 +104,6 @@ internal fun GlobalSearchContent(
                     title = fromSourceId?.let { "▶ $name".takeIf { source.id == fromSourceId } } ?: name,
                     subtitle = LocaleHelper.getLocalizedDisplayName(source.lang),
                     onClick = { onClickSource(source) },
-                    modifier = Modifier.animateItem(),
                 ) {
                     when (result) {
                         SearchItemResult.Loading -> {
@@ -101,6 +122,60 @@ internal fun GlobalSearchContent(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/** What a global search looks through. Remembered, so the library search opens the way you left it. */
+enum class FenrirSearchKind(val label: String) {
+    Manga("Manga"), Novels("Novels"), Both("Both");
+
+    companion object {
+        private val prefs by lazy {
+            uy.kohesive.injekt.Injekt.get<android.app.Application>()
+                .getSharedPreferences("fenrir_browse", android.content.Context.MODE_PRIVATE)
+        }
+        fun last(default: FenrirSearchKind): FenrirSearchKind =
+            prefs.getString("search_kind", null)?.let { n -> entries.firstOrNull { it.name == n } } ?: default
+        fun remember(kind: FenrirSearchKind) { prefs.edit().putString("search_kind", kind.name).apply() }
+
+        fun screen(query: String, kind: FenrirSearchKind): cafe.adriel.voyager.core.screen.Screen = when (kind) {
+            Manga -> eu.kanade.tachiyomi.ui.browse.source.globalsearch.GlobalSearchScreen(query)
+            Novels -> eu.kanade.tachiyomi.ui.browse.source.globalsearch.NovelGlobalSearchScreen(query)
+            Both -> eu.kanade.tachiyomi.ui.browse.source.globalsearch.AllGlobalSearchScreen(query)
+        }
+    }
+}
+
+@Composable
+private fun FenrirSearchKindRow(selected: FenrirSearchKind, onPick: (FenrirSearchKind) -> Unit) {
+    Row(
+        Modifier
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .fillMaxWidth()
+            .clip(CircleShape)
+            .background(Color(0xFF17171D))
+            .border(1.dp, Color(0xFF2A2A34), CircleShape)
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        FenrirSearchKind.entries.forEach { k ->
+            Box(
+                Modifier
+                    .weight(1f)
+                    .height(36.dp)
+                    .clip(CircleShape)
+                    .background(if (k == selected) Color(0xFFFF4D57) else Color.Transparent)
+                    .clickable(enabled = k != selected) { onPick(k) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    k.label,
+                    color = if (k == selected) Color.White else Color(0xFFA9A9B4),
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
             }
         }
     }
