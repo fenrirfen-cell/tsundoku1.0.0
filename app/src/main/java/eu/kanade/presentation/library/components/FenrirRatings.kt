@@ -499,7 +499,8 @@ fun FenrirRatingBadge(title: String, novel: Boolean, modifier: Modifier = Modifi
     val show by FenrirRatings.showBadges.collectAsState()
     if (!show || novel) return // novels: no cover badge; reviews are on the book page
     val rating by produceState<FenrirRatings.Rating?>(initialValue = null, title, novel) {
-        value = FenrirRatings.get(title, novel)
+        // Off the main thread so scrolling the library never waits on saved ratings.
+        value = withContext(Dispatchers.IO) { FenrirRatings.get(title, novel) }
     }
     val r = rating ?: return
     var open by remember { mutableStateOf(false) }

@@ -186,6 +186,41 @@ internal fun FenrirContinueReadingCard(
 
 
 /**
+ * The top bar that follows your finger: it slides away as you scroll down and comes back as soon
+ * as you scroll up, anywhere in the list. It moves with the scroll (not on a timer), so the list
+ * never jumps under your finger.
+ */
+class FenrirFollowBar {
+    private var heightPx by androidx.compose.runtime.mutableIntStateOf(0)
+    private var offsetPx by androidx.compose.runtime.mutableFloatStateOf(0f)
+
+    fun show() { offsetPx = 0f }
+
+    val connection = object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+        override fun onPreScroll(
+            available: androidx.compose.ui.geometry.Offset,
+            source: androidx.compose.ui.input.nestedscroll.NestedScrollSource,
+        ): androidx.compose.ui.geometry.Offset {
+            if (heightPx == 0 || available.y == 0f) return androidx.compose.ui.geometry.Offset.Zero
+            val old = offsetPx
+            offsetPx = (offsetPx + available.y).coerceIn(-heightPx.toFloat(), 0f)
+            return androidx.compose.ui.geometry.Offset(0f, offsetPx - old)
+        }
+    }
+
+    val modifier: Modifier = Modifier
+        .clipToBounds()
+        .layout { measurable, constraints ->
+            val placeable = measurable.measure(constraints.copy(minHeight = 0, maxHeight = androidx.compose.ui.unit.Constraints.Infinity))
+            heightPx = placeable.height
+            val visible = (placeable.height + offsetPx.toInt()).coerceIn(0, placeable.height)
+            layout(placeable.width, visible) {
+                placeable.place(0, offsetPx.toInt().coerceAtLeast(-placeable.height))
+            }
+        }
+}
+
+/**
  * A header that slides up out of the way as the list below scrolls up, and slides back
  * once the list is scrolled back to its top (like a collapsing toolbar).
  */

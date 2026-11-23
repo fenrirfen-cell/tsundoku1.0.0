@@ -128,15 +128,24 @@ object HomeScreen : Screen() {
                 // and the glass bar; scrolling up brings them back.
                 val barsShown by eu.kanade.presentation.components.FenrirBars.shown.collectAsState()
                 LaunchedEffect(tabNavigator.current) { eu.kanade.presentation.components.FenrirBars.shown.value = true }
+                // The header follows the finger (no timed animation resizing the screen mid-scroll);
+                // the island only flips after a clear swipe in one direction, so it doesn't flicker.
+                val followBar = remember { eu.kanade.presentation.library.components.FenrirFollowBar() }
+                LaunchedEffect(tabNavigator.current) { followBar.show() }
                 val barsScroll = remember {
                     object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+                        var run = 0f
                         override fun onPreScroll(
                             available: androidx.compose.ui.geometry.Offset,
                             source: androidx.compose.ui.input.nestedscroll.NestedScrollSource,
                         ): androidx.compose.ui.geometry.Offset {
                             val bars = eu.kanade.presentation.components.FenrirBars.shown
-                            if (available.y < -4f) bars.value = false else if (available.y > 4f) bars.value = true
-                            return androidx.compose.ui.geometry.Offset.Zero
+                            if (available.y != 0f) {
+                                run = if ((run < 0f) == (available.y < 0f)) run + available.y else available.y
+                                if (run < -48f && bars.value) bars.value = false
+                                if (run > 48f && !bars.value) bars.value = true
+                            }
+                            return followBar.connection.onPreScroll(available, source)
                         }
                     }
                 }
@@ -144,13 +153,7 @@ object HomeScreen : Screen() {
                     // Watch / Read switch; only drawn when embedded in Nuvio.
                     topBar = {
                         androidx.compose.foundation.layout.Column {
-                        AnimatedVisibility(
-                            visible = barsShown,
-                            enter = expandVertically(androidx.compose.animation.core.tween(260)) +
-                                androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(260)),
-                            exit = shrinkVertically(androidx.compose.animation.core.tween(260)) +
-                                androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(200)),
-                        ) {
+                        androidx.compose.foundation.layout.Box(Modifier.then(followBar.modifier)) {
                             EmbeddedModeSwitchBar()
                         }
                         }
