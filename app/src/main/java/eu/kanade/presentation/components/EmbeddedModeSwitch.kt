@@ -25,6 +25,10 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.border
 
 import android.app.Activity
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import android.content.Context
 import android.content.ContextWrapper
 import androidx.compose.foundation.background
@@ -174,45 +178,45 @@ private fun FenrirReadHeader(modifier: Modifier, openWatch: (Activity) -> Unit) 
     val accent = eu.kanade.presentation.reader.FenrirAccent
     val white = androidx.compose.ui.graphics.Color.White
     var open by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-    androidx.compose.foundation.layout.Column(
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            // Fenrir: the carved wood top of the bookcase, all the way up behind the status bar.
+            // Fenrir: dark wood behind the crown, all the way up behind the status bar.
             .then(eu.kanade.presentation.library.components.fenrirCrownModifier())
             .windowInsetsPadding(WindowInsets.statusBars)
-            .padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 10.dp),
+            .padding(top = 2.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().height(46.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(Modifier.weight(1f)) {
+        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth().aspectRatio(CrownRatio)) {
+            androidx.compose.foundation.Image(
+                painter = androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.fenrir_crown),
+                contentDescription = null,
+                contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
+                modifier = Modifier.fillMaxSize(),
+            )
+            val cw = maxWidth
+            val ch = maxHeight
+            // the two plain wood panels of the crown (left: FENRIR READ ▾, right: Read ▾)
+            Box(Modifier.offset(cw * 0.1028f, ch * 0.3902f + 3.dp).size(cw * 0.2561f, ch * 0.337f)) {
                 FenrirReadWordmarkMenu()
             }
+            Box(Modifier.offset(cw * 0.641f, ch * 0.3902f + 3.dp).size(cw * 0.2561f, ch * 0.337f)) {
             val appUpdate by eu.kanade.tachiyomi.EmbeddedHost.appUpdate.collectAsState()
-            Box {
-                Row(
-                    modifier = Modifier
-                        .height(42.dp)
-                        .fenrirReaderGlassPill()
-                        .clickable(role = Role.Button) { open = true }
-                        .padding(start = 12.dp, end = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
+            Box(Modifier.fillMaxSize()) {
+                FenrirCarvedPanel(onClick = { open = true }) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Outlined.MenuBook,
                         contentDescription = null,
-                        tint = accent,
-                        modifier = Modifier.size(18.dp),
+                        tint = androidx.compose.ui.graphics.Color(0xFFE2343F),
+                        modifier = Modifier.size(19.dp),
                     )
                     Spacer(Modifier.width(6.dp))
-                    Text(EmbeddedHost.readLabel, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = white, maxLines = 1)
-                    Spacer(Modifier.width(4.dp))
+                    FenrirCarvedText(EmbeddedHost.readLabel, 15.dp)
+                    Spacer(Modifier.width(3.dp))
                     Icon(
                         imageVector = Icons.Outlined.KeyboardArrowDown,
                         contentDescription = "Switch side",
-                        tint = white,
-                        modifier = Modifier.size(20.dp),
+                        tint = FenrirGoldText,
+                        modifier = Modifier.size(18.dp),
                     )
                 }
                 // Fenrir: red dot when a new app version is out (Update is at the top of the menu).
@@ -259,7 +263,95 @@ private fun FenrirReadHeader(modifier: Modifier, openWatch: (Activity) -> Unit) 
                     FenrirModeItem(EmbeddedHost.readLabel, Icons.AutoMirrored.Outlined.MenuBook, true) { open = false }
                 }
             }
+            }
         }
+    }
+}
+
+/** The crown picture's shape (width / height). */
+private const val CrownRatio = 1440f / 300f
+private val FenrirGoldText = androidx.compose.ui.graphics.Color(0xFFF2C96A)
+
+/**
+ * Fenrir: a button carved into one of the crown's wood panels. The wood behind the words is a
+ * little darker; pressing it makes the panel glow gold for a moment.
+ */
+@Composable
+private fun FenrirCarvedPanel(onClick: (() -> Unit)?, content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit) {
+    val interaction = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val glow by androidx.compose.animation.core.animateFloatAsState(if (pressed) 1f else 0f, label = "panelGlow")
+    val shape = RoundedCornerShape(8.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+            .clip(shape)
+            .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.3f))
+            .background(
+                Brush.radialGradient(
+                    listOf(androidx.compose.ui.graphics.Color(0xFFFFC060).copy(alpha = 0.45f * glow), androidx.compose.ui.graphics.Color.Transparent),
+                ),
+            )
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(interactionSource = interaction, indication = null, role = Role.Button, onClick = onClick)
+                } else {
+                    Modifier
+                },
+            )
+            .padding(horizontal = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+        content = content,
+    )
+}
+
+/**
+ * Gold letters set into the wood: a thin dark carved edge, polished gold (light at the top,
+ * deeper gold at the bottom) and a soft warm glow. Sized in dp so it always fits the panel.
+ */
+@Composable
+private fun FenrirCarvedText(
+    text: String,
+    size: androidx.compose.ui.unit.Dp,
+    red: Boolean = false,
+    letterSpacing: androidx.compose.ui.unit.Dp = 0.dp,
+    modifier: Modifier = Modifier,
+) {
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val fs = with(density) { size.toSp() }
+    val ls = with(density) { letterSpacing.toSp() }
+    val colors = if (red) {
+        listOf(androidx.compose.ui.graphics.Color(0xFFFF7070), androidx.compose.ui.graphics.Color(0xFFD01E2C))
+    } else {
+        listOf(androidx.compose.ui.graphics.Color(0xFFFFE89A), androidx.compose.ui.graphics.Color(0xFFDE9624))
+    }
+    val glow = if (red) androidx.compose.ui.graphics.Color(0xCCFF3040) else androidx.compose.ui.graphics.Color(0xCCFFB040)
+    Box(modifier) {
+        Text(
+            text,
+            maxLines = 1,
+            softWrap = false,
+            style = androidx.compose.ui.text.TextStyle(
+                fontSize = fs,
+                letterSpacing = ls,
+                fontWeight = FontWeight.Bold,
+                color = androidx.compose.ui.graphics.Color(0xFF1C0C02),
+                drawStyle = androidx.compose.ui.graphics.drawscope.Stroke(width = with(density) { 2.5.dp.toPx() }),
+            ),
+        )
+        Text(
+            text,
+            maxLines = 1,
+            softWrap = false,
+            style = androidx.compose.ui.text.TextStyle(
+                fontSize = fs,
+                letterSpacing = ls,
+                fontWeight = FontWeight.Bold,
+                brush = Brush.verticalGradient(colors),
+                shadow = androidx.compose.ui.graphics.Shadow(glow, androidx.compose.ui.geometry.Offset.Zero, with(density) { 7.dp.toPx() }),
+            ),
+        )
     }
 }
 
@@ -371,46 +463,20 @@ private fun FenrirReadWordmarkMenu() {
     val entry = FenrirReadMenu.current.value
     var open by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     var more by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-    Box {
-        Row(
-            modifier = Modifier
-                .heightIn(min = 42.dp)
-                .fenrirReaderGlassPill()
-                .then(if (entry != null) Modifier.clickable(role = Role.Button) { more = false; open = true } else Modifier)
-                .padding(start = 16.dp, end = if (entry != null) 10.dp else 16.dp, top = 6.dp, bottom = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // the two words share one baseline; the row keeps them in the middle of the pill
-            Row {
-                Text(
-                    text = "FENRIR",
-                    color = white,
-                    fontSize = 17.sp,
-                    letterSpacing = 3.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    softWrap = false,
-                    modifier = Modifier.alignByBaseline(),
-                )
-                Spacer(Modifier.width(5.dp))
-                Text(
-                    text = "READ",
-                    color = accent,
-                    fontSize = 10.5.sp,
-                    letterSpacing = 2.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    softWrap = false,
-                    modifier = Modifier.alignByBaseline(),
-                )
+    Box(Modifier.fillMaxSize()) {
+        FenrirCarvedPanel(onClick = if (entry != null) ({ more = false; open = true }) else null) {
+            Row(verticalAlignment = Alignment.Bottom) {
+                FenrirCarvedText("FENRIR", 14.5.dp, letterSpacing = 1.dp, modifier = Modifier.alignByBaseline())
+                Spacer(Modifier.width(4.dp))
+                FenrirCarvedText("READ", 9.dp, red = true, letterSpacing = 1.dp, modifier = Modifier.alignByBaseline())
             }
             if (entry != null) {
-                Spacer(Modifier.width(4.dp))
+                Spacer(Modifier.width(2.dp))
                 Icon(
                     imageVector = Icons.Outlined.KeyboardArrowDown,
                     contentDescription = "Library menu",
-                    tint = accent,
-                    modifier = Modifier.size(20.dp),
+                    tint = FenrirGoldText,
+                    modifier = Modifier.size(18.dp),
                 )
             }
         }

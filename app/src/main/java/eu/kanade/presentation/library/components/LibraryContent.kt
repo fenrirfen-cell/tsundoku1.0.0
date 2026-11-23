@@ -1,5 +1,8 @@
 package eu.kanade.presentation.library.components
 
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -139,7 +142,7 @@ fun LibraryContent(
                 .fillMaxWidth()
                 .onSizeChanged { scrollHeader.heightPx = it.height }
                 .graphicsLayer { translationY = scrollHeader.offsetFor(pagerState.currentPage) }
-                .background(androidx.compose.ui.graphics.Color(0xFF0B0B0F)),
+                .fenrirBookcaseBack(),
         ) {
                         // Fenrir: "● 1 source down · 4 books ›" when a source your books use stopped working.
             if (searchQuery.isNullOrEmpty() && selection.isEmpty()) {
@@ -184,7 +187,23 @@ fun LibraryContent(
                     countFor = { category -> getItemsForCategory(category).size },
                 )
             }
-        
+            // Fenrir: ivy hanging from the rail over the top corners of the bookcase.
+            Box(Modifier.fillMaxWidth().height(0.dp)) {
+                androidx.compose.foundation.Image(
+                    androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.fenrir_ivy_left),
+                    contentDescription = null,
+                    modifier = Modifier.align(androidx.compose.ui.Alignment.TopStart).padding(start = 6.dp)
+                        .wrapContentHeight(androidx.compose.ui.Alignment.Top, unbounded = true).height(118.dp),
+                    contentScale = androidx.compose.ui.layout.ContentScale.FillHeight,
+                )
+                androidx.compose.foundation.Image(
+                    androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.fenrir_ivy_right),
+                    contentDescription = null,
+                    modifier = Modifier.align(androidx.compose.ui.Alignment.TopEnd).padding(end = 6.dp)
+                        .wrapContentHeight(androidx.compose.ui.Alignment.Top, unbounded = true).height(128.dp),
+                    contentScale = androidx.compose.ui.layout.ContentScale.FillHeight,
+                )
+            }
         }
       }
       }

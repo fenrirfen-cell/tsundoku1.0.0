@@ -101,20 +101,12 @@ internal fun Modifier.fenrirRail(): Modifier = composed {
  */
 @Composable
 fun fenrirCrownModifier(): Modifier {
-    val rail = woodImage(R.drawable.fenrir_wood_rail)
+    // the same dark walnut as the back of the bookcase, behind the carved crown picture
+    val back = woodImage(R.drawable.fenrir_wood_back)
+    val brush = remember(back) { ShaderBrush(ImageShader(back, TileMode.Repeated, TileMode.Repeated)) }
     return Modifier.drawBehind {
-        drawImage(
-            rail,
-            srcOffset = IntOffset.Zero,
-            srcSize = IntSize(rail.width, rail.height),
-            dstOffset = IntOffset.Zero,
-            dstSize = IntSize(size.width.toInt(), size.height.toInt()),
-            filterQuality = FilterQuality.Medium,
-        )
-        // a little darker behind the clock and icons so they stay easy to read
-        drawRect(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.35f), 0.45f to Color.Transparent))
-        // thin dark seam where the crown meets what's under it
-        drawRect(Color.Black.copy(alpha = 0.35f), topLeft = Offset(0f, size.height - 1.dp.toPx()), size = Size(size.width, 1.dp.toPx()))
+        drawRect(brush)
+        drawRect(Color.Black.copy(alpha = 0.25f))
     }
 }
 

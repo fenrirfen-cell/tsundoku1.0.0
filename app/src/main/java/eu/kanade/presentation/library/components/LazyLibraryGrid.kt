@@ -49,7 +49,7 @@ internal fun LazyLibraryGrid(
         // from the grid once it's laid out (a close guess until then).
         val density = androidx.compose.ui.platform.LocalDensity.current
         val cellW = (maxWidth - 16.dp - CommonMangaItemDefaults.GridHorizontalSpacer * (perRow - 1)) / perRow
-        val guessH = cellW / eu.kanade.presentation.manga.components.MangaCover.Book.ratio + 64.dp
+        val guessH = cellW / FenrirTomeRatio + 50.dp
         val measuredPx by androidx.compose.runtime.remember(gridState) {
             androidx.compose.runtime.derivedStateOf {
                 gridState.layoutInfo.visibleItemsInfo.firstOrNull { it.contentType != "fenrir_header_space" && it.contentType != "library_global_search_item" }?.size?.height ?: 0

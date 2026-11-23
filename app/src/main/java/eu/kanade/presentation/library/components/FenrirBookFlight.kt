@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -335,111 +336,97 @@ internal fun FenrirContinueReadingCase(manga: LibraryManga, onOpen: () -> Unit) 
     // a still glow on the knobs (an endless pulse kept the screen redrawing and used battery)
     val glow = 0.6f
 
-    Box(
+    // Fenrir: your ornate cabinet frame; the book stands in the left window, the placard fills the right.
+    BoxWithConstraints(
         Modifier
             .fillMaxWidth()
-            .height(182.dp)
-            .fenrirRail()
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = tapped)
-            .padding(start = 14.dp, end = 14.dp, top = 16.dp, bottom = 10.dp),
+            .padding(horizontal = 4.dp, vertical = 2.dp)
+            .aspectRatio(CabinetRatio)
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = tapped),
     ) {
-        // the inside of the case
+        val w = maxWidth
+        val h = maxHeight
+        fun win(r: FloatArray) = Modifier
+            .offset(w * r[0], h * r[1])
+            .size(w * (r[2] - r[0]), h * (r[3] - r[1]))
+        val leftH = h * (CabinetLeft[3] - CabinetLeft[1])
+        val leftW = w * (CabinetLeft[2] - CabinetLeft[0])
+        // left window: velvet under a spotlight, and the book standing on the floor
         Box(
-            Modifier
-                .fillMaxSize()
-                .border(2.dp, Color(0xFF2A1A10))
-                .drawBehind {
-                    drawRect(Color(0xFF2C0A12))
-                    listOf(0.25f to 1f, 0.75f to 0.6f).forEach { (fx, k) ->
-                        drawRect(
-                            Brush.radialGradient(
-                                listOf(Color(0xFFB26A3A).copy(alpha = 0.55f * k), Color.Transparent),
-                                center = Offset(size.width * fx, 0f),
-                                radius = size.height * 1.05f,
-                            ),
-                        )
-                    }
-                    // red velvet along the bottom
-                    val v = 16.dp.toPx()
-                    drawRect(
-                        Brush.verticalGradient(0f to Color(0xFF6E1A26), 1f to Color(0xFF3A0C14), startY = size.height - v, endY = size.height),
-                        topLeft = Offset(0f, size.height - v),
-                        size = Size(size.width, v),
-                    )
-                    // bevelled edge of the case
-                    drawRect(Color(0x55FFE2B8), size = Size(size.width, 1.5.dp.toPx()))
-                    drawRect(Color.Black.copy(alpha = 0.5f), topLeft = Offset(0f, size.height - 1.5.dp.toPx()), size = Size(size.width, 1.5.dp.toPx()))
-                },
+            win(CabinetLeft).drawBehind {
+                drawRect(Color(0xFF2C0A12))
+                drawRect(
+                    Brush.radialGradient(
+                        listOf(Color(0xFFB26A3A).copy(alpha = 0.6f), Color.Transparent),
+                        center = Offset(size.width * 0.5f, 0f),
+                        radius = size.height * 1.1f,
+                    ),
+                )
+                val v = 12.dp.toPx()
+                drawRect(
+                    Brush.verticalGradient(0f to Color(0xFF6E1A26), 1f to Color(0xFF3A0C14), startY = size.height - v, endY = size.height),
+                    topLeft = Offset(0f, size.height - v),
+                    size = Size(size.width, v),
+                )
+            },
         ) {
-            Row(Modifier.fillMaxSize()) {
-                // left pane: the book under its spotlight
-                Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.BottomCenter) {
-                    Spotlight(Modifier.align(Alignment.TopCenter))
-                    Box(
-                        Modifier
-                            .padding(bottom = 7.dp)
-                            .width(94.dp)
-                            .aspectRatio(MangaCover.Book.ratio)
-                            .drawBehind {
-                                // the book's shadow on the velvet
-                                drawOval(
-                                    Brush.radialGradient(listOf(Color.Black.copy(alpha = 0.7f), Color.Transparent), center = Offset(size.width / 2f, size.height), radius = size.width * 0.75f),
-                                    topLeft = Offset(-size.width * 0.2f, size.height - 6.dp.toPx()),
-                                    size = Size(size.width * 1.4f, 12.dp.toPx()),
-                                )
-                            }
-                            .onGloballyPositioned { bookRect = it.boundsInRoot() }
-                            .alpha(if (flying) 0f else 1f)
-                            .fenrirPageBlock(5.dp),
-                    ) {
-                        MangaCover.Book(
-                            data = cover,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(end = 5.dp, top = 3.dp)
-                                .clip(RoundedCornerShape(topEnd = 3.dp, bottomEnd = 3.dp))
-                                .fenrirHardcover(),
-                            shape = RectangleShape,
-                        )
-                    }
+            Spotlight(Modifier.align(Alignment.TopCenter))
+            // as tall as the window allows: the stand rests on the floor, the top just under the frame
+            val bookH = minOf((leftH - 6.dp) / FenrirTomeStand, leftW * 0.82f / FenrirTomeRatio)
+            val bookTop = leftH - 3.dp - bookH * FenrirTomeStand
+            FenrirTomeBook(
+                cover = cover,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = bookTop)
+                    .wrapContentSize(Alignment.TopCenter, unbounded = true)
+                    .height(bookH)
+                    .fenrirTomeShadow()
+                    .alpha(if (flying) 0f else 1f),
+                onFrameBounds = { bookRect = fenrirTomeCoverRect(it) },
+            )
+        }
+        // right window: the gold placard
+        Box(
+            win(CabinetRight).fenrirBrass(RectangleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(
+                Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Engraved("CONTINUE READING", 8.5f, FontWeight.Bold, letterSpacing = 0.8f)
+                Engraved(manga.manga.title, 13f, FontWeight.ExtraBold, maxLines = 2)
+                Engraved(chapterLine, 10f, FontWeight.Medium)
+                Box(
+                    Modifier
+                        .padding(top = 3.dp)
+                        .fillMaxWidth()
+                        .height(4.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF5A3E16)),
+                ) {
+                    Box(Modifier.fillMaxWidth(progress.coerceIn(0.02f, 1f)).fillMaxHeight().background(Color(0xFFC42830)))
                 }
-                // right pane: the brass placard
-                Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.BottomCenter) {
-                    Spotlight(Modifier.align(Alignment.TopCenter))
-                    Column(
-                        Modifier
-                            .padding(bottom = 13.dp, start = 6.dp, end = 6.dp)
-                            .fillMaxWidth()
-                            .fenrirBrass(RoundedCornerShape(6.dp))
-                            .drawBehind { brassScrews(6.dp) }
-                            .padding(horizontal = 12.dp, vertical = 7.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
-                    ) {
-                        Engraved("CONTINUE READING", 8.5f, FontWeight.Bold, letterSpacing = 0.8f)
-                        Engraved(manga.manga.title, 13f, FontWeight.ExtraBold, maxLines = 2)
-                        Engraved(chapterLine, 10f, FontWeight.Medium)
-                        Box(
-                            Modifier
-                                .padding(top = 3.dp)
-                                .fillMaxWidth()
-                                .height(3.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF5A3E16)),
-                        ) {
-                            Box(Modifier.fillMaxWidth(progress.coerceIn(0.02f, 1f)).fillMaxHeight().background(Color(0xFFC42830)))
-                        }
-                    }
-                }
-            }
-            // the two glass doors, hinged at the outer edges, meeting between the panes
-            Row(Modifier.fillMaxSize()) {
-                GlassDoor(Modifier.weight(1f).fillMaxHeight(), left = true, open = doors.value, knobGlow = glow)
-                GlassDoor(Modifier.weight(1f).fillMaxHeight(), left = false, open = doors.value, knobGlow = glow)
             }
         }
+        // the glass door over the book, hinged at its left edge (its own layer, under the frame)
+        GlassDoor(win(CabinetLeft), left = true, open = doors.value, knobGlow = glow)
+        // the carved frame on top of everything
+        androidx.compose.foundation.Image(
+            painter = androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.fenrir_cabinet),
+            contentDescription = null,
+            contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
+            modifier = Modifier.fillMaxSize(),
+        )
     }
 }
+
+/** The cabinet picture's shape and its two windows (left, top, right, bottom as shares of its size). */
+private const val CabinetRatio = 1440f / 595f
+private val CabinetLeft = floatArrayOf(0.0704f, 0.1878f, 0.4765f, 0.8122f)
+private val CabinetRight = floatArrayOf(0.5153f, 0.1878f, 0.9326f, 0.8122f)
 
 @Composable
 private fun Spotlight(modifier: Modifier) {
@@ -479,7 +466,7 @@ private fun GlassDoor(modifier: Modifier, left: Boolean, open: Float, knobGlow: 
             .drawBehind {
                 val frame = 4.dp.toPx()
                 // glass
-                drawRect(Color(0x1AC8DCFF))
+                drawRect(Color(0x30101828))
                 val path = Path().apply {
                     val w = size.width; val h = size.height
                     moveTo(w * 0.52f, 0f); lineTo(w * 0.72f, 0f); lineTo(w * 0.40f, h); lineTo(w * 0.20f, h); close()

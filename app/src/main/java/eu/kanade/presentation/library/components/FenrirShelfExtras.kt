@@ -22,7 +22,6 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -39,16 +38,30 @@ internal val LocalFenrirShelfNovel = compositionLocalOf { true }
 private val GhostColor = Color(0xFFE6C896)
 
 private val NovelDecor = listOf(
-    R.drawable.fenrir_decor_bookends,
-    R.drawable.fenrir_decor_plant,
-    R.drawable.fenrir_decor_candle,
-    R.drawable.fenrir_decor_stack,
+    R.drawable.fenrir_deco_wolf_bookends,
+    R.drawable.fenrir_deco_moon,
+    R.drawable.fenrir_deco_chained_book,
+    R.drawable.fenrir_deco_sakura,
+    R.drawable.fenrir_deco_crystal,
+    R.drawable.fenrir_deco_lantern,
+    R.drawable.fenrir_deco_chest,
+    R.drawable.fenrir_deco_cat_books,
+    R.drawable.fenrir_deco_glass_dome,
+    R.drawable.fenrir_deco_wolf_chain,
 )
 private val MangaDecor = listOf(
-    R.drawable.fenrir_decor_sword,
-    R.drawable.fenrir_decor_mecha,
-    R.drawable.fenrir_decor_wolf,
-    R.drawable.fenrir_decor_mage,
+    R.drawable.fenrir_deco_katanas,
+    R.drawable.fenrir_deco_dragon,
+    R.drawable.fenrir_deco_kitsune,
+    R.drawable.fenrir_deco_samurai,
+    R.drawable.fenrir_deco_blue_fire,
+    R.drawable.fenrir_deco_portal,
+    R.drawable.fenrir_deco_wolf_bust,
+    R.drawable.fenrir_deco_arcade,
+    R.drawable.fenrir_deco_headphones,
+    R.drawable.fenrir_deco_black_cat,
+    R.drawable.fenrir_deco_pixel_cat,
+    R.drawable.fenrir_deco_clapper,
 )
 
 /** Which empty spots get something on them: about two in three, never two the same in a row. */
@@ -59,38 +72,60 @@ private fun decorFor(index: Int, novel: Boolean): Int? {
     return list[k.mod(list.size)]
 }
 
-/** The spot right after your last book: a dashed outline with "+ Add a book". Opens Browse. */
+/** A shelf spot the size of one tome, with [content] standing on the shelf line. */
+@Composable
+private fun ShelfSpot(titleMaxLines: Int, label: String? = null, onClick: (() -> Unit)? = null, content: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit) {
+    Column(
+        Modifier
+            .fenrirPlank(5.dp, FenrirTomePlankRatio, 0.dp, bookShadow = false)
+            .padding(5.dp)
+            .then(if (onClick != null) Modifier.clip(RoundedCornerShape(6.dp)).clickable(onClick = onClick) else Modifier),
+    ) {
+        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth().aspectRatio(FenrirTomeRatio)) {
+            Box(Modifier.fillMaxSize().padding(bottom = maxHeight * (1f - FenrirTomeStand)), content = content)
+        }
+        if (label != null) {
+            Text(
+                label,
+                color = GhostColor,
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                lineHeight = 16.sp,
+                minLines = titleMaxLines.coerceIn(1, 2),
+                maxLines = titleMaxLines.coerceIn(1, 2),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(start = 2.dp, end = 2.dp, top = 2.dp),
+            )
+            Text(" ", fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(start = 2.dp, top = 1.dp, bottom = 4.dp))
+        } else {
+            ShelfTitleSpace(titleMaxLines)
+        }
+    }
+}
+
+/** The spot right after your last book: the glowing gold wolf tome with a +. Opens Browse. */
 @Composable
 internal fun FenrirAddBookCell(titleMaxLines: Int = 2) {
     val scope = rememberCoroutineScope()
-    Column(Modifier.fenrirPlank(5.dp, MangaCover.Book.ratio, 5.dp, bookShadow = false).padding(5.dp)) {
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .aspectRatio(MangaCover.Book.ratio)
-                .padding(end = 5.dp, top = 3.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .clickable {
-                    scope.launch {
-                        eu.kanade.tachiyomi.ui.home.HomeScreen.openTab(eu.kanade.tachiyomi.ui.home.HomeScreen.Tab.Browse())
-                    }
-                }
-                .drawBehind {
-                    drawRoundRect(
-                        GhostColor.copy(alpha = 0.55f),
-                        cornerRadius = CornerRadius(6.dp.toPx()),
-                        style = Stroke(width = 1.6.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f))),
-                    )
-                    drawRoundRect(GhostColor.copy(alpha = 0.05f), cornerRadius = CornerRadius(6.dp.toPx()))
-                },
-            contentAlignment = Alignment.Center,
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                Text("+", color = GhostColor.copy(alpha = 0.85f), fontSize = 34.sp, fontWeight = FontWeight.Light)
-                Text("Add a book", color = GhostColor.copy(alpha = 0.85f), fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+    ShelfSpot(
+        titleMaxLines,
+        label = "Add a book",
+        onClick = {
+            scope.launch {
+                eu.kanade.tachiyomi.ui.home.HomeScreen.openTab(eu.kanade.tachiyomi.ui.home.HomeScreen.Tab.Browse())
             }
-        }
-        ShelfTitleSpace(titleMaxLines)
+        },
+    ) {
+        Image(
+            painter = painterResource(R.drawable.fenrir_tome_add),
+            contentDescription = "Add a book",
+            contentScale = ContentScale.Fit,
+            alignment = Alignment.BottomCenter,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth(0.8f)
+                .fillMaxSize(),
+        )
     }
 }
 
@@ -99,19 +134,16 @@ internal fun FenrirAddBookCell(titleMaxLines: Int = 2) {
 internal fun FenrirEmptyShelfCell(titleMaxLines: Int = 2, index: Int = -1) {
     val novel = LocalFenrirShelfNovel.current
     val decor = if (index >= 0) decorFor(index, novel) else null
-    Column(Modifier.fenrirPlank(5.dp, MangaCover.Book.ratio, 5.dp, bookShadow = false).padding(5.dp)) {
-        Box(Modifier.fillMaxWidth().aspectRatio(MangaCover.Book.ratio)) {
-            if (decor != null) {
-                Image(
-                    painter = painterResource(decor),
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    alignment = Alignment.BottomCenter,
-                    modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
-                )
-            }
+    ShelfSpot(titleMaxLines) {
+        if (decor != null) {
+            Image(
+                painter = painterResource(decor),
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                alignment = Alignment.BottomCenter,
+                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(0.86f).fillMaxSize(0.8f),
+            )
         }
-        ShelfTitleSpace(titleMaxLines)
     }
 }
 
@@ -128,15 +160,36 @@ private fun ShelfTitleSpace(titleMaxLines: Int) {
     Text(" ", fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(start = 2.dp, top = 1.dp, bottom = 4.dp))
 }
 
-/** Warm light falling on a shelf spot from the shelf above. */
+/** A spotlight under the shelf above: a small lit puck at the top and a warm cone of light. */
 internal fun androidx.compose.ui.graphics.drawscope.DrawScope.fenrirShelfLight() {
-    drawRect(
-        androidx.compose.ui.graphics.Brush.radialGradient(
-            listOf(Color(0xFFFFC27A).copy(alpha = 0.11f), Color.Transparent),
-            center = Offset(size.width / 2f, 0f),
-            radius = size.width * 1.1f,
+    val cx = size.width / 2f
+    val top = -2.dp.toPx()
+    val coneH = size.height * 0.75f
+    val cone = androidx.compose.ui.graphics.Path().apply {
+        moveTo(cx - 9.dp.toPx(), top)
+        lineTo(cx + 9.dp.toPx(), top)
+        lineTo(cx + size.width * 0.55f, top + coneH)
+        lineTo(cx - size.width * 0.55f, top + coneH)
+        close()
+    }
+    drawPath(
+        cone,
+        androidx.compose.ui.graphics.Brush.verticalGradient(
+            0f to Color(0xFFFFC47A).copy(alpha = 0.22f),
+            1f to Color.Transparent,
+            startY = top,
+            endY = top + coneH,
         ),
-        topLeft = Offset(-4.dp.toPx(), 0f),
-        size = Size(size.width + 8.dp.toPx(), size.height),
     )
+    // glow round the puck, then the puck itself
+    drawOval(
+        androidx.compose.ui.graphics.Brush.radialGradient(
+            listOf(Color(0xFFFFC878).copy(alpha = 0.55f), Color.Transparent),
+            center = Offset(cx, top + 2.dp.toPx()),
+            radius = 26.dp.toPx(),
+        ),
+        topLeft = Offset(cx - 26.dp.toPx(), top - 8.dp.toPx()),
+        size = Size(52.dp.toPx(), 20.dp.toPx()),
+    )
+    drawOval(Color(0xFFFFEDC4), topLeft = Offset(cx - 12.dp.toPx(), top), size = Size(24.dp.toPx(), 4.dp.toPx()))
 }

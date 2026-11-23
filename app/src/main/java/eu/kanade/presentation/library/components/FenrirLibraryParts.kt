@@ -548,7 +548,7 @@ internal fun FenrirLibraryGridItem(
     }
     Column(
         Modifier
-            .fenrirPlank(5.dp, MangaCover.Book.ratio, 5.dp)
+            .fenrirPlank(5.dp, FenrirTomePlankRatio, 0.dp, bookShadow = false)
             .padding(5.dp)
             .clip(RoundedCornerShape(6.dp))
             .combinedClickable(
@@ -564,41 +564,18 @@ internal fun FenrirLibraryGridItem(
                 onLongClick = onLongClick,
             ),
     ) {
-        // Fenrir: a standing hardcover; page edges show on the right and along the top.
-        Box(
-            Modifier
+        // Fenrir: the book as an ornate tome standing on the shelf; the cover follows its angle.
+        FenrirTomeBook(
+            cover = coverData,
+            modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(MangaCover.Book.ratio)
-                .onGloballyPositioned { bookRect.value = it.boundsInRoot() }
-                .alpha(if (FenrirBookFlight.isFlying(manga.id)) 0f else 1f)
-                .fenrirPageBlock(5.dp),
+                .fenrirTomeShadow()
+                .alpha(if (FenrirBookFlight.isFlying(manga.id)) 0f else if (isSelected) 0.8f else 1f),
+            onFrameBounds = { bookRect.value = fenrirTomeCoverRect(it) },
         ) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .padding(end = 5.dp, top = 3.dp)
-                .then(
-                    if (isSelected) {
-                        Modifier.border(3.dp, FenrirRed, shape)
-                    } else {
-                        Modifier
-                    },
-                )
-                .androidxShadow(shape)
-                .clip(shape)
-                .fenrirHardcover(),
-        ) {
-            MangaCover.Book(
-                modifier = Modifier.fillMaxSize().then(if (isSelected) Modifier.alpha(0.76f) else Modifier),
-                shape = androidx.compose.ui.graphics.RectangleShape,
-                data = tachiyomi.domain.manga.model.MangaCover(
-                    mangaId = manga.id,
-                    sourceId = manga.source,
-                    isMangaFavorite = manga.favorite,
-                    url = manga.thumbnailUrl,
-                    lastModified = manga.coverLastModified,
-                ),
-            )
+            if (isSelected) {
+                Box(Modifier.fillMaxSize().border(4.dp, FenrirRed))
+            }
             // Fenrir: ★ rating badge (tap for why); nothing shows without a sure match.
             FenrirRatingBadge(
                 title = manga.title,
@@ -648,7 +625,6 @@ internal fun FenrirLibraryGridItem(
                 }
             }
         }
-        }
         Text(
             manga.title,
             color = Color.White,
@@ -657,7 +633,7 @@ internal fun FenrirLibraryGridItem(
             lineHeight = 16.sp,
             maxLines = titleMaxLines.coerceIn(1, 2),
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = 2.dp, end = 2.dp, top = 10.dp),
+            modifier = Modifier.padding(start = 2.dp, end = 2.dp, top = 2.dp),
         )
         Text(
             status,
