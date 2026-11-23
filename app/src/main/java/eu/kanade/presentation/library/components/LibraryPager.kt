@@ -68,7 +68,7 @@ fun LibraryPager(
         }
         // Fenrir: revolving bookcase. Each category is one side of a box that turns as you switch.
         Box(Modifier.fillMaxSize().fenrirBookcaseTurn(state, page).fenrirBookcaseBack()) {
-        androidx.compose.runtime.CompositionLocalProvider(LocalFenrirPage provides page) {
+        androidx.compose.runtime.CompositionLocalProvider(LocalFenrirPage provides page) pageBlock@{
         val category = getCategoryForPage(page)
         val items = getItemsForCategory(category)
         val fenrirHeaderDp = with(androidx.compose.ui.platform.LocalDensity.current) { (LocalFenrirHeader.current?.heightPx ?: 0).toDp() }
@@ -96,7 +96,7 @@ fun LibraryPager(
                     onGlobalSearchClicked = onGlobalSearchClicked,
                 )
             }
-            return@HorizontalPager
+            return@pageBlock
         }
 
         val onLoadMoreForCategory: (() -> Unit)? = if (paginationEnabled) {
