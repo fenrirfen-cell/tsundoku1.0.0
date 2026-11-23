@@ -151,8 +151,13 @@ object HomeScreen : Screen() {
                     // Watch / Read switch; only drawn when embedded in Nuvio.
                     topBar = {
                         androidx.compose.foundation.layout.Column {
-                        androidx.compose.foundation.layout.Box(Modifier.then(followBar.modifier)) {
-                            EmbeddedModeSwitchBar()
+                        // Fenrir: the crown (with the Watch / Read switch) only on the library; the other
+                        // pages keep their own plain tops.
+                        val onLibrary = tabNavigator.current == LibraryTab || tabNavigator.current == NovelsTab
+                        if (onLibrary || !eu.kanade.tachiyomi.EmbeddedHost.isFenrirStyle) {
+                            androidx.compose.foundation.layout.Box(Modifier.then(followBar.modifier)) {
+                                EmbeddedModeSwitchBar()
+                            }
                         }
                         }
                     },
@@ -173,7 +178,7 @@ object HomeScreen : Screen() {
                         val fenrirHaze = dev.chrisbanes.haze.rememberHazeState()
                         // Fenrir: every Read page sits on the same dark wood as the library, with gold
                         // headings and gold-edged lines (the pages' own dark backgrounds go see-through).
-                        val fenrirWood = eu.kanade.tachiyomi.EmbeddedHost.isFenrirStyle
+                        val fenrirWood = false // wood and gold pages were tried; the other pages stay plain
                         val baseScheme = MaterialTheme.colorScheme
                         val woodScheme = remember(baseScheme, fenrirWood) {
                             if (!fenrirWood) baseScheme else baseScheme.copy(

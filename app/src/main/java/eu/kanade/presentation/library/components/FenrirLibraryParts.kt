@@ -572,51 +572,43 @@ internal fun FenrirLibraryGridItem(
                 .fenrirTomeShadow()
                 .alpha(if (FenrirBookFlight.isFlying(manga.id)) 0f else if (isSelected) 0.8f else 1f),
             onFrameBounds = { bookRect.value = it },
+            badges = {
+                // Fenrir: unread count as a small tag on the top corner of the book (flat, not bent
+                // with the cover, and off the art)
+                val unread = item.badges.unreadCount
+                if (unread > 0) {
+                    Text(
+                        if (unread > 999) "999+" else "$unread",
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(top = 2.dp, end = 2.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(FenrirRed)
+                            .border(1.dp, Color(0xFFF0CD7A), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 6.dp, vertical = 1.dp),
+                    )
+                }
+                if (item.badges.downloadCount > 0) {
+                    Text(
+                        "↓${item.badges.downloadCount}",
+                        color = Color.White,
+                        fontSize = 9.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(top = 2.dp, start = 2.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xE61C1C22))
+                            .padding(horizontal = 5.dp, vertical = 1.dp),
+                    )
+                }
+            },
         ) {
             if (isSelected) {
                 Box(Modifier.fillMaxSize().border(4.dp, FenrirRed))
-            }
-            val unread = item.badges.unreadCount
-            if (unread > 0) {
-                Text(
-                    "$unread",
-                    color = Color.White,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(7.dp)
-                        .clip(RoundedCornerShape(9.dp))
-                        .background(FenrirRed)
-                        .padding(horizontal = 7.dp, vertical = 2.dp),
-                )
-            }
-            if (item.badges.downloadCount > 0) {
-                Text(
-                    "↓${item.badges.downloadCount}",
-                    color = Color.White,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(7.dp)
-                        .clip(RoundedCornerShape(9.dp))
-                        .background(Color(0xCC1C1C22))
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
-                )
-            }
-            if (total > 0 && read > 0) {
-                Box(
-                    Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 8.dp)
-                        .height(3.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.28f)),
-                ) {
-                    Box(Modifier.fillMaxWidth(progress).height(3.dp).clip(CircleShape).background(FenrirRed))
-                }
             }
         }
         Text(
@@ -627,12 +619,15 @@ internal fun FenrirLibraryGridItem(
             lineHeight = 16.sp,
             maxLines = titleMaxLines.coerceIn(1, 2),
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = 2.dp, end = 2.dp, top = 2.dp),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            // Fenrir: centred under the book
+            modifier = Modifier.fillMaxWidth().padding(start = 2.dp, end = 2.dp, top = 2.dp),
         )
         // Fenrir: "98% read" with the ★ rating beside it (off the cover, so it doesn't hide the art).
         Row(
-            Modifier.padding(start = 2.dp, top = 1.dp, bottom = 4.dp),
+            Modifier.fillMaxWidth().padding(top = 1.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
         ) {
             Text(
                 status,

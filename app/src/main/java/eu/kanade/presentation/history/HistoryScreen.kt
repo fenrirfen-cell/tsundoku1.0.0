@@ -213,7 +213,8 @@ private fun HistoryScreenContent(
     val thisWeek = remember(history) {
         history.mapNotNull { (it as? HistoryUiModel.Item)?.item }.filter { (it.readAt?.time ?: 0) >= weekAgo }
     }
-    FastScrollLazyColumn {
+    // Fenrir: room at the end so the last covers can scroll up above the glass island
+    FastScrollLazyColumn(contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 112.dp)) {
         item(key = "fenrir-history-stats") {
             val minutes = thisWeek.sumOf { it.readDuration } / 60000
             val time = if (minutes >= 60) "${minutes / 60}h ${minutes % 60}m" else "${minutes}m"

@@ -79,6 +79,7 @@ internal fun FenrirTomeBook(
     cover: CoverData,
     modifier: Modifier = Modifier,
     onFrameBounds: ((Rect) -> Unit)? = null,
+    badges: @Composable BoxScope.() -> Unit = {},
     overlay: @Composable BoxScope.() -> Unit = {},
 ) {
     val accent = fenrirCoverAccent(cover)
@@ -122,6 +123,7 @@ internal fun FenrirTomeBook(
             colorFilter = ColorFilter.tint(accent),
             modifier = Modifier.fillMaxSize(),
         )
+        badges()
     }
 }
 

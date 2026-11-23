@@ -53,8 +53,7 @@ fun Modifier.fenrirReadGlass(shape: Shape): Modifier = this
     .clip(shape)
     .background(Color(0xEB26262E))
     .background(Brush.verticalGradient(0f to Color.White.copy(alpha = 0.12f), 0.55f to Color.Transparent))
-    // Fenrir: a thin gold rim, matching the wood and gold Read side
-    .border(1.dp, Brush.verticalGradient(listOf(Color(0xCCF0CD7A), Color(0x88B07A2C))), shape)
+    .border(1.dp, Color.White.copy(alpha = 0.28f), shape)
 
 /**
  * A glass switch with a lit-up red choice (Updates: New chapters / Calendar; Browse tabs).
