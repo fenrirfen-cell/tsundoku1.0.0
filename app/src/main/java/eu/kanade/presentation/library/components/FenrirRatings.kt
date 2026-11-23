@@ -105,6 +105,13 @@ object FenrirRatings {
 
     fun init() { prefs }
 
+    /** Drops the saved answer for a title so the next look-up asks the sites again. */
+    fun forget(title: String, novel: Boolean) {
+        val k = key(title, novel)
+        memory.remove(k)
+        runCatching { prefs.edit().remove(k).apply() }
+    }
+
     private fun key(title: String, novel: Boolean) = (if (novel) "n4:" else "m4:") + norm(title)
     fun norm(t: String) = t.lowercase().filter { it.isLetterOrDigit() }
 
@@ -517,10 +524,20 @@ fun FenrirRatingBadge(title: String, novel: Boolean, modifier: Modifier = Modifi
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun FenrirRatingSheet(title: String, r: FenrirRatings.Rating, onClose: () -> Unit) {
-    val uri = LocalUriHandler.current
-    var spoilers by remember { mutableStateOf(false) }
     ModalBottomSheet(onDismissRequest = onClose, containerColor = Color(0xFF15151B)) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(start = 22.dp, end = 22.dp, bottom = 28.dp)) {
+            FenrirRatingDetails(title, r, onClose)
+        }
+    }
+}
+
+/** Score, bars, tags and reviews for [r]. [onClose] is null when shown inside the book's Reviews panel. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+fun FenrirRatingDetails(title: String, r: FenrirRatings.Rating, onClose: (() -> Unit)?) {
+    val uri = LocalUriHandler.current
+    var spoilers by remember { mutableStateOf(false) }
+    Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(
                     Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)).background(fenrirRatingColor(r.score).copy(alpha = 0.14f)),
@@ -635,7 +652,7 @@ fun FenrirRatingSheet(title: String, r: FenrirRatings.Rating, onClose: () -> Uni
             }
             // Webnovel: every review with the stars each reader gave.
             val wnUrl = if (r.site == "Webnovel") r.url else r.also.firstOrNull { it.site == "Webnovel" }?.url
-            if (wnUrl != null && FenrirWebnovelReviews.bookId(wnUrl) != null) {
+            if (onClose != null && wnUrl != null && FenrirWebnovelReviews.bookId(wnUrl) != null) {
                 val nav = cafe.adriel.voyager.navigator.LocalNavigator.current
                 Text(
                     "All Webnovel reviews with stars ›",
@@ -656,7 +673,6 @@ fun FenrirRatingSheet(title: String, r: FenrirRatings.Rating, onClose: () -> Uni
                 val show by FenrirRatings.showBadges.collectAsState()
                 Switch(checked = show, onCheckedChange = { FenrirRatings.setShowBadges(it) })
             }
-        }
     }
 }
 

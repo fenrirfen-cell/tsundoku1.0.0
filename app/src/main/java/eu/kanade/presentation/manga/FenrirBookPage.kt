@@ -1,6 +1,7 @@
 package eu.kanade.presentation.manga
 
 import android.content.Context
+import androidx.compose.material.icons.outlined.RateReview
 import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -98,7 +99,7 @@ private val Muted = Color(0xFF9A9AA6)
 private val Card = Color(0xFF17171D)
 private val Rim = Color(0xFF2A2A34)
 
-enum class FenrirBookTab { Chapters, Pages, Bookmarks }
+enum class FenrirBookTab { Chapters, Pages, Bookmarks, Reviews }
 
 /** Page bookmarks (chapter + page + optional note), kept on the phone per book. */
 object FenrirPageBookmarks {
@@ -344,6 +345,7 @@ fun FenrirBookPillBar(
             TabIcon(Icons.AutoMirrored.Outlined.List, "Chapters", tab == FenrirBookTab.Chapters) { onTab(FenrirBookTab.Chapters) }
             TabIcon(Icons.Outlined.GridView, "Pages", tab == FenrirBookTab.Pages) { onTab(FenrirBookTab.Pages) }
             TabIcon(Icons.Outlined.BookmarkBorder, "Bookmarks", tab == FenrirBookTab.Bookmarks) { onTab(FenrirBookTab.Bookmarks) }
+            TabIcon(Icons.Outlined.RateReview, "Reviews", tab == FenrirBookTab.Reviews) { onTab(FenrirBookTab.Reviews) }
             Spacer(Modifier.weight(1f))
             if (continueLabel != null) {
                 Box {

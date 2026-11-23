@@ -433,7 +433,7 @@ private fun MangaScreenSmallImpl(
                 val anyRead = remember(state.chapters) { state.chapters.fastAny { it.chapter.read } }
                 FenrirBookPillBar(
                     tab = fenrirTab,
-                    onTab = { fenrirTab = it },
+                    onTab = { fenrirTab = if (fenrirTab == it) FenrirBookTab.Chapters else it },
                     continueLabel = when {
                         fenrirTab == FenrirBookTab.Pages && fenrirPicked != null -> "Read Ch. ${fenrirChapterNumber(fenrirPicked!!)}"
                         fenrirTarget != null && anyRead -> "Continue · Ch. ${fenrirChapterNumber(fenrirTarget)}"
@@ -586,7 +586,7 @@ private fun MangaScreenSmallImpl(
                         )
                     }
 
-                    when (fenrirTab) {
+                    when (FenrirBookTab.Chapters as FenrirBookTab) {
                         FenrirBookTab.Chapters -> {
                     item(key = "fenrir-skipped", contentType = "fenrir-skipped") {
                         FenrirSkippedChip(
@@ -641,11 +641,24 @@ private fun MangaScreenSmallImpl(
                                 onOpenChapter = onChapterClicked,
                             )
                         }
+                        FenrirBookTab.Reviews -> {}
                     }
                     item(key = "fenrir-bottom-space") { androidx.compose.foundation.layout.Spacer(Modifier.height(96.dp)) }
                 }
             }
         }
+            // Fenrir: Pages / Bookmarks / Reviews sheet (under the pill bar).
+        FenrirBookSheet(
+            section = fenrirTab.takeIf { it != FenrirBookTab.Chapters },
+            onSection = { fenrirTab = it ?: FenrirBookTab.Chapters },
+            manga = state.manga,
+            source = state.source,
+            ordered = fenrirOrdered,
+            startChapterId = fenrirTarget?.id,
+            isNovel = state.isNovel,
+            onOpenChapter = onChapterClicked,
+            onPickChapter = { fenrirPicked = it },
+        )
     }
 }
 
@@ -811,7 +824,7 @@ fun MangaScreenLargeImpl(
                     Box(Modifier.fillMaxWidth(0.5f)) {
                         FenrirBookPillBar(
                             tab = fenrirTab,
-                            onTab = { fenrirTab = it },
+                            onTab = { fenrirTab = if (fenrirTab == it) FenrirBookTab.Chapters else it },
                             continueLabel = when {
                                 fenrirTab == FenrirBookTab.Pages && fenrirPicked != null -> "Read Ch. ${fenrirChapterNumber(fenrirPicked!!)}"
                         fenrirTarget != null && anyRead -> "Continue · Ch. ${fenrirChapterNumber(fenrirTarget)}"
@@ -952,7 +965,7 @@ fun MangaScreenLargeImpl(
                                 bottom = contentPadding.calculateBottomPadding(),
                             ),
                         ) {
-                            when (fenrirTab) {
+                            when (FenrirBookTab.Chapters as FenrirBookTab) {
                                 FenrirBookTab.Chapters -> {
                             item(key = "fenrir-skipped", contentType = "fenrir-skipped") {
                                 FenrirSkippedChip(
@@ -1007,6 +1020,7 @@ fun MangaScreenLargeImpl(
                                         onOpenChapter = onChapterClicked,
                                     )
                                 }
+                                FenrirBookTab.Reviews -> {}
                             }
                             item(key = "fenrir-bottom-space") { androidx.compose.foundation.layout.Spacer(Modifier.height(96.dp)) }
                         }
@@ -1014,6 +1028,18 @@ fun MangaScreenLargeImpl(
                 },
             )
         }
+            // Fenrir: Pages / Bookmarks / Reviews sheet (under the pill bar).
+        FenrirBookSheet(
+            section = fenrirTab.takeIf { it != FenrirBookTab.Chapters },
+            onSection = { fenrirTab = it ?: FenrirBookTab.Chapters },
+            manga = state.manga,
+            source = state.source,
+            ordered = fenrirOrdered,
+            startChapterId = fenrirTarget?.id,
+            isNovel = state.isNovel,
+            onOpenChapter = onChapterClicked,
+            onPickChapter = { fenrirPicked = it },
+        )
     }
 }
 

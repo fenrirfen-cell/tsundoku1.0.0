@@ -183,40 +183,6 @@ class FenrirWebnovelReviewsScreen(private val title: String, private val bookUrl
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
-        val uri = LocalUriHandler.current
-        val scope = rememberCoroutineScope()
-        val reviews = remember { mutableStateListOf<FenrirWebnovelReviews.Review>() }
-        var head by remember { mutableStateOf<FenrirWebnovelReviews.Page?>(null) }
-        var page by remember { mutableStateOf(1) }
-        var loading by remember { mutableStateOf(false) }
-        var ended by remember { mutableStateOf(false) }
-        var failed by remember { mutableStateOf(false) }
-        var spoilers by remember { mutableStateOf(false) }
-        var filter by remember { mutableStateOf(0) } // 0 = all, 1..5 = that many stars
-        val listState = rememberLazyListState()
-
-        fun more() {
-            if (loading || ended) return
-            loading = true
-            scope.launch {
-                val p = FenrirWebnovelReviews.load(bookUrl, page)
-                if (p == null) {
-                    if (reviews.isEmpty()) failed = true else ended = true
-                } else {
-                    if (head == null) head = p
-                    val seen = reviews.map { it.user + it.text.take(40) }.toHashSet()
-                    val fresh = p.reviews.filter { (it.user + it.text.take(40)) !in seen }
-                    reviews.addAll(fresh)
-                    page++
-                    if (fresh.isEmpty() || p.reviews.size < 30) ended = true
-                }
-                loading = false
-            }
-        }
-        LaunchedEffect(Unit) { more() }
-        val nearEnd by remember { derivedStateOf { (listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0) >= listState.layoutInfo.totalItemsCount - 4 } }
-        LaunchedEffect(nearEnd) { if (nearEnd) more() }
-
         Column(Modifier.fillMaxSize().background(Color(0xFF0B0B0F))) {
             Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 8.dp, end = 16.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(44.dp).clip(CircleShape).clickable { navigator.pop() }, contentAlignment = Alignment.Center) {
@@ -228,8 +194,62 @@ class FenrirWebnovelReviewsScreen(private val title: String, private val bookUrl
                     Text("$title · Webnovel", color = Color(0xFF9A9AA6), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
-            when {
-                failed -> Column(Modifier.fillMaxSize().padding(28.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+            FenrirWebnovelReviewList(bookUrl, Modifier.fillMaxSize().navigationBarsPadding())
+        }
+    }
+}
+
+/**
+ * Webnovel's reviews as a scrolling list: overall score with stars, Webnovel's score parts, a
+ * spoiler switch, star filter, then every review (more load as you scroll). [header] goes on top.
+ */
+@Composable
+fun FenrirWebnovelReviewList(
+    bookUrl: String,
+    modifier: Modifier = Modifier,
+    bottomPad: androidx.compose.ui.unit.Dp = 20.dp,
+    header: (@Composable () -> Unit)? = null,
+) {
+    val uri = LocalUriHandler.current
+    val scope = rememberCoroutineScope()
+    val reviews = remember(bookUrl) { mutableStateListOf<FenrirWebnovelReviews.Review>() }
+    var head by remember(bookUrl) { mutableStateOf<FenrirWebnovelReviews.Page?>(null) }
+    var page by remember(bookUrl) { mutableStateOf(1) }
+    var loading by remember(bookUrl) { mutableStateOf(false) }
+    var ended by remember(bookUrl) { mutableStateOf(false) }
+    var failed by remember(bookUrl) { mutableStateOf(false) }
+    var spoilers by remember { mutableStateOf(false) }
+    var filter by remember { mutableStateOf(0) } // 0 = all, 1..5 = that many stars
+    val listState = rememberLazyListState()
+
+    fun more() {
+        if (loading || ended) return
+        loading = true
+        scope.launch {
+            val p = FenrirWebnovelReviews.load(bookUrl, page)
+            if (p == null) {
+                if (reviews.isEmpty()) failed = true else ended = true
+            } else {
+                if (head == null) head = p
+                val seen = reviews.map { it.user + it.text.take(40) }.toHashSet()
+                val fresh = p.reviews.filter { (it.user + it.text.take(40)) !in seen }
+                reviews.addAll(fresh)
+                page++
+                if (fresh.isEmpty() || p.reviews.size < 30) ended = true
+            }
+            loading = false
+        }
+    }
+    LaunchedEffect(bookUrl) { more() }
+    val nearEnd by remember { derivedStateOf { (listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0) >= listState.layoutInfo.totalItemsCount - 4 } }
+    LaunchedEffect(nearEnd) { if (nearEnd && head != null) more() }
+
+    val shown = reviews.filter { r -> filter == 0 || (r.stars != null && kotlin.math.round(r.stars).toInt() == filter) }
+    LazyColumn(state = listState, modifier = modifier) {
+        if (header != null) item(key = "head") { header() }
+        when {
+            failed -> item(key = "failed") {
+                Column(Modifier.fillMaxWidth().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("Couldn't load reviews from Webnovel", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     Text("The site may be busy or asking for a check. Try again later.", color = Color(0xFF9A9AA6), fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
                     Row(Modifier.padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -249,68 +269,67 @@ class FenrirWebnovelReviewsScreen(private val title: String, private val bookUrl
                         )
                     }
                 }
-                head == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Color(0xFFFF4D57)) }
-                else -> {
-                    val shown = reviews.filter { r -> filter == 0 || (r.stars != null && kotlin.math.round(r.stars).toInt() == filter) }
-                    LazyColumn(state = listState, modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
-                        item(key = "summary") {
-                            val h = head!!
-                            Column(Modifier.padding(16.dp).fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color(0xFF15151B)).padding(14.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    val avg = h.average ?: reviews.mapNotNull { it.stars }.takeIf { it.isNotEmpty() }?.average()
-                                    if (avg != null) {
-                                        Text(String.format(java.util.Locale.US, "%.1f", avg), color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold)
-                                        Spacer(Modifier.width(10.dp))
-                                        Column {
-                                            Stars(avg, 16)
-                                            Text("${h.total ?: reviews.size} reviews", color = Color(0xFF9A9AA6), fontSize = 12.sp)
-                                        }
-                                    } else {
-                                        Text("${h.total ?: reviews.size} reviews", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                                    }
+            }
+            head == null -> item(key = "loading") {
+                Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Color(0xFFFF4D57)) }
+            }
+            else -> {
+                item(key = "summary") {
+                    val h = head!!
+                    Column(Modifier.padding(16.dp).fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color(0xFF15151B)).padding(14.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            val avg = h.average ?: reviews.mapNotNull { it.stars }.takeIf { it.isNotEmpty() }?.average()
+                            if (avg != null) {
+                                Text(String.format(java.util.Locale.US, "%.1f", avg), color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold)
+                                Spacer(Modifier.width(10.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Stars(avg, 16)
+                                    Text("${"%,d".format(h.total ?: reviews.size)} reviews · Webnovel", color = Color(0xFF9A9AA6), fontSize = 12.sp)
                                 }
-                                h.parts.forEach { (name, v) ->
-                                    Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        Text(name, color = Color(0xFFC9C9D2), fontSize = 12.5.sp, modifier = Modifier.weight(1f))
-                                        Stars(v, 12)
-                                    }
-                                }
-                                Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Text("Show spoilers", color = Color(0xFFC9C9D2), fontSize = 12.5.sp, modifier = Modifier.weight(1f))
-                                    Switch(checked = spoilers, onCheckedChange = { spoilers = it }, colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFFFF4D57)))
-                                }
+                            } else {
+                                Text("${h.total ?: reviews.size} reviews", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                             }
-                            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                listOf(0, 5, 4, 3, 2, 1).forEach { n ->
-                                    val on = filter == n
-                                    Text(
-                                        if (n == 0) "All" else "$n ★",
-                                        color = if (on) Color.White else Color(0xFFC9C9D2),
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        modifier = Modifier.clip(CircleShape).background(if (on) Color(0xFFFF4D57) else Color(0xFF1C1C23))
-                                            .clickable { filter = n }.padding(horizontal = 14.dp, vertical = 7.dp),
-                                    )
-                                }
+                            Text("Spoilers", color = Color(0xFFC9C9D2), fontSize = 12.5.sp)
+                            Spacer(Modifier.width(6.dp))
+                            Switch(checked = spoilers, onCheckedChange = { spoilers = it }, colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFFFF4D57)))
+                        }
+                        h.parts.forEach { (name, v) ->
+                            Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(name, color = Color(0xFFC9C9D2), fontSize = 12.5.sp, modifier = Modifier.weight(1f))
+                                Stars(v, 12)
                             }
                         }
-                        itemsIndexed(shown, key = { i, r -> "$i-${r.user}-${r.text.hashCode()}" }) { _, r ->
-                            ReviewRow(r, spoilers)
+                    }
+                    Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(0, 5, 4, 3, 2, 1).forEach { n ->
+                            val on = filter == n
+                            Text(
+                                if (n == 0) "All" else "$n ★",
+                                color = if (on) Color.White else Color(0xFFC9C9D2),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.clip(CircleShape).background(if (on) Color(0xFFFF4D57) else Color(0xFF1C1C23))
+                                    .clickable { filter = n }.padding(horizontal = 14.dp, vertical = 7.dp),
+                            )
                         }
-                        item(key = "foot") {
-                            Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
-                                when {
-                                    loading -> CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = Color(0xFFFF4D57))
-                                    ended && reviews.isEmpty() -> Text("No reviews yet.", color = Color(0xFF9A9AA6), fontSize = 13.sp)
-                                    ended -> Text("That's all of them.", color = Color(0xFF6E6E78), fontSize = 12.sp)
-                                }
-                            }
-                            Spacer(Modifier.height(20.dp))
+                    }
+                    Spacer(Modifier.height(6.dp))
+                }
+                itemsIndexed(shown, key = { i, r -> "$i-${r.user}-${r.text.hashCode()}" }) { _, r ->
+                    ReviewRow(r, spoilers)
+                }
+                item(key = "foot") {
+                    Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
+                        when {
+                            loading -> CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = Color(0xFFFF4D57))
+                            ended && reviews.isEmpty() -> Text("No reviews yet.", color = Color(0xFF9A9AA6), fontSize = 13.sp)
+                            ended -> Text("That's all of them.", color = Color(0xFF6E6E78), fontSize = 12.sp)
                         }
                     }
                 }
             }
         }
+        item(key = "pad") { Spacer(Modifier.height(bottomPad)) }
     }
 }
 
