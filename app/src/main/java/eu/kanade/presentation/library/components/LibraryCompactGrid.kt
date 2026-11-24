@@ -3,6 +3,7 @@ package eu.kanade.presentation.library.components
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import eu.kanade.tachiyomi.ui.library.LibraryItem
@@ -24,6 +25,8 @@ internal fun LibraryCompactGrid(
     onLoadMore: (() -> Unit)? = null,
     loadMoreKey: Long = 0,
 ) {
+    val luxTitles = androidx.compose.runtime.remember(items) { items.map { it.libraryManga.manga.title } }
+    androidx.compose.runtime.CompositionLocalProvider(LocalLuxBookTitles provides luxTitles) {
     LazyLibraryGrid(
         modifier = Modifier.fillMaxSize(),
         columns = columns,
@@ -33,10 +36,10 @@ internal fun LibraryCompactGrid(
     ) {
         globalSearchItem(searchQuery, onGlobalSearchClicked)
 
-        items(
+        itemsIndexed(
             items = items,
-            contentType = { "library_compact_grid_item" },
-        ) { libraryItem ->
+            contentType = { _, _ -> "library_compact_grid_item" },
+        ) { itemIndex, libraryItem ->
             val manga = libraryItem.libraryManga.manga
             if (showTitle) {
                 // Fenrir: cover like the preview (title under the cover, progress, % read).
@@ -46,8 +49,9 @@ internal fun LibraryCompactGrid(
                     onClick = { onClick(libraryItem.libraryManga) },
                     onLongClick = { onLongClick(libraryItem.libraryManga) },
                     flyOnClick = selection.isEmpty(),
+                    index = itemIndex,
                 )
-                return@items
+                return@itemsIndexed
             }
             MangaCompactGridItem(
                 isSelected = manga.id in selection,
@@ -80,5 +84,6 @@ internal fun LibraryCompactGrid(
         }
 
         loadMoreSentinel(loadMoreKey, onLoadMore)
+    }
     }
 }

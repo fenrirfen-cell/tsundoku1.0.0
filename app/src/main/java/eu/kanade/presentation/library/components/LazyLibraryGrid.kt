@@ -69,13 +69,44 @@ internal fun LazyLibraryGrid(
         } else {
             1
         }
+        val look = FenrirLibraryLook.current.value
+        val lux = look == FenrirLibraryLook.Look.Luxury
+        val geom = LocalLuxGeom.current
+        // Fenrir (Luxury): shelf spots touch each other so the glass and the lights run on; the
+        // collection sits inside the case frame (and between the towers on wide screens).
+        val luxCols = if (lux) (if (columns > 0) columns else 3) else 0
+        val fillCount = if (shelfFill >= 0 && look != FenrirLibraryLook.Look.Regular) {
+            val used = shelfFill + 1
+            val per = if (lux) luxCols else perRow
+            val rows = maxOf((used + per - 1) / per, if (lux) 2 else screenRows)
+            rows * per - used
+        } else {
+            -1
+        }
+        val bookTitles = LocalLuxBookTitles.current
+        val novelShelf = LocalFenrirShelfNovel.current
+        val luxCells = androidx.compose.runtime.remember(bookTitles, fillCount, luxCols, novelShelf) {
+            if (!lux) {
+                null
+            } else {
+                LuxCells(
+                    titles = bookTitles + (if (fillCount >= 0) listOf("Add a book") + List(fillCount) { i -> decorName(decorFor(i, novelShelf)) } else emptyList()),
+                    perRow = luxCols,
+                )
+            }
+        }
+        androidx.compose.runtime.CompositionLocalProvider(LocalLuxCells provides luxCells) {
         FastScrollLazyVerticalGrid(
-            columns = if (columns == 0) GridCells.Adaptive(128.dp) else GridCells.Fixed(columns),
+            columns = if (lux) GridCells.Fixed(luxCols) else if (columns == 0) GridCells.Adaptive(128.dp) else GridCells.Fixed(columns),
             state = gridState,
             modifier = Modifier.fillMaxSize(),
-            contentPadding = contentPadding + PaddingValues(8.dp) + PaddingValues(bottom = islandPad),
-            verticalArrangement = Arrangement.spacedBy(CommonMangaItemDefaults.GridVerticalSpacer),
-            horizontalArrangement = Arrangement.spacedBy(CommonMangaItemDefaults.GridHorizontalSpacer),
+            contentPadding = if (lux) {
+                contentPadding + PaddingValues(start = geom.side, end = geom.side, top = 0.dp, bottom = 8.dp) + PaddingValues(bottom = islandPad + 24.dp)
+            } else {
+                contentPadding + PaddingValues(8.dp) + PaddingValues(bottom = islandPad)
+            },
+            verticalArrangement = Arrangement.spacedBy(if (lux) 0.dp else CommonMangaItemDefaults.GridVerticalSpacer),
+            horizontalArrangement = Arrangement.spacedBy(if (lux) 0.dp else CommonMangaItemDefaults.GridHorizontalSpacer),
         ) {
             // Fenrir: room for the glass case + rail, which scroll along with this spot.
             if (header != null) {
@@ -86,15 +117,25 @@ internal fun LazyLibraryGrid(
             content()
             // Fenrir: finish the bookcase down to the bottom of the screen (no further): an
             // "Add a book" spot after your books, then empty spots with a few decorations.
-            if (shelfFill >= 0) {
-                val used = shelfFill + 1
-                val rows = maxOf((used + perRow - 1) / perRow, screenRows)
-                val fill = rows * perRow - used
-                item(contentType = { "fenrir_add_book" }) { FenrirAddBookCell(titleMaxLines) }
-                items(count = fill, contentType = { "fenrir_empty_shelf" }) { i ->
-                    FenrirEmptyShelfCell(titleMaxLines, i)
+            if (fillCount >= 0) {
+                val bookCount = shelfFill
+                item(contentType = { "fenrir_add_book" }) {
+                    if (lux) LuxAddBookCell(bookCount) else FenrirAddBookCell(titleMaxLines)
+                }
+                items(count = fillCount, contentType = { "fenrir_empty_shelf" }) { i ->
+                    if (lux) {
+                        val res = decorFor(i, novelShelf)
+                        LuxDecorCell(bookCount + 1 + i, res, decorName(res))
+                    } else {
+                        FenrirEmptyShelfCell(titleMaxLines, i)
+                    }
                 }
             }
+            // Fenrir (Luxury): the cabinet base right under the last row
+            if (lux) {
+                item(span = { GridItemSpan(maxLineSpan) }, contentType = { "lux_base" }) { LuxBase() }
+            }
+        }
         }
     }
 }

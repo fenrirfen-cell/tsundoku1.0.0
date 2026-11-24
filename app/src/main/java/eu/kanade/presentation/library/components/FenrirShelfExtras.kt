@@ -65,7 +65,7 @@ private val MangaDecor = listOf(
 )
 
 /** Which empty spots get something on them: about two in three, never two the same in a row. */
-private fun decorFor(index: Int, novel: Boolean): Int? {
+internal fun decorFor(index: Int, novel: Boolean): Int? {
     val list = if (novel) NovelDecor else MangaDecor
     if (index % 3 == 1) return null
     val k = index / 3 * 2 + (if (index % 3 == 2) 1 else 0)
@@ -193,3 +193,33 @@ internal fun androidx.compose.ui.graphics.drawscope.DrawScope.fenrirShelfLight()
     )
     drawOval(Color(0xFFFFEDC4), topLeft = Offset(cx - 12.dp.toPx(), top), size = Size(24.dp.toPx(), 4.dp.toPx()))
 }
+
+/** Plain names for the decorations (shown on the Luxury nameplates). */
+internal fun decorName(res: Int?): String = when (res) {
+    R.drawable.fenrir_deco_wolf_bookends -> "Wolf bookends"
+    R.drawable.fenrir_deco_moon -> "Moon lamp"
+    R.drawable.fenrir_deco_chained_book -> "Chained tome"
+    R.drawable.fenrir_deco_sakura -> "Sakura tree"
+    R.drawable.fenrir_deco_crystal -> "Crystal"
+    R.drawable.fenrir_deco_lantern -> "Lantern"
+    R.drawable.fenrir_deco_chest -> "Treasure chest"
+    R.drawable.fenrir_deco_cat_books -> "Cat on books"
+    R.drawable.fenrir_deco_glass_dome -> "Glass dome"
+    R.drawable.fenrir_deco_wolf_chain -> "Chained wolf"
+    R.drawable.fenrir_deco_katanas -> "Katanas"
+    R.drawable.fenrir_deco_dragon -> "Dragon"
+    R.drawable.fenrir_deco_kitsune -> "Fox mask"
+    R.drawable.fenrir_deco_samurai -> "Samurai helmet"
+    R.drawable.fenrir_deco_blue_fire -> "Blue flame"
+    R.drawable.fenrir_deco_portal -> "Portal"
+    R.drawable.fenrir_deco_wolf_bust -> "Wolf bust"
+    R.drawable.fenrir_deco_arcade -> "Arcade cabinet"
+    R.drawable.fenrir_deco_headphones -> "Headphones"
+    R.drawable.fenrir_deco_black_cat -> "Black cat"
+    R.drawable.fenrir_deco_pixel_cat -> "Pixel cat"
+    R.drawable.fenrir_deco_clapper -> "Clapperboard"
+    else -> ""
+}
+
+/** Book titles of the shelf being drawn (for equal nameplate heights in Luxury). */
+internal val LocalLuxBookTitles = androidx.compose.runtime.compositionLocalOf<List<String>> { emptyList() }

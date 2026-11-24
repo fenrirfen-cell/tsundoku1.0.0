@@ -1,5 +1,6 @@
 package eu.kanade.presentation.library.components
 
+import androidx.compose.foundation.background
 import android.content.res.Configuration
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -67,7 +68,13 @@ fun LibraryPager(
             return@HorizontalPager
         }
         // Fenrir: revolving bookcase. Each category is one side of a box that turns as you switch.
-        Box(Modifier.fillMaxSize().fenrirBookcaseTurn(state, page).fenrirBookcaseBack()) {
+        val look = FenrirLibraryLook.current.value
+        val pageBack = when (look) {
+            FenrirLibraryLook.Look.Luxury -> Modifier.luxPageBack(LocalLuxGeom.current)
+            FenrirLibraryLook.Look.Regular -> Modifier.background(androidx.compose.ui.graphics.Color(0xFF0B0B0F))
+            else -> Modifier.fenrirBookcaseBack()
+        }
+        Box(Modifier.fillMaxSize().fenrirBookcaseTurn(state, page).then(pageBack)) {
         androidx.compose.runtime.CompositionLocalProvider(LocalFenrirPage provides page) pageBlock@{
         val category = getCategoryForPage(page)
         val items = getItemsForCategory(category)

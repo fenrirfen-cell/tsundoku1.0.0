@@ -96,6 +96,11 @@ internal fun FenrirCategoryBar(
     val current = pagerState.currentPage.coerceIn(0, categories.lastIndex)
     val category = categories[current]
     val newCount = newCountFor(category)
+    val look = FenrirLibraryLook.current.value
+    if (look != FenrirLibraryLook.Look.Bookshelf) {
+        FenrirPlainCategoryBar(categories, current, newCountFor, onGoTo, countFor, luxury = look == FenrirLibraryLook.Look.Luxury)
+        return
+    }
     // Fenrir: the bookcase's carved top rail, with a brass nameplate and brass knobs.
     Row(
         modifier = Modifier
@@ -524,7 +529,19 @@ internal fun FenrirLibraryGridItem(
     onLongClick: () -> Unit,
     titleMaxLines: Int = 2,
     flyOnClick: Boolean = false,
+    index: Int = -1,
 ) {
+    when (FenrirLibraryLook.current.value) {
+        FenrirLibraryLook.Look.Luxury -> {
+            LuxGridItem(item, index, isSelected, onClick, onLongClick, flyOnClick)
+            return
+        }
+        FenrirLibraryLook.Look.Regular -> {
+            FenrirRegularGridItem(item, isSelected, onClick, onLongClick)
+            return
+        }
+        else -> Unit
+    }
     val lm = item.libraryManga
     val manga = lm.manga
     val total = lm.totalChapters
@@ -1261,6 +1278,115 @@ internal fun FenrirAlertsCard() {
             color = Color(0xFF6E6E78),
             fontSize = 11.sp,
             modifier = Modifier.padding(top = 6.dp),
+        )
+    }
+}
+
+
+/** Fenrir: the category band for the Luxury and Regular looks (same jump / edit dialogs). */
+@Composable
+private fun FenrirPlainCategoryBar(
+    categories: List<Category>,
+    current: Int,
+    newCountFor: (Category) -> Int,
+    onGoTo: (Int) -> Unit,
+    countFor: (Category) -> Int,
+    luxury: Boolean,
+) {
+    val category = categories[current]
+    var jump by remember { mutableStateOf(false) }
+    var manage by remember { mutableStateOf(false) }
+    var startNew by remember { mutableStateOf(false) }
+    if (jump) {
+        FenrirCategoryJump(
+            categories = categories, current = current, countFor = countFor, newCountFor = newCountFor,
+            onPick = { jump = false; onGoTo(it) },
+            onEdit = { jump = false; startNew = false; manage = true },
+            onNew = { jump = false; startNew = true; manage = true },
+            onDismiss = { jump = false },
+        )
+    }
+    if (manage) FenrirCategoriesDialog(categories = categories, current = category, onDismiss = { manage = false }, startNew = startNew)
+    val name: @Composable () -> Unit = {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                Icons.AutoMirrored.Outlined.MenuBook,
+                contentDescription = null,
+                tint = Color(0xFFE2343F),
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(category.visualName, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+        }
+    }
+    if (luxury) {
+        LuxCategoryBand(
+            onPrev = { if (current > 0) onGoTo(current - 1) },
+            onNext = { if (current < categories.lastIndex) onGoTo(current + 1) },
+            onName = { jump = true },
+            name = name,
+        )
+    } else {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ArrowButton(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Previous category", current > 0) { onGoTo(current - 1) }
+            Box(
+                Modifier.weight(1f).padding(horizontal = 10.dp).height(44.dp).clip(RoundedCornerShape(22.dp))
+                    .background(Color(0xFF1A1A20)).clickable { jump = true },
+                contentAlignment = Alignment.Center,
+            ) { name() }
+            ArrowButton(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Next category", current < categories.lastIndex) { onGoTo(current + 1) }
+        }
+    }
+}
+
+
+/** Fenrir: the Regular look: a plain cover with title and progress, no furniture. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun FenrirRegularGridItem(
+    item: eu.kanade.tachiyomi.ui.library.LibraryItem,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
+    val manga = item.libraryManga.manga
+    val cover = remember(manga.id, manga.coverLastModified, manga.thumbnailUrl) {
+        tachiyomi.domain.manga.model.MangaCover(mangaId = manga.id, sourceId = manga.source, isMangaFavorite = manga.favorite, url = manga.thumbnailUrl, lastModified = manga.coverLastModified)
+    }
+    val total = item.libraryManga.totalChapters
+    val read = item.libraryManga.readCount
+    Column(
+        Modifier
+            .padding(4.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+    ) {
+        Box {
+            eu.kanade.presentation.manga.components.MangaCover.Book(
+                data = cover,
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                    .then(if (isSelected) Modifier.border(3.dp, FenrirRed, RoundedCornerShape(12.dp)) else Modifier),
+            )
+            val unread = item.badges.unreadCount
+            if (unread > 0) {
+                Text(
+                    "$unread", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.TopStart).padding(6.dp).clip(RoundedCornerShape(9.dp)).background(FenrirRed).padding(horizontal = 7.dp, vertical = 2.dp),
+                )
+            }
+        }
+        Text(manga.title, color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, lineHeight = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp, start = 2.dp, end = 2.dp))
+        Text(
+            when {
+                total > 0 && read >= total -> "Done"
+                total > 0 && read > 0 -> "${read * 100 / total}% read"
+                else -> "New"
+            },
+            color = Color(0xFF9A9AA6), fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(start = 2.dp, bottom = 4.dp),
         )
     }
 }

@@ -586,7 +586,14 @@ private fun FenrirBookTurnOverlay(flight: FenrirBookFlight.Flight) {
                     alpha = 1f - fade
                 },
         ) {
-            if (angle < 90f) {
+            val luxury = FenrirLibraryLook.current.value == FenrirLibraryLook.Look.Luxury
+            if (luxury) {
+                if (angle < 90f) {
+                    LuxBook(cover = flight.cover, modifier = Modifier.fillMaxSize())
+                } else {
+                    Box(Modifier.fillMaxSize().graphicsLayer { scaleX = -1f }) { LuxBookBack(flight.cover, Modifier.fillMaxSize()) }
+                }
+            } else if (angle < 90f) {
                 // the tome as it stood on the shelf
                 FenrirTomeBook(cover = flight.cover, modifier = Modifier.fillMaxSize())
             } else {

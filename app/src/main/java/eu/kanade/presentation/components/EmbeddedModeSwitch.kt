@@ -2,6 +2,7 @@ package eu.kanade.presentation.components
 
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.Casino
 import androidx.compose.material.icons.outlined.Refresh
@@ -75,6 +76,7 @@ import eu.kanade.tachiyomi.EmbeddedHost
  */
 @Composable
 fun EmbeddedModeSwitchBar(modifier: Modifier = Modifier) {
+    val topLook = eu.kanade.presentation.library.components.FenrirLibraryLook.current.value
     val openWatch = EmbeddedHost.openWatch ?: return
     val context = LocalContext.current
     if (EmbeddedHost.isFenrirStyle) {
@@ -182,24 +184,64 @@ private fun FenrirReadHeader(modifier: Modifier, openWatch: (Activity) -> Unit) 
         modifier = modifier
             .fillMaxWidth()
             // Fenrir: dark wood behind the crown, all the way up behind the status bar.
-            .then(eu.kanade.presentation.library.components.fenrirCrownModifier())
+            .then(
+                when (topLook) {
+                    eu.kanade.presentation.library.components.FenrirLibraryLook.Look.Bookshelf -> eu.kanade.presentation.library.components.fenrirCrownModifier()
+                    eu.kanade.presentation.library.components.FenrirLibraryLook.Look.Luxury -> Modifier.background(androidx.compose.ui.graphics.Color(0xFF0E0C0A))
+                    else -> Modifier.background(androidx.compose.ui.graphics.Color(0xFF0B0B0F))
+                },
+            )
             .windowInsetsPadding(WindowInsets.statusBars)
             .padding(top = 2.dp),
     ) {
-        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth().aspectRatio(CrownRatio)) {
-            androidx.compose.foundation.Image(
-                painter = androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.fenrir_crown),
-                contentDescription = null,
-                contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
-                modifier = Modifier.fillMaxSize(),
-            )
+        // Fenrir: the top follows the library look (carved crown / gold-and-black / plain)
+        val ratio = when (topLook) { eu.kanade.presentation.library.components.FenrirLibraryLook.Look.Bookshelf -> CrownRatio; eu.kanade.presentation.library.components.FenrirLibraryLook.Look.Luxury -> 1440f / 236f; else -> 1440f / 170f }
+        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth().aspectRatio(ratio)) {
             val cw = maxWidth
             val ch = maxHeight
-            // the two plain wood panels of the crown (left: FENRIR READ ▾, right: Read ▾)
-            Box(Modifier.offset(cw * 0.1028f, ch * 0.3902f + 3.dp).size(cw * 0.2561f, ch * 0.337f)) {
+            val slots: List<FloatArray> = when (topLook) {
+                eu.kanade.presentation.library.components.FenrirLibraryLook.Look.Bookshelf -> listOf(floatArrayOf(0.1028f, 0.3902f, 0.2561f, 0.337f), floatArrayOf(0.641f, 0.3902f, 0.2561f, 0.337f))
+                eu.kanade.presentation.library.components.FenrirLibraryLook.Look.Luxury -> listOf(floatArrayOf(0.015f, 0.28f, 0.355f, 0.46f), floatArrayOf(0.63f, 0.28f, 0.355f, 0.46f))
+                else -> listOf(floatArrayOf(0.03f, 0.2f, 0.42f, 0.58f), floatArrayOf(0.62f, 0.2f, 0.35f, 0.58f))
+            }
+            when (topLook) {
+                eu.kanade.presentation.library.components.FenrirLibraryLook.Look.Bookshelf -> androidx.compose.foundation.Image(
+                    painter = androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.fenrir_crown),
+                    contentDescription = null,
+                    contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                eu.kanade.presentation.library.components.FenrirLibraryLook.Look.Luxury -> {
+                    androidx.compose.foundation.Image(
+                        androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.lux_marble), null,
+                        Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    )
+                    slots.forEachIndexed { i, r ->
+                        androidx.compose.foundation.Image(
+                            androidx.compose.ui.res.painterResource(if (i == 0) eu.kanade.tachiyomi.R.drawable.lux_pill_l else eu.kanade.tachiyomi.R.drawable.lux_pill_r), null,
+                            Modifier.offset(cw * r[0], ch * r[1]).size(cw * r[2], ch * r[3]),
+                            contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
+                        )
+                    }
+                    val ringW = cw * 0.25f
+                    androidx.compose.foundation.Image(
+                        androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.lux_ring), null,
+                        Modifier.align(Alignment.TopCenter).size(ringW, ringW * (166f / 257f)),
+                        contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
+                    )
+                    androidx.compose.foundation.Image(
+                        androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.lux_wolf), null,
+                        Modifier.align(Alignment.TopCenter).offset(y = ringW * 0.07f).size(ringW * 0.62f),
+                    )
+                }
+                else -> Unit
+            }
+            androidx.compose.runtime.CompositionLocalProvider(LocalTopStyle provides topLook.ordinal) {
+            // the two button spots (left: FENRIR READ ▾, right: Read ▾)
+            Box(Modifier.offset(cw * slots[0][0], ch * slots[0][1] + (if (topLook == eu.kanade.presentation.library.components.FenrirLibraryLook.Look.Bookshelf) 3.dp else 0.dp)).size(cw * slots[0][2], ch * slots[0][3])) {
                 FenrirReadWordmarkMenu()
             }
-            Box(Modifier.offset(cw * 0.641f, ch * 0.3902f + 3.dp).size(cw * 0.2561f, ch * 0.337f)) {
+            Box(Modifier.offset(cw * slots[1][0], ch * slots[1][1] + (if (topLook == eu.kanade.presentation.library.components.FenrirLibraryLook.Look.Bookshelf) 3.dp else 0.dp)).size(cw * slots[1][2], ch * slots[1][3])) {
             val appUpdate by eu.kanade.tachiyomi.EmbeddedHost.appUpdate.collectAsState()
             Box(Modifier.fillMaxSize()) {
                 FenrirCarvedPanel(onClick = { open = true }) {
@@ -215,7 +257,7 @@ private fun FenrirReadHeader(modifier: Modifier, openWatch: (Activity) -> Unit) 
                     Icon(
                         imageVector = Icons.Outlined.KeyboardArrowDown,
                         contentDescription = "Switch side",
-                        tint = FenrirGoldText,
+                        tint = if (LocalTopStyle.current == 0) FenrirGoldText else androidx.compose.ui.graphics.Color.White,
                         modifier = Modifier.size(18.dp),
                     )
                 }
@@ -264,9 +306,13 @@ private fun FenrirReadHeader(modifier: Modifier, openWatch: (Activity) -> Unit) 
                 }
             }
             }
+            }
         }
     }
 }
+
+/** 0 = carved crown, 1 = luxury gold-and-black, 2 = plain glass (follows the library look). */
+private val LocalTopStyle = androidx.compose.runtime.compositionLocalOf { 0 }
 
 /** The crown picture's shape (width / height). */
 private const val CrownRatio = 1440f / 300f
@@ -281,12 +327,14 @@ private fun FenrirCarvedPanel(onClick: (() -> Unit)?, content: @Composable andro
     val interaction = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val glow by androidx.compose.animation.core.animateFloatAsState(if (pressed) 1f else 0f, label = "panelGlow")
-    val shape = RoundedCornerShape(8.dp)
+    val style = LocalTopStyle.current
+    val shape = if (style == 0) RoundedCornerShape(8.dp) else RoundedCornerShape(50)
     Row(
         modifier = Modifier
             .fillMaxSize()
+            .then(if (style == 2) Modifier.fenrirReaderGlassPill() else Modifier)
             .clip(shape)
-            .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.3f))
+            .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = if (style == 0) 0.3f else 0f))
             .background(
                 Brush.radialGradient(
                     listOf(androidx.compose.ui.graphics.Color(0xFFFFC060).copy(alpha = 0.45f * glow), androidx.compose.ui.graphics.Color.Transparent),
@@ -327,6 +375,17 @@ private fun FenrirCarvedText(
         listOf(androidx.compose.ui.graphics.Color(0xFFFFE89A), androidx.compose.ui.graphics.Color(0xFFDE9624))
     }
     val glow = if (red) androidx.compose.ui.graphics.Color(0xCCFF3040) else androidx.compose.ui.graphics.Color(0xCCFFB040)
+    if (LocalTopStyle.current != 0) {
+        // Luxury / Regular: plain white letters, READ in the red branding
+        Text(
+            text, modifier = modifier, maxLines = 1, softWrap = false,
+            style = androidx.compose.ui.text.TextStyle(
+                fontSize = fs, letterSpacing = ls, fontWeight = FontWeight.Bold,
+                color = if (red) androidx.compose.ui.graphics.Color(0xFFE53340) else androidx.compose.ui.graphics.Color.White,
+            ),
+        )
+        return
+    }
     Box(modifier) {
         Text(
             text,
@@ -475,7 +534,7 @@ private fun FenrirReadWordmarkMenu() {
                 Icon(
                     imageVector = Icons.Outlined.KeyboardArrowDown,
                     contentDescription = "Library menu",
-                    tint = FenrirGoldText,
+                    tint = if (LocalTopStyle.current == 0) FenrirGoldText else androidx.compose.ui.graphics.Color.White,
                     modifier = Modifier.size(18.dp),
                 )
             }
@@ -508,6 +567,7 @@ private fun FenrirReadWordmarkMenu() {
                     )
                     FenrirMenuRow("Open a random book", Icons.Outlined.Casino) { run(entry.random) }
                     FenrirMenuRow("Check for new chapters", Icons.Outlined.Refresh) { run(entry.checkNew) }
+                    FenrirMenuRow("Library look", Icons.Outlined.GridView) { run { eu.kanade.presentation.library.components.FenrirLibraryLook.pickerOpen.value = true } }
                     if (entry.more.isNotEmpty()) {
                         FenrirMenuRow("More options", Icons.Outlined.MoreVert) { more = true }
                     }

@@ -88,7 +88,13 @@ fun LibraryContent(
             )
             .clipToBounds(),
     ) {
-      androidx.compose.runtime.CompositionLocalProvider(LocalFenrirHeader provides scrollHeader) {
+      val look = FenrirLibraryLook.current.value
+      androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
+      // Fenrir (Luxury): two layouts picked from the width you have (folded / unfolded, split screen)
+      val wide = maxWidth >= 600.dp
+      val geom = if (wide) LuxGeom(true, maxWidth * 0.13f, 11.dp) else LuxGeom(false, 0.dp, 6.dp)
+      androidx.compose.runtime.CompositionLocalProvider(LocalFenrirHeader provides scrollHeader, LocalLuxGeom provides geom) {
+      FenrirLibraryLookPicker()
       Box(Modifier.fillMaxSize()) {
         PullRefresh(
             refreshing = isRefreshing,
@@ -143,7 +149,13 @@ fun LibraryContent(
                 .fillMaxWidth()
                 .onSizeChanged { scrollHeader.heightPx = it.height }
                 .graphicsLayer { translationY = scrollHeader.offsetFor(pagerState.currentPage) }
-                .fenrirBookcaseBack(),
+                .then(
+                    when (look) {
+                        FenrirLibraryLook.Look.Luxury -> Modifier.luxPageBack(geom, withCase = false)
+                        FenrirLibraryLook.Look.Regular -> Modifier.background(androidx.compose.ui.graphics.Color(0xFF0B0B0F))
+                        else -> Modifier.fenrirBookcaseBack()
+                    },
+                ),
         ) {
                         // Fenrir: "● 1 source down · 4 books ›" when a source your books use stopped working.
             if (searchQuery.isNullOrEmpty() && selection.isEmpty()) {
@@ -152,6 +164,13 @@ fun LibraryContent(
                 if (allBooks.isNotEmpty()) FenrirAlertsCard()
             }
 
+            // Fenrir (Luxury, wide): the curved side towers next to the cabinet
+            if (look == FenrirLibraryLook.Look.Luxury && geom.wide) {
+                Box(Modifier.fillMaxWidth().height(0.dp)) {
+                    LuxTower(true, Modifier.align(androidx.compose.ui.Alignment.TopStart).padding(start = 3.dp).wrapContentHeight(androidx.compose.ui.Alignment.Top, unbounded = true).width(geom.tower))
+                    LuxTower(false, Modifier.align(androidx.compose.ui.Alignment.TopEnd).padding(end = 3.dp).wrapContentHeight(androidx.compose.ui.Alignment.Top, unbounded = true).width(geom.tower))
+                }
+            }
             // Fenrir: "Continue reading" glass display case for the most recently read book.
             if (searchQuery.isNullOrEmpty() && selection.isEmpty()) {
                 val lastRead = run {
@@ -161,7 +180,17 @@ fun LibraryContent(
                         .filter { it.lastRead > 0 && it.unreadCount > 0 }
                         .maxByOrNull { it.lastRead }
                 }
-                if (lastRead != null) {
+                if (lastRead != null && look != FenrirLibraryLook.Look.Bookshelf) {
+                    val open = {
+                        val resume = onResumeBook ?: onContinueReadingClicked
+                        if (resume != null) resume(lastRead) else onClickManga(lastRead.manga.id)
+                    }
+                    if (look == FenrirLibraryLook.Look.Luxury) {
+                        Box(Modifier.fillMaxWidth().padding(horizontal = geom.side - 4.dp)) { LuxContinueCabinet(lastRead) { open() } }
+                    } else {
+                        FenrirContinueReadingCard(lastRead, onOpen = { open() }, onClickCover = { onClickManga(lastRead.manga.id) })
+                    }
+                } else if (lastRead != null) {
                     FenrirContinueReadingCase(
                         manga = lastRead,
                         onOpen = {
@@ -180,6 +209,7 @@ fun LibraryContent(
                     }
                 }
                 // Fenrir: the bookcase's top rail (name, new count, dots, brass knobs); swipe to change category.
+                if (look == FenrirLibraryLook.Look.Luxury) Box(Modifier.fillMaxWidth().padding(horizontal = geom.side - 4.dp)) {
                 FenrirCategoryBar(
                     categories = categories,
                     pagerState = pagerState,
@@ -187,9 +217,18 @@ fun LibraryContent(
                     onGoTo = { scope.launch { pagerState.animateScrollToPage(it) } },
                     countFor = { category -> getItemsForCategory(category).size },
                 )
+                } else FenrirCategoryBar(
+                    categories = categories,
+                    pagerState = pagerState,
+                    newCountFor = { category -> getItemsForCategory(category).count { it.unreadCount > 0 } },
+                    onGoTo = { scope.launch { pagerState.animateScrollToPage(it) } },
+                    countFor = { category -> getItemsForCategory(category).size },
+                )
             }
+            // Fenrir (Luxury): the case's top cap and ceiling lights, joining the band to the shelves
+            if (look == FenrirLibraryLook.Look.Luxury) LuxCaseTop(geom)
             // Fenrir: ivy hanging from the rail over the top corners of the bookcase.
-            Box(Modifier.fillMaxWidth().height(0.dp)) {
+            if (look == FenrirLibraryLook.Look.Bookshelf) Box(Modifier.fillMaxWidth().height(0.dp)) {
                 androidx.compose.foundation.Image(
                     androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.fenrir_ivy_left),
                     contentDescription = null,
@@ -208,6 +247,7 @@ fun LibraryContent(
                 )
             }
         }
+      }
       }
       }
 
