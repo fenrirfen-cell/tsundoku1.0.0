@@ -50,6 +50,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.TransformOrigin
@@ -198,7 +199,7 @@ internal fun Modifier.luxPageBack(geom: LuxGeom, withCase: Boolean = true): Modi
     val tr = ImageBitmap.imageResource(R.drawable.lux_tower_r)
     // Fenrir: clipped to this box, or the tall marble picture paints over everything below it
     // (the header's background was covering the whole shelf).
-    return this.drawBehind { androidx.compose.ui.graphics.drawscope.clipRect(0f, 0f, size.width, size.height) {
+    return this.drawBehind { clipRect(0f, 0f, size.width, size.height) {
         // marble, scaled to the width and repeated down
         val k = size.width / marble.width
         val mh = marble.height * k
