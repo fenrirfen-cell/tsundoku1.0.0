@@ -171,7 +171,7 @@ class TextPageTurner(
                 v.backColor = backColor()
                 val w = bmp.width.toFloat()
                 val h = bmp.height.toFloat()
-                val sx = if (interactive) lastX else if (fwd) w - 1f else -w
+                val sx = if (interactive) (if (fwd) lastX else 2f * lastX - w) else if (fwd) w - 1f else -w
                 val sy = if (interactive) lastY else if (cornerTop) 1f else h - 1f
                 v.begin(bmp, fwd, cornerTop, sx, sy)
                 v.bringToFront()
@@ -195,7 +195,7 @@ class TextPageTurner(
             setPos(to)
             val pending = pendingCommit
             when {
-                !interactive -> finish(true)
+                !interactive -> finish(true, tap = true)
                 pending != null -> finish(pending)
                 else -> dragTo(lastX, lastY)
             }
@@ -204,7 +204,7 @@ class TextPageTurner(
 
     private fun dragTo(x: Float, y: Float) {
         if (useCurl) {
-            curlView?.dragTo(x, y)
+            if (forward) curlView?.dragTo(x, y) else curlView?.dragBackTo(x, y)
         } else {
             slideView?.let {
                 val dx = x - startX
@@ -213,7 +213,7 @@ class TextPageTurner(
         }
     }
 
-    private fun finish(commit: Boolean) {
+    private fun finish(commit: Boolean, tap: Boolean = false) {
         state = 3
         if (useCurl) {
             val v = curlView ?: return end()
@@ -221,7 +221,7 @@ class TextPageTurner(
             val turnedAway = if (forward) commit else !commit
             val lift = v.pageHeight * 0.12f
             val arc = if (!commit) 0f else if (v.cornerY == 0f) -lift else lift
-            v.animateTo(if (turnedAway) -w else w, v.cornerY, arc, if (commit) 420L else 260L) {
+            v.animateTo(if (turnedAway) -w else w, v.cornerY, arc, if (tap) 520L else if (commit) 420L else 260L, smooth = tap) {
                 afterAnimation(commit)
             }
         } else {

@@ -2914,7 +2914,7 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
             v.backColor = flipPaperBackColor()
             val w = bmp.width.toFloat()
             val h = bmp.height.toFloat()
-            val sx = if (interactive) flipLastX else if (forward) w - 1f else -w
+            val sx = if (interactive) (if (forward) flipLastX else 2f * flipLastX - w) else if (forward) w - 1f else -w
             val sy = if (interactive) flipLastY else if (cornerTop) 1f else h - 1f
             v.begin(bmp, forward, cornerTop, sx, sy)
             v.visibility = android.view.View.VISIBLE
@@ -2922,14 +2922,14 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
             evaluateJavascriptSafe("if (window.__tdPagedJump) window.__tdPagedJump($target);")
             val pending = flipPendingCommit
             if (!interactive) {
-                finishFlip(true)
+                finishFlip(true, tap = true)
             } else if (pending != null) {
                 finishFlip(pending)
             }
         }
     }
 
-    private fun finishFlip(commit: Boolean) {
+    private fun finishFlip(commit: Boolean, tap: Boolean = false) {
         val v = flipView
         if (v == null) {
             flipState = 0
@@ -2941,7 +2941,7 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
         val tx = if (turnedAway) -w else w
         val lift = v.pageHeight * 0.12f
         val arc = if (!commit) 0f else if (v.cornerY == 0f) -lift else lift
-        v.animateTo(tx, v.cornerY, arc, if (commit) 420L else 260L) {
+        v.animateTo(tx, v.cornerY, arc, if (tap) 520L else if (commit) 420L else 260L, smooth = tap) {
             if (commit) {
                 endFlip()
             } else {
@@ -2992,7 +2992,7 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
                 when (flipState) {
                     1, 3 -> return true
                     2 -> {
-                        flipView?.dragTo(event.x, event.y)
+                        if (flipForward) flipView?.dragTo(event.x, event.y) else flipView?.dragBackTo(event.x, event.y)
                         return true
                     }
                 }

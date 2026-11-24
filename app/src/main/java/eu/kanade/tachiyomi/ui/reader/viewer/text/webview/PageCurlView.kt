@@ -58,6 +58,8 @@ class PageCurlView(context: Context) : View(context) {
         color = 0x33000000
     }
     private var animator: ValueAnimator? = null
+    private val reflectMatrix = android.graphics.Matrix()
+    private val throughPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
 
     init {
         isClickable = false
@@ -82,14 +84,21 @@ class PageCurlView(context: Context) : View(context) {
         setPoint(x, y)
     }
 
-    fun animateTo(tx: Float, ty: Float, arc: Float, durationMs: Long, onEnd: () -> Unit) {
+    /**
+     * Fenrir: going back, the finger holds the fold: at the left edge the page is still over the
+     * spine, at the right edge it lies flat.
+     */
+    fun dragBackTo(x: Float, y: Float) = dragTo(2f * x - pageWidth, y)
+
+    /** [smooth] = a whole turn from a tap: even speed, easing in and out like a real page. */
+    fun animateTo(tx: Float, ty: Float, arc: Float, durationMs: Long, smooth: Boolean = false, onEnd: () -> Unit) {
         animator?.cancel()
         val fromX = px
         val fromY = py
         var cancelled = false
         animator = ValueAnimator.ofFloat(0f, 1f).apply {
             duration = durationMs
-            interpolator = DecelerateInterpolator(1.6f)
+            interpolator = if (smooth) android.view.animation.AccelerateDecelerateInterpolator() else DecelerateInterpolator(1.6f)
             addUpdateListener {
                 val t = it.animatedValue as Float
                 px = fromX + (tx - fromX) * t
@@ -184,15 +193,15 @@ class PageCurlView(context: Context) : View(context) {
             canvas.restore()
         }
 
-        // Soft shadow the curl casts onto the page next to the fold.
+        // Soft shadow the curl casts onto the page underneath, next to the fold.
         if (keep.size > 2) {
-            val sw = minOf(28f * resources.displayMetrics.density, len / 3f)
+            val sw = minOf(30f * resources.displayMetrics.density, len / 3f)
             canvas.save()
-            canvas.clipPath(pathOf(keep))
+            canvas.clipOutPath(pathOf(keep))
             fillPaint.color = Color.BLACK
             fillPaint.shader = LinearGradient(
-                mx, my, mx - nx * sw, my - ny * sw,
-                0x30000000, 0x00000000, Shader.TileMode.CLAMP,
+                mx, my, mx + nx * sw, my + ny * sw,
+                0x50000000, 0x00000000, Shader.TileMode.CLAMP,
             )
             canvas.drawRect(0f, 0f, w, h, fillPaint)
             fillPaint.shader = null
@@ -207,6 +216,19 @@ class PageCurlView(context: Context) : View(context) {
             fillPaint.shader = null
             fillPaint.color = backColor
             canvas.drawRect(0f, 0f, w, h, fillPaint)
+            // Fenrir: like real paper, the print shows faintly through the back (mirrored by the fold)
+            canvas.save()
+            reflectMatrix.setValues(
+                floatArrayOf(
+                    1f - 2f * nx * nx, -2f * nx * ny, 2f * (mx * nx + my * ny) * nx,
+                    -2f * nx * ny, 1f - 2f * ny * ny, 2f * (mx * nx + my * ny) * ny,
+                    0f, 0f, 1f,
+                ),
+            )
+            canvas.concat(reflectMatrix)
+            throughPaint.alpha = 30
+            canvas.drawBitmap(bmp, 0f, 0f, throughPaint)
+            canvas.restore()
             fillPaint.color = Color.BLACK
             fillPaint.shader = LinearGradient(
                 mx, my, px, py,

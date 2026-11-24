@@ -407,7 +407,7 @@ abstract class PagerViewer(val activity: ReaderActivity) : Viewer {
                 flipVelocity?.addMovement(ev)
                 flipLastX = ev.x; flipLastY = ev.y
                 if (flipDrag == 2) {
-                    curlView?.dragTo(localX(ev.x), ev.y)
+                    if (flipForward) curlView?.dragTo(localX(ev.x), ev.y) else curlView?.dragBackTo(localX(ev.x), ev.y)
                     return true
                 }
                 if (flipDrag == 1) return true
@@ -502,12 +502,12 @@ abstract class PagerViewer(val activity: ReaderActivity) : Viewer {
             val bmp = mirroredShot(shot)
             val v = ensureCurl(parent, w, h)
             // Forward: the corner starts under your finger. Back: the page comes in from the spine side.
-            val sx = if (flipForward) localX(flipLastX) else (localX(flipLastX) - w).coerceAtMost(0f)
+            // Forward: the corner starts under your finger. Back: the fold follows your finger.
+            val sx = if (flipForward) localX(flipLastX) else 2f * localX(flipLastX) - w
             v.begin(bmp, flipForward, cornerTop, sx, flipLastY)
             v.visibility = View.VISIBLE
             pager.setCurrentItem(target, false)
             flipDrag = 2
-            if (!flipForward) v.dragTo(localX(flipLastX), flipLastY)
             flipPending?.let { finishInteractiveFlip(it) }
         }
     }
@@ -560,14 +560,12 @@ abstract class PagerViewer(val activity: ReaderActivity) : Viewer {
                 // Lift the bottom corner and turn the page over to the left.
                 v.begin(bmp, true, false, fw - 1f, fh - 1f)
             } else {
-                // Going back: the previous page lifts off the spine and lays down from the left,
-                // like turning back a real page (a short opening curl, then the full turn).
+                // Going back: the previous page lifts off the spine and lays down from the left.
                 v.begin(bmp, false, false, -fw, fh - 1f)
-                v.dragTo(-fw * 0.55f, fh * 0.82f)
             }
             v.visibility = View.VISIBLE
             pager.setCurrentItem(target, false)
-            v.animateTo(if (forward) -fw else fw, fh, fh * 0.08f, if (forward) 420L else 460L) {
+            v.animateTo(if (forward) -fw else fw, fh, fh * 0.13f, 520L, smooth = true) {
                 v.visibility = View.INVISIBLE
                 v.clear()
                 flipping = false
