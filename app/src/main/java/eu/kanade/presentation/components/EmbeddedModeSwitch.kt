@@ -76,7 +76,6 @@ import eu.kanade.tachiyomi.EmbeddedHost
  */
 @Composable
 fun EmbeddedModeSwitchBar(modifier: Modifier = Modifier) {
-    val topLook = eu.kanade.presentation.library.components.FenrirLibraryLook.current.value
     val openWatch = EmbeddedHost.openWatch ?: return
     val context = LocalContext.current
     if (EmbeddedHost.isFenrirStyle) {
@@ -176,6 +175,7 @@ private fun ModeSegment(
  */
 @Composable
 private fun FenrirReadHeader(modifier: Modifier, openWatch: (Activity) -> Unit) {
+    val topLook = eu.kanade.presentation.library.components.FenrirLibraryLook.current.value
     val context = LocalContext.current
     val accent = eu.kanade.presentation.reader.FenrirAccent
     val white = androidx.compose.ui.graphics.Color.White
