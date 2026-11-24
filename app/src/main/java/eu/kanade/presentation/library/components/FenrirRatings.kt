@@ -3,6 +3,7 @@ package eu.kanade.presentation.library.components
 import android.content.Context
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -209,7 +210,17 @@ object FenrirRatings {
             val rr = async { if (novel) site { royalRoad(title) } else null }
             val rdb = async { if (novel) site { ranobeDb(title) } else null }
             val ap = async { if (!novel) site { animePlanet(title) } else null }
-            // Show the main site as soon as it answers; the rest fill in.
+            // Fenrir: show whichever site answers first right away (Webnovel can take a while);
+            // Webnovel takes over as the main one when it arrives.
+            val shown = java.util.concurrent.atomic.AtomicBoolean(false)
+            if (novel) {
+                listOf(ani, nu, rr, mal).forEach { d ->
+                    launch {
+                        val v = d.await() ?: return@launch
+                        if (!wn.isCompleted && shown.compareAndSet(false, true)) publish(k, v, true)
+                    }
+                }
+            }
             val first = if (novel) (wn.await() ?: ani.await()) else (ani.await() ?: mal.await())
             if (first != null) publish(k, first, true)
             // Novels lead with Webnovel when it has the book (that's where the reviews are).
