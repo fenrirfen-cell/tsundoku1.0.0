@@ -97,7 +97,7 @@ internal fun LazyLibraryGrid(
         }
         androidx.compose.runtime.CompositionLocalProvider(LocalLuxCells provides luxCells) {
         FastScrollLazyVerticalGrid(
-            columns = if (lux) GridCells.Fixed(luxCols) else if (columns == 0) GridCells.Adaptive(128.dp) else GridCells.Fixed(columns),
+            columns = if (lux) GridCells.Fixed(luxCols) else if (columns == 0) GridCells.Adaptive(if (look == FenrirLibraryLook.Look.Regular) 104.dp else 128.dp) else GridCells.Fixed(columns),
             state = gridState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = if (lux) {

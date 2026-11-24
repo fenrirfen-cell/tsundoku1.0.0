@@ -152,7 +152,11 @@ fun LibraryContent(
                 .then(
                     when (look) {
                         FenrirLibraryLook.Look.Luxury -> Modifier.luxPageBack(geom, withCase = false)
-                        FenrirLibraryLook.Look.Regular -> Modifier.background(androidx.compose.ui.graphics.Color(0xFF0B0B0F))
+                        FenrirLibraryLook.Look.Regular -> Modifier.background(
+                            androidx.compose.ui.graphics.Brush.verticalGradient(
+                                listOf(androidx.compose.ui.graphics.Color(0xFF2C1317), androidx.compose.ui.graphics.Color(0xFF0B0B0F)),
+                            ),
+                        )
                         else -> Modifier.fenrirBookcaseBack()
                     },
                 ),

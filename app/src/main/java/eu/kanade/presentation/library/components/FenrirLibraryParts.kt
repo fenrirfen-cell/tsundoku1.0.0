@@ -1,5 +1,10 @@
 package eu.kanade.presentation.library.components
 
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.draw.blur
+import androidx.compose.material.icons.filled.PlayArrow
+
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.heightIn
@@ -342,43 +347,62 @@ internal fun FenrirContinueReadingCard(
     val total = manga.totalChapters.coerceAtLeast(0)
     val read = manga.readCount.coerceIn(0, total.coerceAtLeast(0))
     val progress = if (total > 0) read.toFloat() / total else 0f
-    Row(
-        modifier = Modifier
+    val shape = RoundedCornerShape(22.dp)
+    Box(
+        Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(Brush.horizontalGradient(0f to FenrirRed.copy(alpha = 0.18f), 0.55f to Color(0xF21C1C22)))
-            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(20.dp))
-            .clickable(onClick = onOpen)
-            .padding(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .shadow(16.dp, shape, ambientColor = Color.Black, spotColor = Color.Black)
+            .clip(shape)
+            .background(Color(0xFF1A1418))
+            .border(1.dp, Color(0xFF55403F), shape)
+            .clickable(onClick = onOpen),
     ) {
+        // the book's own cover, blurred, as the card's background
         MangaCover.Book(
-            modifier = Modifier.height(72.dp),
             data = manga.manga.asMangaCover(),
-            onClick = onClickCover,
+            modifier = Modifier.matchParentSize()
+                .then(if (android.os.Build.VERSION.SDK_INT >= 31) Modifier.blur(26.dp) else Modifier)
+                .graphicsLayer { alpha = 0.85f },
         )
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text("CONTINUE READING", color = FenrirMuted, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.6.sp)
-            Text(manga.manga.title, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(
-                if (total > 0) "$read of $total chapters read" else "Started",
-                color = Color(0xFFB8B8C2),
-                fontSize = 12.sp,
-                maxLines = 1,
+        Box(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to Color(0x8C0A0A0E), 1f to Color(0xB30A0A0E))))
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            MangaCover.Book(
+                modifier = Modifier.width(80.dp).clip(RoundedCornerShape(10.dp)),
+                data = manga.manga.asMangaCover(),
+                onClick = onClickCover,
             )
-            Spacer(Modifier.height(6.dp))
-            Box(Modifier.fillMaxWidth(0.9f).height(3.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.15f))) {
-                Box(Modifier.fillMaxWidth(progress).height(3.dp).clip(CircleShape).background(FenrirRed))
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text("CONTINUE READING", color = Color(0xFFFFAAB0), fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.6.sp)
+                Spacer(Modifier.height(3.dp))
+                Text(manga.manga.title, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 21.sp)
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    if (total > 0) "Chapter ${(read + 1).coerceAtMost(total)} · ${(progress * 100).toInt()}% read" else "Started",
+                    color = Color(0xFFC8C8D2), fontSize = 12.sp, maxLines = 1,
+                )
+                Spacer(Modifier.height(9.dp))
+                Box(Modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.18f))) {
+                    Box(Modifier.fillMaxWidth(progress).height(4.dp).clip(CircleShape).background(FenrirRed))
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        Modifier.height(36.dp).clip(RoundedCornerShape(18.dp)).background(FenrirRed).clickable(onClick = onOpen).padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Continue", color = Color.White, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Text(
+                        "Details", color = Color(0xFFDCDCE4), fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onClickCover).padding(4.dp),
+                    )
+                }
             }
-        }
-        Spacer(Modifier.width(10.dp))
-        Box(
-            Modifier.size(44.dp).clip(CircleShape).background(FenrirRed).clickable(onClick = onOpen),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(Icons.AutoMirrored.Outlined.MenuBook, contentDescription = "Continue reading", tint = Color.White, modifier = Modifier.size(22.dp))
         }
     }
 }
@@ -1328,23 +1352,62 @@ private fun FenrirPlainCategoryBar(
             name = name,
         )
     } else {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            ArrowButton(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Previous category", current > 0) { onGoTo(current - 1) }
-            Box(
-                Modifier.weight(1f).padding(horizontal = 10.dp).height(44.dp).clip(RoundedCornerShape(22.dp))
-                    .background(Color(0xFF1A1A20)).clickable { jump = true },
-                contentAlignment = Alignment.Center,
-            ) { name() }
-            ArrowButton(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Next category", current < categories.lastIndex) { onGoTo(current + 1) }
+        // Fenrir (Regular): a row of pill tabs, one per category, with how many books each has.
+        // Tap the selected one again for the category menu (jump, edit, new).
+        val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+        LaunchedEffect(current) { listState.animateScrollToItem(current.coerceAtLeast(0)) }
+        Column(Modifier.fillMaxWidth()) {
+            androidx.compose.foundation.lazy.LazyRow(
+                state = listState,
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(categories.size) { i ->
+                    val c = categories[i]
+                    val sel = i == current
+                    Row(
+                        Modifier
+                            .height(34.dp)
+                            .clip(RoundedCornerShape(17.dp))
+                            .background(if (sel) Color.White else Color(0xFF1A1A21))
+                            .then(if (sel) Modifier else Modifier.border(1.dp, Color(0xFF373742), RoundedCornerShape(17.dp)))
+                            .clickable { if (sel) jump = true else onGoTo(i) }
+                            .padding(horizontal = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(c.visualName, color = if (sel) Color(0xFF111116) else Color(0xFFE2E2E8), fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        Spacer(Modifier.width(6.dp))
+                        Text("${countFor(c)}", color = if (sel) Color(0xFF7A7A86) else Color(0xFF8A8A98), fontSize = 12.5.sp, fontWeight = FontWeight.Medium)
+                        if (sel) {
+                            Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Category menu", tint = Color(0xFF111116), modifier = Modifier.padding(start = 2.dp).size(16.dp))
+                        }
+                    }
+                }
+            }
+            // "24 books" and the sort / filter button
+            Row(
+                Modifier.fillMaxWidth().padding(start = 20.dp, end = 14.dp, top = 12.dp, bottom = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                val n = countFor(category)
+                Text(if (n == 1) "1 book" else "$n books", color = Color(0xFF8C8C98), fontSize = 12.5.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                Row(
+                    Modifier.clip(RoundedCornerShape(10.dp))
+                        .clickable { eu.kanade.presentation.components.FenrirReadMenu.current.value?.filter?.invoke() }
+                        .padding(horizontal = 6.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Sort & filter", color = Color(0xFFDCDCE4), fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
+                    Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = Color(0xFFDCDCE4), modifier = Modifier.size(16.dp))
+                }
+            }
         }
     }
 }
 
 
-/** Fenrir: the Regular look: a plain cover with title and progress, no furniture. */
+/** Fenrir: the Regular look: a clean cover card with type, unread count and progress. */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun FenrirRegularGridItem(
@@ -1358,35 +1421,68 @@ private fun FenrirRegularGridItem(
         tachiyomi.domain.manga.model.MangaCover(mangaId = manga.id, sourceId = manga.source, isMangaFavorite = manga.favorite, url = manga.thumbnailUrl, lastModified = manga.coverLastModified)
     }
     val total = item.libraryManga.totalChapters
-    val read = item.libraryManga.readCount
+    val read = item.libraryManga.readCount.coerceAtMost(total.coerceAtLeast(item.libraryManga.readCount))
+    val done = total > 0 && read >= total
+    val progress = if (total > 0) (read.toFloat() / total).coerceIn(0f, 1f) else 0f
+    val shape = RoundedCornerShape(14.dp)
     Column(
         Modifier
-            .padding(4.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .padding(horizontal = 4.dp, vertical = 6.dp)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     ) {
-        Box {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(2f / 3f)
+                .shadow(10.dp, shape, ambientColor = Color.Black, spotColor = Color.Black)
+                .clip(shape)
+                .background(Color(0xFF1A1A21)),
+        ) {
             eu.kanade.presentation.manga.components.MangaCover.Book(
                 data = cover,
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                    .then(if (isSelected) Modifier.border(3.dp, FenrirRed, RoundedCornerShape(12.dp)) else Modifier),
+                modifier = Modifier.matchParentSize(),
+            )
+            // darker bottom so the progress line reads on any cover
+            Box(Modifier.matchParentSize().background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.75f))))
+            Text(
+                if (manga.isNovel) "NOVEL" else "MANGA",
+                color = Color(0xFFE4E4EA), fontSize = 8.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp,
+                modifier = Modifier.align(Alignment.TopStart).padding(7.dp)
+                    .clip(RoundedCornerShape(7.dp)).background(Color(0xE6141419)).padding(horizontal = 6.dp, vertical = 2.dp),
             )
             val unread = item.badges.unreadCount
             if (unread > 0) {
                 Text(
-                    "$unread", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.align(Alignment.TopStart).padding(6.dp).clip(RoundedCornerShape(9.dp)).background(FenrirRed).padding(horizontal = 7.dp, vertical = 2.dp),
+                    if (unread > 999) "999+" else "$unread", color = Color.White, fontSize = 10.5.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(7.dp)
+                        .clip(RoundedCornerShape(9.dp)).background(FenrirRed).padding(horizontal = 6.dp, vertical = 1.dp),
                 )
             }
+            if (progress > 0f) {
+                Box(
+                    Modifier.align(Alignment.BottomCenter).padding(start = 8.dp, end = 8.dp, bottom = 7.dp)
+                        .fillMaxWidth().height(3.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.22f)),
+                ) {
+                    Box(Modifier.fillMaxWidth(progress).height(3.dp).clip(CircleShape).background(if (done) Color(0xFF78DC8C) else FenrirRed))
+                }
+            }
+            if (isSelected) {
+                Box(Modifier.matchParentSize().background(FenrirRed.copy(alpha = 0.25f)).border(3.dp, FenrirRed, shape))
+            }
         }
-        Text(manga.title, color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, lineHeight = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp, start = 2.dp, end = 2.dp))
+        Text(
+            manga.title, color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, lineHeight = 16.sp,
+            maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp, start = 2.dp, end = 2.dp),
+        )
         Text(
             when {
-                total > 0 && read >= total -> "Done"
-                total > 0 && read > 0 -> "${read * 100 / total}% read"
+                done -> "✓ Finished"
+                total > 0 && read > 0 -> "Ch $read / $total"
+                total > 0 -> "$total chapters · New"
                 else -> "New"
             },
-            color = Color(0xFF9A9AA6), fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(start = 2.dp, bottom = 4.dp),
+            color = if (done) Color(0xFF78DC8C) else Color(0xFF8C8C98), fontSize = 11.sp, fontWeight = FontWeight.Medium,
+            maxLines = 1, modifier = Modifier.padding(start = 2.dp, top = 1.dp),
         )
     }
 }

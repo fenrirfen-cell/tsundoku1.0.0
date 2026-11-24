@@ -188,7 +188,8 @@ private fun FenrirReadHeader(modifier: Modifier, openWatch: (Activity) -> Unit) 
                 when (topLook) {
                     eu.kanade.presentation.library.components.FenrirLibraryLook.Look.Bookshelf -> eu.kanade.presentation.library.components.fenrirCrownModifier()
                     eu.kanade.presentation.library.components.FenrirLibraryLook.Look.Luxury -> Modifier.background(androidx.compose.ui.graphics.Color(0xFF0E0C0A))
-                    else -> Modifier.background(androidx.compose.ui.graphics.Color(0xFF0B0B0F))
+                    // Regular: a soft red glow at the top, fading down into the page
+                    else -> Modifier.background(Brush.verticalGradient(listOf(androidx.compose.ui.graphics.Color(0xFF3A161B), androidx.compose.ui.graphics.Color(0xFF2C1317))))
                 },
             )
             .windowInsetsPadding(WindowInsets.statusBars)
@@ -202,7 +203,7 @@ private fun FenrirReadHeader(modifier: Modifier, openWatch: (Activity) -> Unit) 
             val slots: List<FloatArray> = when (topLook) {
                 eu.kanade.presentation.library.components.FenrirLibraryLook.Look.Bookshelf -> listOf(floatArrayOf(0.1028f, 0.3902f, 0.2561f, 0.337f), floatArrayOf(0.641f, 0.3902f, 0.2561f, 0.337f))
                 eu.kanade.presentation.library.components.FenrirLibraryLook.Look.Luxury -> listOf(floatArrayOf(0.015f, 0.28f, 0.355f, 0.46f), floatArrayOf(0.63f, 0.28f, 0.355f, 0.46f))
-                else -> listOf(floatArrayOf(0.03f, 0.2f, 0.42f, 0.58f), floatArrayOf(0.62f, 0.2f, 0.35f, 0.58f))
+                else -> listOf(floatArrayOf(0.03f, 0.2f, 0.42f, 0.58f), floatArrayOf(0.665f, 0.2f, 0.305f, 0.58f))
             }
             when (topLook) {
                 eu.kanade.presentation.library.components.FenrirLibraryLook.Look.Bookshelf -> androidx.compose.foundation.Image(
@@ -240,6 +241,21 @@ private fun FenrirReadHeader(modifier: Modifier, openWatch: (Activity) -> Unit) 
             // the two button spots (left: FENRIR READ ▾, right: Read ▾)
             Box(Modifier.offset(cw * slots[0][0], ch * slots[0][1] + (if (topLook == eu.kanade.presentation.library.components.FenrirLibraryLook.Look.Bookshelf) 3.dp else 0.dp)).size(cw * slots[0][2], ch * slots[0][3])) {
                 FenrirReadWordmarkMenu()
+            }
+            // Fenrir (Regular): a round Search button next to Read; the rest is under FENRIR READ ▾
+            if (topLook == eu.kanade.presentation.library.components.FenrirLibraryLook.Look.Regular) {
+                val d = ch * 0.58f
+                Box(
+                    Modifier
+                        .offset(cw * 0.665f - d - 8.dp, ch * 0.2f)
+                        .size(d)
+                        .fenrirReaderGlassPill()
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .clickable(role = Role.Button) { eu.kanade.presentation.components.FenrirReadMenu.current.value?.search?.invoke() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Outlined.Search, contentDescription = "Search your library", tint = white, modifier = Modifier.size(21.dp))
+                }
             }
             Box(Modifier.offset(cw * slots[1][0], ch * slots[1][1] + (if (topLook == eu.kanade.presentation.library.components.FenrirLibraryLook.Look.Bookshelf) 3.dp else 0.dp)).size(cw * slots[1][2], ch * slots[1][3])) {
             val appUpdate by eu.kanade.tachiyomi.EmbeddedHost.appUpdate.collectAsState()
@@ -558,7 +574,7 @@ private fun FenrirReadWordmarkMenu() {
                     action()
                 }
                 if (!more) {
-                    FenrirMenuRow("Search your library", Icons.Outlined.Search) { run(entry.search) }
+                    if (LocalTopStyle.current != 2) FenrirMenuRow("Search your library", Icons.Outlined.Search) { run(entry.search) }
                     FenrirMenuRow("For you", Icons.Filled.AutoAwesome, tint = accent) { run(entry.forYou) }
                     FenrirMenuRow("Filter & sort", Icons.Outlined.FilterList, tint = if (entry.hasFilters) accent else white) { run(entry.filter) }
                     androidx.compose.material3.HorizontalDivider(
