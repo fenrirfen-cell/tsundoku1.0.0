@@ -196,7 +196,9 @@ internal fun Modifier.luxPageBack(geom: LuxGeom, withCase: Boolean = true): Modi
     val fr = ImageBitmap.imageResource(R.drawable.lux_frame_r)
     val tl = ImageBitmap.imageResource(R.drawable.lux_tower_l)
     val tr = ImageBitmap.imageResource(R.drawable.lux_tower_r)
-    return this.drawBehind {
+    // Fenrir: clipped to this box, or the tall marble picture paints over everything below it
+    // (the header's background was covering the whole shelf).
+    return this.drawBehind { androidx.compose.ui.graphics.drawscope.clipRect(0f, 0f, size.width, size.height) {
         // marble, scaled to the width and repeated down
         val k = size.width / marble.width
         val mh = marble.height * k
@@ -213,7 +215,7 @@ internal fun Modifier.luxPageBack(geom: LuxGeom, withCase: Boolean = true): Modi
             drawImage(tl, srcOffset = IntOffset(0, 650), srcSize = IntSize(tl.width, 1), dstOffset = IntOffset(m.toInt(), 0), dstSize = IntSize(t.toInt(), size.height.toInt()))
             drawImage(tr, srcOffset = IntOffset(0, 650), srcSize = IntSize(tr.width, 1), dstOffset = IntOffset((size.width - m - t).toInt(), 0), dstSize = IntSize(t.toInt(), size.height.toInt()))
         }
-        if (!withCase) return@drawBehind
+        if (!withCase) return@clipRect
         val x0 = t + (if (t > 0f) 3.dp.toPx() else 0f)
         val x1 = size.width - x0
         // interior back wall
@@ -226,7 +228,7 @@ internal fun Modifier.luxPageBack(geom: LuxGeom, withCase: Boolean = true): Modi
             drawImage(fr, dstOffset = IntOffset((x1 - f).toInt(), yy.toInt()), dstSize = IntSize(f.toInt(), th.toInt() + 1))
             yy += th
         }
-    }
+    } }
 }
 
 /** Nine-slice a picture into [dst] keeping its corners at [corner] px (source) → [cornerDst] px. */
