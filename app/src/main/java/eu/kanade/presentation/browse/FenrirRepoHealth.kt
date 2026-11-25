@@ -142,11 +142,28 @@ fun FenrirRepoHealthCard() {
                     .background(Color(0xFF17171D))
                     .border(1.dp, Color(0xFF2A2A34), RoundedCornerShape(18.dp)),
             ) {
-                off.forEach { o ->
+                // Fenrir: one row per name; the same source in many languages shows once with a count.
+                off.groupBy { it.name }.values.forEach { group ->
+                    val o = group.first()
                     val cloudflare = o.reason == "Cloudflare"
                     Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text(o.name, color = Color.White, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Row(verticalAlignment = Alignment.Top) {
+                                Text(o.name, color = Color.White, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                                if (group.size > 1) {
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        "×${group.size}",
+                                        color = Color.White,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier
+                                            .clip(CircleShape)
+                                            .background(accent)
+                                            .padding(horizontal = 6.dp, vertical = 1.dp),
+                                    )
+                                }
+                            }
                             Text(
                                 if (cloudflare) "Cloudflare · tap Fix to pass it in the browser" else "${o.reason} · turned off, re-checked daily",
                                 color = if (cloudflare) Color(0xFFFFB547) else Color(0xFFFF8A91),
@@ -166,7 +183,7 @@ fun FenrirRepoHealthCard() {
                                     .clip(CircleShape)
                                     .background(accent)
                                     .clickable {
-                                        FenrirReadHealth.turnOn(o.id)
+                                        group.forEach { FenrirReadHealth.turnOn(it.id) }
                                         context.startActivity(
                                             eu.kanade.tachiyomi.ui.webview.WebViewActivity.newIntent(context, site, o.id, o.name),
                                         )
@@ -181,7 +198,7 @@ fun FenrirRepoHealthCard() {
                                 fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier
                                     .clip(CircleShape)
-                                    .clickable { FenrirReadHealth.uninstall(o.id) }
+                                    .clickable { FenrirReadHealth.uninstall(o.id); group.drop(1).forEach { FenrirReadHealth.turnOn(it.id) } }
                                     .padding(horizontal = 8.dp, vertical = 5.dp),
                             )
                             Spacer(Modifier.width(4.dp))
@@ -193,7 +210,7 @@ fun FenrirRepoHealthCard() {
                                 modifier = Modifier
                                     .clip(CircleShape)
                                     .background(Color(0xFF2A2A33))
-                                    .clickable { FenrirReadHealth.turnOn(o.id) }
+                                    .clickable { group.forEach { FenrirReadHealth.turnOn(it.id) } }
                                     .padding(horizontal = 11.dp, vertical = 5.dp),
                             )
                         }

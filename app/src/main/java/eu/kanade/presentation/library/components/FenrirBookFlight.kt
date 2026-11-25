@@ -122,7 +122,11 @@ private fun smooth(x: Float): Float = x * x * (3f - 2f * x)
 @Composable
 internal fun FenrirBookFlightOverlay() {
     val flight = FenrirBookFlight.current ?: return
-    if (flight.done) {
+    // Only a flight that was already done when we got here is skipped (e.g. coming Back). One that
+    // finishes while it's on screen keeps its last frame until the reader is up; dropping it here
+    // flashed the library between the open book and the reader.
+    val doneBefore = remember(flight) { flight.done }
+    if (doneBefore) {
         androidx.compose.runtime.SideEffect { FenrirBookFlight.clear() }
         return
     }
@@ -201,12 +205,16 @@ internal fun FenrirBookFlightOverlay() {
         val wDp = with(density) { lerp(bookW, wPx, g).toDp() }
         val hDp = with(density) { lerp(bookH, hPx, g).toDp() }
         val flood = if (c == null) grow else 0f
+        val bookAlpha = smooth(phase(t, 650f, 90f))
 
         Box(
             Modifier
                 .offset { IntOffset(left.roundToInt(), top.roundToInt()) }
                 .size(wDp, hDp)
                 .graphicsLayer {
+                    // hidden while the tome carries the cover (the flat cover beside the tome's bent
+                    // one looked like two books); shown just before the cover swings open
+                    alpha = bookAlpha
                     shadowElevation = (6f + 18f * fly) * density.density
                     shape = RoundedCornerShape(4.dp)
                 },
@@ -286,7 +294,7 @@ internal fun FenrirBookFlightOverlay() {
         }
         // Fenrir: the tome (frame, spine, ribbon) round the flying cover, so it leaves the cabinet
         // looking like the book you saw; it melts away just as the cover swings open.
-        val tomeAlpha = 1f - smooth(phase(t, 620f, 180f))
+        val tomeAlpha = 1f - smooth(phase(t, 700f, 60f))
         if (tomeAlpha > 0.01f && g == 0f) {
             val cbw = FenrirTomeCoverBox[2] - FenrirTomeCoverBox[0]
             val frameW = bookW / cbw

@@ -95,6 +95,14 @@ object FenrirReadHealth {
             val id = p.getOrNull(0)?.toLongOrNull() ?: return@mapNotNull null
             Off(id, p.getOrElse(1) { "Source" }, p.getOrElse(2) { "Not loading" }, p.getOrElse(3) { "1" } == "1")
         }
+        // Turn back on what was switched off only for showing nothing ("No results").
+        val empty = turnedOff.value.filter { it.auto && it.reason == "No results" }
+        if (empty.isNotEmpty()) {
+            prefs.disabledSources.set(prefs.disabledSources.get() - empty.map { it.id.toString() }.toSet())
+            empty.forEach { setStrikes(it.id, 0) }
+            turnedOff.value = turnedOff.value - empty.toSet()
+            save()
+        }
     }
 
     private fun save() {
@@ -187,6 +195,12 @@ object FenrirReadHealth {
                 .getOrDefault(false)
         }
         val seconds = (System.currentTimeMillis() - start) / 1000.0
+        // Fenrir: an empty list without an error isn't broken (e.g. one language of MangaDex with
+        // nothing in it); turning those off filled the list with the same name many times.
+        if (ok == false && error == null) {
+            reasons.remove(id)
+            return Status.Working to null
+        }
         if (ok != true) {
             val reason = reasonFor(error, timedOut = ok == null)
             reasons[id] = reason
@@ -330,11 +344,12 @@ fun FenrirCheckSourcesCard(sources: List<Source>) {
                 )
             }
         }
-        off.forEach { o ->
+        off.groupBy { it.name }.values.forEach { group ->
+            val o = group.first()
             Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(8.dp).clip(CircleShape).background(accent))
                 Spacer(Modifier.width(8.dp))
-                Text("${o.name} · ${o.reason}", color = Color(0xFFD0D0D8), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                Text("${o.name}${if (group.size > 1) " ×${group.size}" else ""} · ${o.reason}", color = Color(0xFFD0D0D8), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 Text(
                     "Turn on",
                     color = Color.White,
@@ -343,7 +358,7 @@ fun FenrirCheckSourcesCard(sources: List<Source>) {
                     modifier = Modifier
                         .clip(CircleShape)
                         .background(Color(0xFF2A2A33))
-                        .clickable { FenrirReadHealth.turnOn(o.id) }
+                        .clickable { group.forEach { FenrirReadHealth.turnOn(it.id) } }
                         .padding(horizontal = 11.dp, vertical = 4.dp),
                 )
             }

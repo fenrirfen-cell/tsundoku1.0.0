@@ -125,6 +125,26 @@ class MassImport(
             }
         }
 
+        // Fenrir: sites move to a new ending (.com → .net, .to …) and extensions lag behind; when
+        // nothing matches exactly, match on the site's name.
+        if (matchingSources.isEmpty() && urlHost != null) {
+            fun siteName(h: String): String? = h.split('.').let { p -> if (p.size >= 2) p[p.size - 2] else null }?.takeIf { it.length >= 5 }
+            val want = siteName(urlHost)
+            if (want != null) {
+                val byName = sources.filter { source ->
+                    runCatching {
+                        val raw = getSourceBaseUrl(source)
+                        val h = URI(if (raw.startsWith("http")) raw else "https://$raw").host?.lowercase()?.removePrefix("www.")
+                        h != null && siteName(h) == want
+                    }.getOrDefault(false)
+                }
+                if (byName.isNotEmpty()) {
+                    preferredSourceId?.let { id -> byName.firstOrNull { it.id == id }?.let { return it } }
+                    val langs = sourcePreferences.enabledLanguages.get()
+                    return byName.firstOrNull { it.lang in langs } ?: byName.first()
+                }
+            }
+        }
         if (matchingSources.isEmpty()) {
             if (urlHost == null || missingSourceHostLogCache.putIfAbsent(urlHost, true) == null) {
                 logcat(LogPriority.WARN) { "MassImport: No source match for $url host=$urlHost" }

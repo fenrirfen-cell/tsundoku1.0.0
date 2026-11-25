@@ -1019,8 +1019,20 @@ class MassImportJob(private val context: Context, workerParams: WorkerParameters
 
         // withTimeoutOrNull, not withTimeout: TimeoutCancellationException would be rethrown by
         // the caller as a full-job cancel; convert to a per-URL failure instead.
+        // Fenrir: when the link's page can't be opened straight (sites whose web links differ from
+        // the app's own links, extensions installed inside the app so Android can't match them),
+        // look the book up on the source instead and use what it finds.
         val manga = withTimeoutOrNull(FETCH_TIMEOUT_MS) {
-            massImportInteractor.resolveMangaUrl(url, finalUrl, source)
+            val direct = runCatching { massImportInteractor.resolveMangaUrl(url, finalUrl, source) }
+            direct.getOrNull()?.takeIf { it.title.isNotBlank() } ?: run {
+                val found = fenrirFindBySearch(source, url, normalizedPath)
+                if (found != null) {
+                    val p = eu.kanade.tachiyomi.util.source.normalizeSourcePath(source, found)
+                    massImportInteractor.resolveMangaUrl(url, p, source)
+                } else {
+                    direct.getOrThrow()
+                }
+            }
         } ?: throw java.io.IOException("Timed out resolving $url")
 
         if (addToLibrary) {
@@ -1189,6 +1201,41 @@ class MassImportJob(private val context: Context, workerParams: WorkerParameters
             logcat(LogPriority.ERROR, e) { "Failed to write mass import result file" }
             return null
         }
+    }
+
+    /** Fenrir: find the source's own link for a web link by searching (the link, then its title words). */
+    private suspend fun fenrirFindBySearch(source: CatalogueSource, url: String, path: String): String? {
+        val segs = path.split('/', '?', '&', '=').map { it.lowercase() }.filter { it.length >= 4 }
+        fun pick(list: List<eu.kanade.tachiyomi.source.model.SManga>, slugTitle: String?): String? {
+            val withUrl = list.filter { runCatching { it.url }.getOrNull()?.isNotBlank() == true }
+            withUrl.firstOrNull { m ->
+                val u = m.url.lowercase()
+                segs.any { it.length >= 6 && u.contains(it) }
+            }?.let { return it.url }
+            if (slugTitle != null) {
+                val want = slugTitle.filter { it.isLetterOrDigit() }.lowercase()
+                withUrl.firstOrNull { m ->
+                    runCatching { m.title }.getOrNull()?.filter { it.isLetterOrDigit() }?.lowercase() == want
+                }?.let { return it.url }
+            }
+            return null
+        }
+        val byLink = runCatching {
+            withTimeoutOrNull(15_000) { source.getSearchManga(1, url, source.getFilterList()).mangas }
+        }.getOrNull().orEmpty()
+        pick(byLink, null)?.let { return it }
+        if (byLink.size == 1) return runCatching { byLink.first().url }.getOrNull()
+        val slug = path.split('/', '?').map { it.substringBefore('.') }
+            .filter { seg -> seg.count { it.isLetter() } >= 4 && seg.any { it == '-' || it == '_' } }
+            .maxByOrNull { it.length }
+            ?: path.split('/').lastOrNull { seg -> seg.count { it.isLetter() } >= 4 }
+            ?: return null
+        val words = slug.replace('-', ' ').replace('_', ' ').replace(Regex("\\b[0-9a-f]{6,}\\b"), " ").trim().replace(Regex("\\s+"), " ")
+        if (words.length < 3) return null
+        val byTitle = runCatching {
+            withTimeoutOrNull(15_000) { source.getSearchManga(1, words, source.getFilterList()).mangas }
+        }.getOrNull().orEmpty()
+        return pick(byTitle, words)
     }
 
     private fun getImportSources(): List<CatalogueSource> {
