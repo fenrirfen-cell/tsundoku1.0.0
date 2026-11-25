@@ -58,6 +58,12 @@ object SourcePopupGuard {
         Thread.currentThread().stackTrace.any { frame ->
             val name = frame.className
             if (trusted.any { name.startsWith(it) }) return@any false
+            // the guard's own stand-in window manager (a generated proxy class) isn't a source
+            if (name.startsWith("\$Proxy") || name.contains(".\$Proxy") || name.startsWith("com.sun.proxy") ||
+                name.startsWith("jdk.proxy") || name.contains("SourcePopupGuard")
+            ) {
+                return@any false
+            }
             val inApp = synchronized(knownApp) {
                 knownApp.getOrPut(name) { runCatching { Class.forName(name, false, appLoader) }.isSuccess }
             }
