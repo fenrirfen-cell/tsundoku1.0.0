@@ -37,7 +37,6 @@ import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.ViewList
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -116,7 +115,7 @@ fun HistoryScreen(
             )
             }
         },
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+        snackbarHost = { eu.kanade.presentation.components.FenrirIslandSnackbarHost(snackbarHostState) },
     ) { contentPadding ->
         val fenrirBarsShown by eu.kanade.presentation.components.FenrirBars.shown.collectAsState()
         androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {

@@ -27,6 +27,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -369,3 +371,27 @@ fun FenrirScrollPill(
 
 private fun Modifier.androidxShadowPill(): Modifier =
     this.then(Modifier.shadow(12.dp, RoundedCornerShape(22.dp)))
+
+/**
+ * Fenrir: message bars ("Updating library"…) on the screens with the glass island. Material's bar
+ * is white in this theme and sat right behind the island (a white strip); this one sits above the
+ * island while it shows, in the dark Fenrir look.
+ */
+@Composable
+fun FenrirIslandSnackbarHost(hostState: androidx.compose.material3.SnackbarHostState) {
+    val islandShown by FenrirBars.shown.collectAsState()
+    val lift by androidx.compose.animation.core.animateDpAsState(if (islandShown) 92.dp else 0.dp, label = "snackbarLift")
+    androidx.compose.material3.SnackbarHost(
+        hostState = hostState,
+        modifier = Modifier.padding(bottom = lift),
+    ) { data ->
+        androidx.compose.material3.Snackbar(
+            snackbarData = data,
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+            containerColor = androidx.compose.ui.graphics.Color(0xFF1E1E24),
+            contentColor = androidx.compose.ui.graphics.Color.White,
+            actionColor = androidx.compose.ui.graphics.Color(0xFFFF6B73),
+            dismissActionContentColor = androidx.compose.ui.graphics.Color.White,
+        )
+    }
+}
