@@ -307,8 +307,51 @@ class NovelViewer(val activity: ReaderActivity) : Viewer {
         return (base + layout.getLineTop(line)) to (base + layout.getLineBottom(line))
     }
 
+    // Top of [v] in scroll-content coordinates (the same ones as scrollY), or null if it isn't laid out.
+    private fun contentTopOf(v: View): Int? {
+        val root = scrollView.getChildAt(0) ?: return null
+        if (v.visibility != View.VISIBLE || !v.isLaidOut) return null
+        var y = 0
+        var c: View = v
+        while (c !== root) {
+            y += c.top
+            c = c.parent as? View ?: return null
+        }
+        return y
+    }
+
+    // Fenrir: each chapter starts a new page with its title at the top. For every chapter after
+    // the first: where its break starts (the ─── line, or the title) and where its title starts.
+    private fun chapterBreaks(): List<Pair<Int, Int>> = loadedChapters.mapNotNull { lc ->
+        val title = contentTopOf(lc.headerView) ?: return@mapNotNull null
+        if (title <= 0) return@mapNotNull null
+        val start = lc.separatorView?.let { contentTopOf(it) }?.takeIf { it < title } ?: title
+        start to title
+    }
+
+    // The next chapter's break that begins inside the page [cur, bottom), if any.
+    private fun breakInside(cur: Int, bottom: Int): Pair<Int, Int>? =
+        chapterBreaks().filter { (_, title) -> title > cur && title < bottom + 1 }.minByOrNull { it.second }
+            ?.takeIf { (start, _) -> start < bottom }
+
     // Scroll position of the next/previous page, or null at the end/start of the loaded text.
     private fun textPageTarget(forward: Boolean): Int? {
+        val raw = textPageTargetRaw(forward)
+        val vh = scrollView.height - scrollView.paddingTop - scrollView.paddingBottom
+        val cur = scrollView.scrollY
+        return if (forward) {
+            // The next chapter's title on this page: the next page starts at that title.
+            val br = if (vh > 0) chapterBreaks().filter { (_, title) -> title > cur && title <= cur + vh }.minByOrNull { it.second } else null
+            br?.second ?: raw
+        } else {
+            raw ?: return null
+            // Going back past the start of this chapter's title: stop at the title.
+            val br = chapterBreaks().filter { (_, title) -> title in (raw + 1) until cur }.maxByOrNull { it.second }
+            br?.second ?: raw
+        }
+    }
+
+    private fun textPageTargetRaw(forward: Boolean): Int? {
         applyPagedPadding(true)
         val child = scrollView.getChildAt(0) ?: return null
         val vh = scrollView.height - scrollView.paddingTop - scrollView.paddingBottom
@@ -410,6 +453,11 @@ class NovelViewer(val activity: ReaderActivity) : Viewer {
         // Never hide a big part of the page (e.g. a tall image straddling the edge).
         if (topH > vh / 4) topH = 0
         if (bottomH > vh / 4) bottomH = 0
+        // Fenrir: the next chapter (its ─── line and title) never shows at the bottom of a page;
+        // it starts on its own page, title at the top.
+        breakInside(cur, bottom)?.let { (start, _) ->
+            if (start > cur) bottomH = maxOf(bottomH, bottom - start)
+        }
         val color = pageMaskColor()
         topMask.setBackgroundColor(color)
         bottomMask.setBackgroundColor(color)
