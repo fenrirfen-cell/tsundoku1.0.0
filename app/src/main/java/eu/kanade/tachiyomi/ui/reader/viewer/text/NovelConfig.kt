@@ -36,6 +36,11 @@ class NovelConfig(
             .onEach { navigationModeChangedListener?.invoke() }
             .launchIn(scope)
 
+        readerPreferences.novelPagedMode.changes()
+            .drop(1)
+            .onEach { if (navigationMode == ReaderPreferences.TAPZONE_DISABLED_INDEX) updateNavigation(navigationMode) }
+            .launchIn(scope)
+
         readerPreferences.novelBottomZoneHeight.changes()
             .drop(1)
             .onEach { if (navigationMode == ReaderPreferences.TAPZONE_BOTTOM_INDEX) updateNavigation(navigationMode) }
@@ -63,7 +68,9 @@ class NovelConfig(
             ReaderPreferences.TAPZONE_CENTER_LARGE_INDEX -> CenterNavigation(large = true)
             ReaderPreferences.TAPZONE_BOTTOM_INDEX ->
                 BottomNavigation(readerPreferences.novelBottomZoneHeight.get() / 100f)
-            ReaderPreferences.TAPZONE_DISABLED_INDEX -> DisabledNavigation()
+            // Fenrir: in page mode, tapping the sides turns pages like a book (left = back, right = next).
+            ReaderPreferences.TAPZONE_DISABLED_INDEX ->
+                if (readerPreferences.novelPagedMode.get()) RightAndLeftNavigation() else DisabledNavigation()
             else -> defaultNavigation()
         }
         if (initialNavigationConsumed) {
