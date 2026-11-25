@@ -14,6 +14,16 @@ open class BaseActivity :
     SecureActivityDelegate by SecureActivityDelegateImpl(),
     ThemingDelegate by ThemingDelegateImpl() {
 
+    // Fenrir: windows a source's own code tries to open are blocked (see SourcePopupGuard)
+    private var fenrirGuardedWindowManager: Any? = null
+
+    override fun getSystemService(name: String): Any? {
+        val service = super.getSystemService(name)
+        if (name != Context.WINDOW_SERVICE || service == null) return service
+        return fenrirGuardedWindowManager
+            ?: eu.kanade.tachiyomi.util.system.SourcePopupGuard.wrap(this, service).also { fenrirGuardedWindowManager = it }
+    }
+
     override fun attachBaseContext(newBase: Context) {
         super.attachBaseContext(newBase.prepareTabletUiContext())
     }
