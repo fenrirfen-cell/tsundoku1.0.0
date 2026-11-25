@@ -398,6 +398,96 @@ object AniyomiExtensions {
         )
     }
 
+    // ------------------------------------------------------------------ Fenrir: extension check
+
+    /** Result of trying an extension: [result] is "Works", "Slow" or "Down". */
+    data class Check(val result: String, val seconds: Double = 0.0, val reason: String? = null)
+
+    /**
+     * Tries one extension: an installed one as it is, one from the repository from a throwaway
+     * copy that is deleted again. Opens its Popular page (or a search) and times it.
+     */
+    suspend fun test(pkg: String): Check = withContext(Dispatchers.IO) {
+        val installed = _state.value.installed.firstOrNull { it.pkg == pkg }
+        if (installed != null) return@withContext probe(installed.sources)
+        val item = _state.value.available.firstOrNull { it.pkg == pkg }
+            ?: return@withContext Check("Down", reason = "not in your repositories")
+        val dir = File(app.cacheDir, "ay_test").apply { mkdirs() }
+        val file = File(dir, "${pkg}-${System.nanoTime()}.apk")
+        try {
+            runCatching {
+                network.client.newCall(Request.Builder().url(item.apkUrl).build()).execute().use { response ->
+                    if (!response.isSuccessful) error("HTTP ${response.code}")
+                    file.outputStream().use { out -> response.body.byteStream().copyTo(out) }
+                }
+            }.onFailure { return@withContext Check("Down", reason = "download failed") }
+            file.setReadOnly()
+            val info = app.packageManager.getPackageArchiveInfo(file.absolutePath, PACKAGE_FLAGS)
+                ?.also { it.applicationInfo?.fixPaths(file.absolutePath) }
+                ?: return@withContext Check("Down", reason = "not a valid extension")
+            val sources = runCatching { sourcesOf(info) }.getOrElse {
+                return@withContext Check("Down", reason = "extension doesn't load")
+            }
+            if (sources.isEmpty()) return@withContext Check("Down", reason = "no sites in it")
+            probe(sources)
+        } finally {
+            file.setWritable(true)
+            file.delete()
+        }
+    }
+
+    private fun sourcesOf(info: PackageInfo): List<AnimeSource> {
+        val appInfo = info.applicationInfo ?: return emptyList()
+        val meta = appInfo.metaData ?: return emptyList()
+        val loader = ChildFirstPathClassLoader(appInfo.sourceDir, null, app.classLoader)
+        return meta.getString(META_CLASS).orEmpty().split(";").map { raw ->
+            val t = raw.trim()
+            if (t.startsWith(".")) info.packageName + t else t
+        }.filter { it.isNotBlank() }.flatMap { className ->
+            when (val instance = Class.forName(className, false, loader).getDeclaredConstructor().newInstance()) {
+                is AnimeSource -> listOf(instance)
+                is AnimeSourceFactory -> instance.createSources()
+                else -> emptyList()
+            }
+        }
+    }
+
+    private suspend fun probe(sources: List<AnimeSource>): Check {
+        val catalogue = sources.filterIsInstance<AnimeCatalogueSource>()
+        if (catalogue.isEmpty()) return Check("Down", reason = "no sites in it")
+        // English (or "all") first; one working site is enough.
+        val ordered = catalogue.sortedBy { if (it.lang == "en" || it.lang == "all") 0 else 1 }.take(3)
+        val start = System.currentTimeMillis()
+        var lastError: Throwable? = null
+        val ok = withTimeoutOrNull(25_000) {
+            ordered.any { source ->
+                runCatching { source.getPopularAnime(1).animes.isNotEmpty() }
+                    .onFailure { lastError = it }
+                    .getOrDefault(false) ||
+                    runCatching { source.getSearchAnime(1, "the", source.getFilterList()).animes.isNotEmpty() }
+                        .onFailure { lastError = it }
+                        .getOrDefault(false)
+            }
+        }
+        val seconds = (System.currentTimeMillis() - start) / 1000.0
+        return when (ok) {
+            null -> Check("Down", seconds, "site too slow")
+            false -> Check("Down", seconds, reasonFor(lastError))
+            true -> Check(if (seconds > 8) "Slow" else "Works", seconds)
+        }
+    }
+
+    private fun reasonFor(e: Throwable?): String {
+        val msg = (e?.message ?: "").lowercase()
+        return when {
+            e == null -> "nothing on its home page"
+            "cloudflare" in msg || "403" in msg || "503" in msg -> "blocked by Cloudflare"
+            e is java.net.UnknownHostException || e is java.net.ConnectException -> "site down"
+            "404" in msg -> "page gone"
+            else -> "site not loading"
+        }
+    }
+
     private fun isExtension(info: PackageInfo): Boolean =
         info.reqFeatures.orEmpty().any { it.name == FEATURE }
 
