@@ -41,6 +41,7 @@ import eu.kanade.presentation.manga.components.MangaCoverDialog
 import eu.kanade.presentation.manga.components.RemoveChaptersFromDbDialog
 import eu.kanade.presentation.manga.components.ScanlatorFilterDialog
 import eu.kanade.presentation.manga.components.SetIntervalDialog
+import eu.kanade.presentation.manga.components.SourceUnavailableDialog
 import eu.kanade.presentation.util.AssistContentScreen
 import eu.kanade.presentation.util.Screen
 import eu.kanade.presentation.util.isTabletUi
@@ -309,6 +310,29 @@ class MangaScreen(
                         navigator.push(MangaScreen(other.id))
                     },
                     onDismissRequest = onDismissRequest,
+                )
+            }
+            is MangaViewModel.Dialog.SourceUnavailable -> {
+                SourceUnavailableDialog(
+                    sourceName = dialog.sourceName,
+                    errorText = dialog.errorText,
+                    searching = dialog.searching,
+                    alternative = dialog.alternative,
+                    alternativeSourceName = dialog.alternativeSourceName,
+                    onSwitch = { viewModel.showMigrateDialog(it) },
+                    onOpenAlternative = {
+                        viewModel.dismissSourceUnavailable()
+                        navigator.push(MangaScreen(it.id, fromSource = true))
+                    },
+                    onSearchOtherSources = {
+                        viewModel.dismissSourceUnavailable()
+                        scope.launch { performSearch(navigator, dialog.manga.title, global = true, successState.isNovel) }
+                    },
+                    onOpenInWebView = {
+                        viewModel.dismissSourceUnavailable()
+                        openMangaInWebView(navigator, successState.manga, successState.source)
+                    },
+                    onDismissRequest = viewModel::dismissSourceUnavailable,
                 )
             }
             MangaViewModel.Dialog.SettingsSheet -> ChapterSettingsDialog(

@@ -383,6 +383,13 @@ class MangaViewModel(
         } catch (_: CancellationException) {
             // ignore
         } catch (e: Exception) {
+            // Fenrir: the book is gone from this source (404 / unreachable). Show a friendly
+            // dialog and look for the same title on the user's other sources instead of the raw error.
+            if (FenrirSourceUnavailable.matches(e) && !state.manga.isLocal()) {
+                logcat(LogPriority.WARN, e)
+                showSourceUnavailable(e)
+                return
+            }
             val message = if (e is NoChaptersException) {
                 context.stringResource(MR.strings.no_chapters_error)
             } else {
@@ -1381,6 +1388,15 @@ class MangaViewModel(
             val chaptersToCount: Int,
             val result: WordDensity? = null,
         ) : Dialog
+        /** Fenrir: the entry can't be loaded from its source any more. */
+        data class SourceUnavailable(
+            val manga: Manga,
+            val sourceName: String,
+            val errorText: String,
+            val searching: Boolean = true,
+            val alternative: Manga? = null,
+            val alternativeSourceName: String? = null,
+        ) : Dialog
         data object SettingsSheet : Dialog
         data object TrackSheet : Dialog
         data object FullCover : Dialog
@@ -1447,6 +1463,39 @@ class MangaViewModel(
 
     fun showCoverDialog() {
         updateSuccessState { it.copy(dialog = Dialog.FullCover) }
+    }
+
+    private var alternativeSearchJob: Job? = null
+
+    private fun showSourceUnavailable(error: Throwable) {
+        val state = successState ?: return
+        val dialog = Dialog.SourceUnavailable(
+            manga = state.manga,
+            sourceName = state.source.name,
+            errorText = with(context) { error.formattedMessage },
+        )
+        updateSuccessState { it.copy(dialog = dialog) }
+
+        alternativeSearchJob?.cancel()
+        alternativeSearchJob = viewModelScope.launchIO {
+            val found = FenrirSourceUnavailable.findAlternative(state.manga, state.source.id)
+            mutableState.update { current ->
+                if (current !is State.Success) return@update current
+                val d = current.dialog as? Dialog.SourceUnavailable ?: return@update current
+                current.copy(
+                    dialog = d.copy(
+                        searching = false,
+                        alternative = found?.second,
+                        alternativeSourceName = found?.first?.name,
+                    ),
+                )
+            }
+        }
+    }
+
+    fun dismissSourceUnavailable() {
+        alternativeSearchJob?.cancel()
+        dismissDialog()
     }
 
     fun showMigrateDialog(duplicate: Manga) {
