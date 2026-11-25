@@ -177,13 +177,15 @@ fun LibraryContent(
             }
             // Fenrir: "Continue reading" glass display case for the most recently read book.
             if (searchQuery.isNullOrEmpty() && selection.isEmpty()) {
-                val lastRead = run {
-                    categories.asSequence()
-                        .flatMap { getItemsForCategory(it).asSequence() }
-                        .map { it.libraryManga }
-                        .filter { it.lastRead > 0 && it.unreadCount > 0 }
-                        .maxByOrNull { it.lastRead }
-                }
+                val shownBooks = categories.asSequence()
+                    .flatMap { getItemsForCategory(it).asSequence() }
+                    .map { it.libraryManga }
+                val listPick = shownBooks
+                    .filter { it.lastRead > 0 && it.unreadCount > 0 }
+                    .maxByOrNull { it.lastRead }
+                // Fenrir: from reading history (fresh), not only the books the list shows right now
+                val kinds = shownBooks.map { it.manga.isNovel }.toSet().takeIf { it.isNotEmpty() }
+                val lastRead = rememberFenrirContinueBook(listPick, kinds)
                 if (lastRead != null && look != FenrirLibraryLook.Look.Bookshelf) {
                     val open = {
                         val resume = onResumeBook ?: onContinueReadingClicked

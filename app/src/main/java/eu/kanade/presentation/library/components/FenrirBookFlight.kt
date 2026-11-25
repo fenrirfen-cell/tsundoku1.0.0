@@ -221,6 +221,11 @@ internal fun FenrirBookFlightOverlay() {
                     alpha = bookAlpha
                     shadowElevation = (6f + 18f * fly) * density.density
                     shape = RoundedCornerShape(4.dp)
+                    // Fenrir 3D: the whole book leans toward you as the cover swings open, then
+                    // settles flat as the page grows into the reader
+                    rotationY = 16f * kotlin.math.sin(open * Math.PI.toFloat()) * (1f - g)
+                    rotationX = 6f * kotlin.math.sin(open * Math.PI.toFloat()) * (1f - g)
+                    cameraDistance = 9f * density.density
                 },
         ) {
             // the first page of the chapter you're on, under the cover
@@ -269,31 +274,69 @@ internal fun FenrirBookFlightOverlay() {
                 }
                 null -> Box(Modifier.fillMaxSize().background(PageCream).drawBehind { pageLines(true) })
             }
-            // a couple of pages turning just after the cover
-            listOf(0, 1).forEach { k ->
-                val p = FastOutSlowInEasing.transform(phase(t, 880f + k * 110f, 300f))
+            // Fenrir 3D: the edges of the page block down the right side and along the bottom,
+            // and the shadow the lifting cover casts on the page; both go as the page grows.
+            Box(
+                Modifier.fillMaxSize().drawBehind {
+                    val fade = 1f - g
+                    if (fade <= 0.01f) return@drawBehind
+                    val strip = 5.dp.toPx()
+                    var x = size.width - strip
+                    while (x < size.width) {
+                        drawLine(Color(0x55806A48).copy(alpha = 0.33f * fade), Offset(x, 0f), Offset(x, size.height), 1f)
+                        x += 1.6f
+                    }
+                    var y = size.height - strip * 0.8f
+                    while (y < size.height) {
+                        drawLine(Color(0x55806A48).copy(alpha = 0.33f * fade), Offset(0f, y), Offset(size.width, y), 1f)
+                        y += 1.6f
+                    }
+                    val shade = 0.45f * kotlin.math.sin(open * Math.PI.toFloat()) * fade
+                    if (shade > 0.01f) {
+                        drawRect(
+                            Brush.horizontalGradient(
+                                listOf(Color.Black.copy(alpha = shade), Color.Transparent),
+                                startX = 0f,
+                                endX = size.width * (0.35f + 0.5f * (1f - open)),
+                            ),
+                        )
+                    }
+                },
+            )
+            // pages fanning over just after the cover, each catching the light as it turns
+            listOf(0, 1, 2, 3).forEach { k ->
+                val p = FastOutSlowInEasing.transform(phase(t, 860f + k * 85f, 330f))
                 if (p in 0.01f..0.99f) {
                     Box(
                         Modifier
                             .fillMaxSize()
                             .graphicsLayer {
                                 transformOrigin = TransformOrigin(0f, 0.5f)
-                                rotationY = -172f * p
-                                cameraDistance = 10f * density.density
+                                rotationY = -176f * p
+                                cameraDistance = 7f * density.density
                             }
                             .background(PageCream)
-                            .drawBehind { pageLines(false) },
+                            .drawBehind {
+                                pageLines(false)
+                                // darker as the page stands up, lighter as it lies down on the left
+                                val light = kotlin.math.sin(p * Math.PI.toFloat())
+                                drawRect(
+                                    Brush.horizontalGradient(
+                                        listOf(Color.Black.copy(alpha = 0.28f * light), Color.Black.copy(alpha = 0.06f * light)),
+                                    ),
+                                )
+                            },
                     )
                 }
             }
-            // the cover
+            // the cover: a hard board swinging open on its hinge, shaded by the angle
             Box(
                 Modifier
                     .fillMaxSize()
                     .graphicsLayer {
                         transformOrigin = TransformOrigin(0f, 0.5f)
-                        rotationY = -172f * open
-                        cameraDistance = 10f * density.density
+                        rotationY = -176f * open
+                        cameraDistance = 7f * density.density
                     },
             ) {
                 if (open < 0.5f) {
@@ -302,9 +345,21 @@ internal fun FenrirBookFlightOverlay() {
                         modifier = Modifier.fillMaxSize().fenrirHardcover(),
                         shape = RectangleShape,
                     )
+                    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f * open * 2f)))
                 } else {
-                    // inside of the cover board
-                    Box(Modifier.fillMaxSize().background(Color(0xFF4A3426)))
+                    // inside of the cover board: endpaper, darker by the hinge
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(Color(0xFF6A4A34), Color(0xFF3A281C)),
+                                ),
+                            )
+                            .drawBehind {
+                                drawRect(Color.Black.copy(alpha = 0.45f * (1f - open) * 2f))
+                            },
+                    )
                 }
             }
         }
@@ -322,7 +377,16 @@ internal fun FenrirBookFlightOverlay() {
                 modifier = Modifier
                     .offset { IntOffset(fl.roundToInt(), ft.roundToInt()) }
                     .size(with(density) { frameW.toDp() }, with(density) { frameH.toDp() })
-                    .graphicsLayer { alpha = tomeAlpha },
+                    .graphicsLayer {
+                        alpha = tomeAlpha
+                        // Fenrir 3D: it swings round as it leaves the case (spine toward you mid-
+                        // flight) and faces you square by the time it opens
+                        val arc = kotlin.math.sin(fly * Math.PI.toFloat())
+                        rotationY = -32f * arc
+                        rotationZ = -5f * arc
+                        rotationX = 8f * arc
+                        cameraDistance = 8f * density.density
+                    },
             )
         }
         if (flood > 0f) Box(Modifier.fillMaxSize().background(PageCream.copy(alpha = flood)))
