@@ -63,7 +63,8 @@ object FenrirImport {
     sealed interface Result {
         data class Book(val uri: Uri, val name: String, val bytes: Long, val secure: Boolean, val host: String, val convertedFrom: String? = null) : Result
         data class Page(val host: String, val links: List<Pair<String, String>>) : Result // name to url
-        data class Stop(val title: String, val why: String) : Result
+        /** [openUrl]: the site wants a human check; it can be passed in the in-app browser, then try again. */
+        data class Stop(val title: String, val why: String, val openUrl: String? = null) : Result
     }
 
     private val client by lazy { Injekt.get<NetworkHelper>().client }
@@ -100,10 +101,23 @@ object FenrirImport {
             } else {
                 null
             }
-                ?: return@withContext Result.Stop("Couldn't open the link", whyFailed(error, url))
+                ?: return@withContext Result.Stop(
+                    "Couldn't open the link",
+                    whyFailed(error, url),
+                    openUrl = url.takeIf { isHumanCheck(error) },
+                )
         }
         response.use { r ->
-            if (!r.isSuccessful) return@withContext Result.Stop("Couldn't open the link", "The site answered with an error (${r.code}).")
+            if (!r.isSuccessful) {
+                // Cloudflare-style "are you human" page: passable in the in-app browser
+                val challenge = (r.code == 403 || r.code == 503 || r.code == 429) &&
+                    (r.header("cf-mitigated") != null || r.header("Server").orEmpty().contains("cloudflare", true))
+                return@withContext if (challenge) {
+                    Result.Stop("Couldn't open the link", HUMAN_CHECK, openUrl = r.request.url.toString())
+                } else {
+                    Result.Stop("Couldn't open the link", "The site answered with an error (${r.code}).")
+                }
+            }
             val type = r.header("Content-Type").orEmpty().lowercase()
             val length = r.body?.contentLength() ?: -1L
             if (length > MAX_BYTES) return@withContext Result.Stop("Too big", "Files over about 1 GB aren't imported.")
@@ -207,6 +221,13 @@ object FenrirImport {
         process(out, name, secure = true, host = "your phone")
     }
 
+    private const val HUMAN_CHECK = "The site asks for a human check. Tap Open site, pass the check there, then come back and tap Check link."
+
+    private fun isHumanCheck(e: Throwable?): Boolean {
+        val text = generateSequence(e) { it.cause }.joinToString(" ") { "${it.javaClass.simpleName} ${it.message.orEmpty()}" }.lowercase()
+        return "cloudflare" in text || "challenge" in text
+    }
+
     /** Fenrir: what went wrong when the link didn't open, in plain words. */
     private fun whyFailed(e: Throwable?, url: String): String {
         val text = generateSequence(e) { it.cause }.joinToString(" ") { "${it.javaClass.simpleName} ${it.message.orEmpty()}" }.lowercase()
@@ -216,7 +237,7 @@ object FenrirImport {
             "timeout" in text || "timed out" in text -> "The site took too long to answer. Try again later."
             "ssl" in text || "certificate" in text || "handshake" in text -> "The site's secure connection didn't work (its certificate isn't valid)."
             "toomanyfollowups" in text || "too many follow-up" in text -> "The link keeps redirecting and never reaches a file."
-            "cloudflare" in text || "challenge" in text -> "The site asks for a human check. Open it in your browser, then tap Share → Fenrir Vault on the download."
+            "cloudflare" in text || "challenge" in text -> HUMAN_CHECK
             else -> "The site didn't answer. Check the link or try again later." +
                 (e?.javaClass?.simpleName?.let { " ($it)" } ?: "")
         }
@@ -448,6 +469,19 @@ fun FenrirImportSheet(onDismiss: () -> Unit, openImporter: (List<String>) -> Uni
                     ) {
                         Text(r.title, color = Color(0xFFFFB547), fontSize = 15.sp, fontWeight = FontWeight.Bold)
                         Text(r.why, color = Color(0xFFC9C9D2), fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
+                        r.openUrl?.let { url ->
+                            Row(Modifier.padding(top = 10.dp)) {
+                                // in-app browser: same cookies and browser name as the downloader, so
+                                // the passed check counts for "Check link" afterwards
+                                Pill("Open site", primary = false) {
+                                    runCatching {
+                                        context.startActivity(
+                                            eu.kanade.tachiyomi.ui.webview.WebViewActivity.newIntent(context, url, title = FenrirImport.hostOf(url)),
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
                 null -> Unit
