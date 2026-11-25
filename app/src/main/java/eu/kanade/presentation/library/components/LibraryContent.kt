@@ -261,8 +261,7 @@ fun LibraryContent(
             )
         }
 
-        // Fenrir: a book flying off the shelf and opening (shelf books and the glass case).
-        FenrirBookFlightOverlay()
+        // Fenrir: the book-flight overlay is drawn by MainActivity, above the top and bottom bars.
 
         LaunchedEffect(pagerState.currentPage) {
             onChangeCurrentPage(pagerState.currentPage)

@@ -213,7 +213,8 @@ object HomeScreen : Screen() {
                         eu.kanade.presentation.browse.FenrirInstallCheckDialog()
                         run {
                             AnimatedVisibility(
-                                visible = bottomNavVisible && barsShown,
+                                visible = bottomNavVisible && barsShown &&
+                                    eu.kanade.presentation.library.components.FenrirBookFlight.current == null,
                                 modifier = Modifier.align(Alignment.BottomCenter),
                                 enter = androidx.compose.animation.slideInVertically(androidx.compose.animation.core.tween(260)) { it } +
                                     androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(200)),

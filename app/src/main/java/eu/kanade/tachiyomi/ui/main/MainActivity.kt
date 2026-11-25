@@ -221,6 +221,9 @@ class MainActivity : BaseActivity() {
                                     .background(MaterialTheme.colorScheme.surfaceContainer),
                             )
                         }
+                        // Fenrir: a book flying off the shelf and opening, over everything (the
+                        // library's top crown and the bottom island used to show on top of it).
+                        eu.kanade.presentation.library.components.FenrirBookFlightOverlay()
                         // Fenrir Vault: the opening animation when the app starts on Read.
                         eu.kanade.tachiyomi.EmbeddedHost.splash?.invoke()
                     }

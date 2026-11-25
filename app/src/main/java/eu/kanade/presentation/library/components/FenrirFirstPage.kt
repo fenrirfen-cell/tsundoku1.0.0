@@ -34,7 +34,8 @@ internal object FenrirFirstPage {
     sealed interface Content {
         val chapter: String
         class Image(override val chapter: String, val bitmap: ImageBitmap) : Content
-        class Text(override val chapter: String, val text: String) : Content
+        /** [started]: you're part way into this chapter, so the reader won't open at its first line. */
+        class Text(override val chapter: String, val text: String, val started: Boolean = false) : Content
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -87,7 +88,7 @@ internal object FenrirFirstPage {
             val name = chapter.name.ifBlank { "Chapter ${chapter.chapterNumber}" }
             page.text?.takeIf { it.isNotBlank() }?.let { html ->
                 val text = org.jsoup.Jsoup.parse(html).text().trim()
-                if (text.isNotEmpty()) return Content.Text(name, text.take(1400))
+                if (text.isNotEmpty()) return Content.Text(name, text.take(1400), started = chapter.lastPageRead > 0 && !chapter.read)
             }
             val stream = page.stream ?: return null
             val bmp = decode(stream) ?: return null

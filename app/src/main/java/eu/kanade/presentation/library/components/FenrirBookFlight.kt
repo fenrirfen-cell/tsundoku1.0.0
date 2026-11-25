@@ -69,6 +69,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import tachiyomi.domain.library.model.LibraryManga
 import tachiyomi.domain.manga.model.asMangaCover
+import uy.kohesive.injekt.api.get
 import kotlin.math.roundToInt
 
 /**
@@ -144,6 +145,9 @@ internal fun FenrirBookFlightOverlay() {
             FenrirBookFlight.clear()
         }
     }
+    // Fenrir: the page that grows into the reader wears the reader's own colours, font and size,
+    // so the hand-over to the reader doesn't jump (it used to be cream serif, then a white page).
+    val readerLook = rememberFenrirReaderLook()
     val total = 1550f
     val scope = rememberCoroutineScope()
     fun finish() {
@@ -230,26 +234,38 @@ internal fun FenrirBookFlightOverlay() {
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
-                is FenrirFirstPage.Content.Text -> Column(
-                    Modifier.fillMaxSize().background(PageCream).padding(horizontal = 10.dp + 14.dp * g, vertical = 12.dp + 20.dp * g),
-                ) {
-                    Text(
-                        pc.chapter,
-                        color = Color(0xFF50281E),
-                        fontSize = (9f + 9f * g).sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        pc.text,
-                        color = Color(0xFF2A1E18),
-                        fontSize = (6.5f + 8f * g).sp,
-                        lineHeight = (9f + 11f * g).sp,
-                        fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
-                        overflow = TextOverflow.Clip,
-                    )
+                is FenrirFirstPage.Content.Text -> {
+                    // When you're part way into the chapter the reader opens where you stopped, not at
+                    // its first line: the words fade off as the page grows, leaving a clean page in the
+                    // reader's colours for the reader to take over.
+                    val words = if (pc.started) 1f - smooth(phase(t, 1250f, 170f)) else 1f
+                    val bodySize = lerp(6.5f, readerLook.fontSize, g)
+                    Column(
+                        Modifier
+                            .fillMaxSize()
+                            .background(androidx.compose.ui.graphics.lerp(PageCream, readerLook.background, g))
+                            .padding(horizontal = 10.dp + 6.dp * g, vertical = 12.dp + 28.dp * g)
+                            .graphicsLayer { alpha = words },
+                    ) {
+                        Text(
+                            pc.chapter,
+                            color = androidx.compose.ui.graphics.lerp(Color(0xFF50281E), readerLook.text, g),
+                            fontSize = (9f + (readerLook.fontSize + 2f - 9f) * g).sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = readerLook.family,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Spacer(Modifier.height(6.dp + 10.dp * g))
+                        Text(
+                            pc.text,
+                            color = androidx.compose.ui.graphics.lerp(Color(0xFF2A1E18), readerLook.text, g),
+                            fontSize = bodySize.sp,
+                            lineHeight = (bodySize * 1.45f).sp,
+                            fontFamily = readerLook.family,
+                            overflow = TextOverflow.Clip,
+                        )
+                    }
                 }
                 null -> Box(Modifier.fillMaxSize().background(PageCream).drawBehind { pageLines(true) })
             }
@@ -530,9 +546,13 @@ private fun FenrirBookTurnOverlay(flight: FenrirBookFlight.Flight) {
     var origin by remember { mutableStateOf(Offset.Zero) }
     var finished by remember(flight) { mutableStateOf(false) }
     var placed by remember(flight) { mutableStateOf(false) }
+    // It sits above every screen now (so the bottom bar and top bar don't poke through), so once
+    // the book's page is on its way in, the turned book melts away over it instead of lingering.
+    val leave = remember(flight) { Animatable(1f) }
     LaunchedEffect(finished) {
         if (finished) {
-            delay(1500)
+            delay(220)
+            leave.animateTo(0f, tween(280, easing = LinearEasing))
             FenrirBookFlight.clear()
         }
     }
@@ -560,7 +580,7 @@ private fun FenrirBookTurnOverlay(flight: FenrirBookFlight.Flight) {
             .fillMaxSize()
             .onGloballyPositioned { origin = it.positionInRoot(); placed = true }
             // nothing is drawn until we know where the overlay sits (the first frame jumped)
-            .graphicsLayer { alpha = if (placed) 1f else 0f }
+            .graphicsLayer { alpha = if (placed) leave.value else 0f }
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { finish() },
     ) {
         val density = LocalDensity.current
@@ -612,5 +632,36 @@ private fun FenrirBookTurnOverlay(flight: FenrirBookFlight.Flight) {
                 }
             }
         }
+    }
+}
+
+/** The novel reader's page: background and text colours, text size and font family. */
+internal class FenrirReaderLook(
+    val background: Color,
+    val text: Color,
+    val fontSize: Float,
+    val family: androidx.compose.ui.text.font.FontFamily,
+)
+
+@Composable
+private fun rememberFenrirReaderLook(): FenrirReaderLook {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    return remember {
+        runCatching {
+            val prefs = uy.kohesive.injekt.Injekt.get<eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences>()
+            val activity = context as? android.app.Activity
+            val (bg, fg) = if (activity != null) {
+                eu.kanade.tachiyomi.ui.reader.viewer.text.shared.ThemeUtils.getThemeColors(activity, prefs, prefs.novelTheme.get())
+            } else {
+                0xFFFFFFFF.toInt() to 0xFF000000.toInt()
+            }
+            val name = prefs.novelFontFamily.get().lowercase()
+            val family = when {
+                "mono" in name -> androidx.compose.ui.text.font.FontFamily.Monospace
+                "serif" in name && "sans" !in name -> androidx.compose.ui.text.font.FontFamily.Serif
+                else -> androidx.compose.ui.text.font.FontFamily.SansSerif
+            }
+            FenrirReaderLook(Color(bg), Color(fg), prefs.novelFontSize.get().coerceIn(10, 40).toFloat(), family)
+        }.getOrElse { FenrirReaderLook(Color.White, Color.Black, 16f, androidx.compose.ui.text.font.FontFamily.SansSerif) }
     }
 }
