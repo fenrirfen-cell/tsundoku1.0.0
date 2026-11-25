@@ -89,9 +89,18 @@ object FenrirImport {
         val url = rawUrl.trim().let { if (!it.startsWith("http")) "https://$it" else it }
         val host = hostOf(url)
         if (host.isEmpty()) return@withContext Result.Stop("That's not a link", "Paste the whole web address, starting with https://")
-        val secure = url.startsWith("https://")
-        val response = runCatching { client.newCall(GET(url)).execute() }.getOrElse {
-            return@withContext Result.Stop("Couldn't open the link", "The site didn't answer. Check the link or try again later.")
+        var secure = url.startsWith("https://")
+        // Fenrir: a plain http:// link is blocked by Android; the same address over https usually works
+        val firstTry = runCatching { client.newCall(GET(url)).execute() }
+        val response = firstTry.getOrNull() ?: run {
+            val error = firstTry.exceptionOrNull()
+            if (!secure && url.startsWith("http://")) {
+                runCatching { client.newCall(GET("https://" + url.removePrefix("http://"))).execute() }.getOrNull()
+                    ?.also { secure = true }
+            } else {
+                null
+            }
+                ?: return@withContext Result.Stop("Couldn't open the link", whyFailed(error, url))
         }
         response.use { r ->
             if (!r.isSuccessful) return@withContext Result.Stop("Couldn't open the link", "The site answered with an error (${r.code}).")
@@ -101,7 +110,8 @@ object FenrirImport {
             val body = r.body ?: return@withContext Result.Stop("Empty file", "The link gave back nothing.")
             if (type.contains("text/html")) {
                 val html = body.string()
-                return@withContext scanPage(url, host, html)
+                // the address that answered (https after a retry, or after redirects), so the books' links resolve right
+                return@withContext scanPage(r.request.url.toString(), host, html)
             }
             val name = fileName(r.header("Content-Disposition"), url)
             val dir = File(context.cacheDir, "fenrir_imports").apply { mkdirs() }
@@ -195,6 +205,21 @@ object FenrirImport {
         if (copied == null) return@withContext Result.Stop("Couldn't open the file", "The file couldn't be read.")
         if (out.length() > MAX_BYTES) { out.delete(); return@withContext Result.Stop("Too big", "Files over about 1 GB aren't imported.") }
         process(out, name, secure = true, host = "your phone")
+    }
+
+    /** Fenrir: what went wrong when the link didn't open, in plain words. */
+    private fun whyFailed(e: Throwable?, url: String): String {
+        val text = generateSequence(e) { it.cause }.joinToString(" ") { "${it.javaClass.simpleName} ${it.message.orEmpty()}" }.lowercase()
+        return when {
+            "cleartext" in text -> "This site only works over plain http, which Android blocks to keep you safe, and it has no https version."
+            "unknownhost" in text -> "That website wasn't found. Check the address (or your internet)."
+            "timeout" in text || "timed out" in text -> "The site took too long to answer. Try again later."
+            "ssl" in text || "certificate" in text || "handshake" in text -> "The site's secure connection didn't work (its certificate isn't valid)."
+            "toomanyfollowups" in text || "too many follow-up" in text -> "The link keeps redirecting and never reaches a file."
+            "cloudflare" in text || "challenge" in text -> "The site asks for a human check. Open it in your browser, then tap Share → Fenrir Vault on the download."
+            else -> "The site didn't answer. Check the link or try again later." +
+                (e?.javaClass?.simpleName?.let { " ($it)" } ?: "")
+        }
     }
 
     private fun fileName(disposition: String?, url: String): String {

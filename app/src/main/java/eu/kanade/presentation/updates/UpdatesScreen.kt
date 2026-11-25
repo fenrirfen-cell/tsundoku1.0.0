@@ -20,7 +20,6 @@ import androidx.compose.material.icons.outlined.ViewList
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarScrollBehavior
@@ -119,7 +118,7 @@ fun UpdateScreen(
                 onMultiDeleteClicked = onMultiDeleteClicked,
             )
         },
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+        snackbarHost = { eu.kanade.presentation.components.FenrirIslandSnackbarHost(snackbarHostState) },
     ) { contentPadding ->
         val fenrirBarsShown by eu.kanade.presentation.components.FenrirBars.shown.collectAsState()
         androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
