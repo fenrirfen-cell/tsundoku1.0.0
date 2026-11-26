@@ -115,7 +115,7 @@ const { load } = require('cheerio');
 
 class MyNovelSite {
   constructor() {
-    this.id = 'my-novel-site';
+    this.id = 'myNovelSite';
     this.name = 'My Novel Site';
     this.version = '1.0.0';
     this.site = 'https://example.com/';
@@ -129,6 +129,12 @@ class MyNovelSite {
     return this.site.replace(/\/${'$'}/, '') + '/' + path.replace(/^\//, '');
   }
 
+  // The app wants paths like "/book/1", not "https://example.com/book/1".
+  relative(href) {
+    if (!href) return '';
+    return href.replace(/^https?:\/\/[^/]+/, '') || '/';
+  }
+
   async page(url) {
     const res = await fetchApi(this.abs(url));
     return load(await res.text());
@@ -139,7 +145,7 @@ class MyNovelSite {
     const ${'$'} = await this.page('popular?page=' + page);
     return ${'$'}('.book-item').toArray().map(el => ({
       name: ${'$'}(el).find('.title').text().trim(),
-      path: ${'$'}(el).find('a').attr('href'),
+      path: this.relative(${'$'}(el).find('a').attr('href')),
       cover: this.abs(${'$'}(el).find('img').attr('src')),
     }));
   }
@@ -148,7 +154,7 @@ class MyNovelSite {
     const ${'$'} = await this.page('search?q=' + encodeURIComponent(searchTerm) + '&page=' + page);
     return ${'$'}('.book-item').toArray().map(el => ({
       name: ${'$'}(el).find('.title').text().trim(),
-      path: ${'$'}(el).find('a').attr('href'),
+      path: this.relative(${'$'}(el).find('a').attr('href')),
       cover: this.abs(${'$'}(el).find('img').attr('src')),
     }));
   }
@@ -164,7 +170,7 @@ class MyNovelSite {
       summary: ${'$'}('.summary').text().trim(),
       chapters: ${'$'}('.chapter-list a').toArray().map((el, i) => ({
         name: ${'$'}(el).text().trim(),
-        path: ${'$'}(el).attr('href'),
+        path: this.relative(${'$'}(el).attr('href')),
         chapterNumber: i + 1,
       })),
     };
@@ -194,50 +200,97 @@ exports.default = new MyNovelSite();
     }
 }
 
-/** Runs the code like an installed extension: a list of books, one book, one chapter. */
-private suspend fun testExtension(code: String): List<Pair<Boolean?, String>> {
+/** Runs the code like an installed extension (a list of books, one book, one chapter) and shows real errors. */
+internal suspend fun testExtension(code: String, timeoutMs: Long = 90_000): List<Pair<Boolean?, String>> {
     val manager = Injekt.get<JsPluginManager>()
     val info = manager.describeCode(code)
     val out = mutableListOf<Pair<Boolean?, String>>(null to "${info.name} · id ${info.id} · v${info.version}")
     if ("exports.default" !in code) {
-        out += false to "Missing  exports.default = new YourClass();  at the end."
+        out += false to "Missing  exports.default = new YourPlugin();  at the end."
         return out
     }
     if (info.site.isBlank()) out += false to "No this.site found. Set it to the website's address."
+    val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+    fun arg(v: String) = json.encodeToString(kotlinx.serialization.json.JsonPrimitive(v))
+    fun why(e: Throwable): String = (e.message ?: e.javaClass.simpleName).lines().first().take(300)
+    fun obj(el: kotlinx.serialization.json.JsonElement?) = el as? kotlinx.serialization.json.JsonObject
+    fun str(o: kotlinx.serialization.json.JsonObject?, key: String) =
+        (o?.get(key) as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it.isString }?.content
     val source = JsSource(InstalledJsPlugin(info, code, info.version, JsPluginManager.CUSTOM_REPO))
     try {
-        withTimeout(90_000) {
-            val list = runCatching { source.getPopularManga(1) }
-                .onFailure { out += false to "popularNovels: ${it.message ?: it.javaClass.simpleName}" }
-                .getOrNull()
-            if (list != null) out += (list.mangas.isNotEmpty()) to "popularNovels: ${list.mangas.size} books"
-            val book = list?.mangas?.firstOrNull() ?: return@withTimeout
-            out += null to "First book: ${book.title}"
-            runCatching { source.getMangaDetails(book) }
-                .onSuccess { d -> out += true to "parseNovel: ${d.author?.ifBlank { null } ?: "no author"} · summary ${d.description?.length ?: 0} characters" }
-                .onFailure { out += false to "parseNovel: ${it.message ?: it.javaClass.simpleName}" }
-            val chapters = runCatching { source.getChapterList(book) }
-                .onFailure { out += false to "Chapters: ${it.message ?: it.javaClass.simpleName}" }
-                .getOrNull() ?: return@withTimeout
-            out += chapters.isNotEmpty() to "Chapters: ${chapters.size}"
-            val chapter = chapters.lastOrNull() ?: return@withTimeout
-            runCatching { source.fetchPageText(Page(0, chapter.url, "")) }
-                .onSuccess { html ->
-                    val text = org.jsoup.Jsoup.parse(html).text()
-                    out += (text.length > 200) to "parseChapter (${chapter.name}): ${text.length} characters"
-                    if (text.isNotBlank()) out += null to "“${text.take(140)}…”"
-                }
-                .onFailure { out += false to "parseChapter: ${it.message ?: it.javaClass.simpleName}" }
+        withTimeout(timeoutMs) {
+            // 1. List of books
+            val listRaw = try {
+                source.fenrirRawCall("plugin.popularNovels(1, { showLatestNovels: false, filters: plugin.filters })")
+            } catch (e: Exception) {
+                out += false to "popularNovels failed: ${why(e)}"
+                return@withTimeout
+            }
+            val parsed = runCatching { json.parseToJsonElement(listRaw) }.getOrNull()
+            val books = (parsed as? kotlinx.serialization.json.JsonArray)
+                ?: (obj(parsed)?.get("novels") as? kotlinx.serialization.json.JsonArray)
+                ?: kotlinx.serialization.json.JsonArray(emptyList())
+            if (books.isEmpty()) {
+                out += false to "popularNovels ran but found 0 books. The page loaded, but the selectors matched nothing, or the site builds its list with scripts."
+                return@withTimeout
+            }
+            val first = obj(books.first())
+            val name = str(first, "name")
+            val path = str(first, "path")
+            if (name == null || path == null) {
+                out += false to "Each book needs a name and a path. The first one has name=${name ?: "missing"}, path=${path ?: "missing"}."
+                return@withTimeout
+            }
+            out += true to "popularNovels: ${books.size} books"
+            if (path.startsWith("http")) out += false to "path should be the part after the site (like /novel/123), not a full address: $path"
+            out += null to "First book: $name ($path)"
+
+            // 2. One book
+            val novelRaw = try {
+                source.fenrirRawCall("plugin.parseNovel(${arg(path)})")
+            } catch (e: Exception) {
+                out += false to "parseNovel failed: ${why(e)}"
+                return@withTimeout
+            }
+            val novel = obj(runCatching { json.parseToJsonElement(novelRaw) }.getOrNull())
+            val chapters = novel?.get("chapters") as? kotlinx.serialization.json.JsonArray ?: kotlinx.serialization.json.JsonArray(emptyList())
+            out += chapters.isNotEmpty() to "parseNovel: “${str(novel, "name") ?: "no name"}” · ${chapters.size} chapters"
+            if (chapters.isEmpty()) {
+                out += false to "No chapters found. Check the chapter list."
+                return@withTimeout
+            }
+            val chapter = obj(chapters.first())
+            val chapterPath = str(chapter, "path") ?: run {
+                out += false to "The first chapter has no path."
+                return@withTimeout
+            }
+
+            // 3. One chapter
+            val chapterRaw = try {
+                source.fenrirRawCall("plugin.parseChapter(${arg(chapterPath)})")
+            } catch (e: Exception) {
+                out += false to "parseChapter failed: ${why(e)}"
+                return@withTimeout
+            }
+            val html = runCatching { (json.parseToJsonElement(chapterRaw) as? kotlinx.serialization.json.JsonPrimitive)?.content }.getOrNull() ?: chapterRaw
+            val text = org.jsoup.Jsoup.parse(html).text()
+            out += (text.length > 200) to "parseChapter (${str(chapter, "name") ?: chapterPath}): ${text.length} characters"
+            if (text.isBlank()) out += false to "The chapter came back empty."
+            else out += null to "“${text.take(140)}…”"
         }
     } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-        out += false to "Stopped after 90 seconds (the site may be slow or blocked)."
+        out += false to "Stopped after ${timeoutMs / 1000} seconds (the site may be slow or blocked)."
     } catch (e: Throwable) {
-        out += false to (e.message ?: e.javaClass.simpleName)
+        out += false to why(e)
     } finally {
         runCatching { source.releaseRuntime() }
     }
     return out
 }
+
+/** True when the test got a list, a book with chapters and a chapter with text. */
+internal fun List<Pair<Boolean?, String>>.passed(): Boolean =
+    none { it.first == false } && count { it.first == true } >= 3
 
 class FenrirMakeExtensionScreen : Screen() {
     @Composable
@@ -249,7 +302,7 @@ class FenrirMakeExtensionScreen : Screen() {
         val installed by manager.installedPlugins.collectAsState()
         val mine = installed.filter { it.repositoryUrl == JsPluginManager.CUSTOM_REPO || it.plugin.repositoryUrl == JsPluginManager.CUSTOM_REPO }
             .sortedBy { it.plugin.name.lowercase() }
-        var tab by rememberSaveable { mutableStateOf("Simple") }
+        var tab by rememberSaveable { mutableStateOf("Auto") }
         var deleting by remember { mutableStateOf<InstalledJsPlugin?>(null) }
 
         deleting?.let { p ->
@@ -267,7 +320,14 @@ class FenrirMakeExtensionScreen : Screen() {
         Column(Modifier.fillMaxSize().background(Bg).navigationBarsPadding()) {
             TopBar("Make extension") { navigator.pop() }
             Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("Simple", "Code").forEach { t -> Pill(t, filled = tab == t) { tab = t } }
+                listOf("Auto", "Simple", "Code").forEach { t -> Pill(t, filled = tab == t) { tab = t } }
+            }
+            if (tab == "Auto") {
+                FenrirAutoTab(
+                    onOpenInCode = { code -> navigator.push(FenrirCodeEditorScreen(null, code)) },
+                    onSimple = { tab = "Simple" },
+                )
+                return@Column
             }
             if (tab == "Simple") {
                 Column(Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
@@ -327,7 +387,7 @@ class FenrirMakeExtensionScreen : Screen() {
     }
 }
 
-class FenrirCodeEditorScreen(private val editId: String?) : Screen() {
+class FenrirCodeEditorScreen(private val editId: String?, private val initialCode: String? = null) : Screen() {
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
@@ -335,7 +395,7 @@ class FenrirCodeEditorScreen(private val editId: String?) : Screen() {
         val scope = rememberCoroutineScope()
         val manager = remember { Injekt.get<JsPluginManager>() }
         val installed by manager.installedPlugins.collectAsState()
-        val startCode = remember { editId?.let { id -> manager.installedPlugins.value.find { it.plugin.id == id }?.code } ?: FenrirExtensionTemplate.blank }
+        val startCode = remember { initialCode ?: editId?.let { id -> manager.installedPlugins.value.find { it.plugin.id == id }?.code } ?: FenrirExtensionTemplate.blank }
         // Plugins can be large, so the text isn't put in saved state (Android limits its size).
         var code by remember { mutableStateOf(startCode) }
         var savedCode by remember { mutableStateOf(startCode) }
@@ -451,5 +511,92 @@ class FenrirCodeEditorScreen(private val editId: String?) : Screen() {
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun FenrirAutoTab(onOpenInCode: (String) -> Unit, onSimple: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val manager = remember { Injekt.get<JsPluginManager>() }
+    var link by rememberSaveable { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var status by remember { mutableStateOf<String?>(null) }
+    var made by remember { mutableStateOf<FenrirAutoExtension.Made?>(null) }
+    var failure by remember { mutableStateOf<String?>(null) }
+    var installed by remember { mutableStateOf<String?>(null) }
+
+    Column(Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
+        Text("Just type the link", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.size(6.dp))
+        Text(
+            "Fenrir checks whether the site uses a common novel-site design and, if so, makes the extension from LNReader's template for it. It's tested before you can install it.",
+            color = Muted, fontSize = 13.5.sp, lineHeight = 19.sp,
+        )
+        Spacer(Modifier.size(12.dp))
+        Box(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Field).border(1.dp, Rim, RoundedCornerShape(12.dp))
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+        ) {
+            if (link.isEmpty()) Text("https://novelsite.com", color = Muted, fontSize = 14.sp)
+            BasicTextField(
+                value = link,
+                onValueChange = { link = it; made = null; failure = null; installed = null },
+                singleLine = true,
+                textStyle = TextStyle(color = Color.White, fontSize = 14.sp),
+                cursorBrush = SolidColor(Accent),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        Spacer(Modifier.size(12.dp))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Pill("Make it", filled = true, enabled = !busy && link.isNotBlank()) {
+                busy = true; made = null; failure = null; installed = null
+                scope.launch {
+                    FenrirAutoExtension.make(link) { status = it }
+                        .onSuccess { made = it }
+                        .onFailure { failure = it.message ?: "Couldn't make an extension for this site." }
+                    status = null
+                    busy = false
+                }
+            }
+            if (busy) {
+                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Accent)
+            }
+        }
+        status?.let { Text(it, color = Muted, fontSize = 12.5.sp, modifier = Modifier.padding(top = 8.dp)) }
+        failure?.let { msg ->
+            Spacer(Modifier.size(12.dp))
+            Text(msg, color = Warn, fontSize = 13.sp, lineHeight = 18.sp)
+            Spacer(Modifier.size(10.dp))
+            Pill("Use Simple instead", onClick = onSimple)
+        }
+        made?.let { m ->
+            Spacer(Modifier.size(14.dp))
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Field).padding(12.dp)) {
+                Text("✓ ${m.name} works", color = Good, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text("Made from LNReader's ${m.design} template", color = Muted, fontSize = 12.5.sp)
+                Spacer(Modifier.size(6.dp))
+                m.report.drop(1).forEach { (ok, line) ->
+                    Text(
+                        (when (ok) { true -> "✓ "; false -> "✗ "; null -> "" }) + line,
+                        color = when (ok) { true -> Good; false -> Warn; null -> Muted },
+                        fontSize = 12.sp, lineHeight = 16.sp,
+                    )
+                }
+            }
+            Spacer(Modifier.size(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Pill("Install", filled = true, enabled = installed == null) {
+                    scope.launch {
+                        manager.installCustomPlugin(m.code)
+                            .onSuccess { installed = "Installed ${it.name}. Find it in Browse → Sources → Novel." }
+                            .onFailure { failure = it.message ?: "Couldn't install it." }
+                    }
+                }
+                Pill("Open in Code") { onOpenInCode(m.code) }
+            }
+            installed?.let { Text(it, color = Good, fontSize = 13.sp, modifier = Modifier.padding(top = 10.dp)) }
+        }
+        Spacer(Modifier.size(120.dp))
     }
 }
