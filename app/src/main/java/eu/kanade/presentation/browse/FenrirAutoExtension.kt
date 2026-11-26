@@ -68,7 +68,7 @@ object FenrirAutoExtension {
 
     class Made(val code: String, val name: String, val design: String, val report: List<Pair<Boolean?, String>>)
 
-    private suspend fun fetchText(url: String): String = withContext(Dispatchers.IO) {
+    internal suspend fun fetchText(url: String): String = withContext(Dispatchers.IO) {
         Injekt.get<NetworkHelper>().client.newCall(GET(url)).execute().use { r ->
             if (!r.isSuccessful) error("HTTP ${r.code} for $url")
             r.body?.string().orEmpty()
@@ -99,7 +99,7 @@ object FenrirAutoExtension {
         return null
     }
 
-    private fun jsString(v: String) = json.encodeToString(kotlinx.serialization.json.JsonPrimitive(v))
+    internal fun jsString(v: String) = json.encodeToString(kotlinx.serialization.json.JsonPrimitive(v))
 
     private fun build(template: String, design: Design, site: String, name: String, id: String, options: String): String {
         val siteForDesign = if (design.trailingSlash) "$site/" else site
@@ -141,29 +141,56 @@ object FenrirAutoExtension {
         val id = "fenrir" + host.removePrefix("www.").split('.', '-').filter { it.isNotBlank() }
             .joinToString("") { it.replaceFirstChar(Char::uppercase) }
 
-        val ordered = designs.sortedByDescending { d -> d.markers.count { it in lower } }
-        val matched = ordered.filter { d -> d.markers.any { it in lower } }
-        if (matched.isEmpty()) progress("No known design spotted; trying each one…")
-        else progress("Looks like ${matched.first().title}.")
-
+        val matched = designs.filter { d -> d.markers.any { it in lower } }.sortedByDescending { d -> d.markers.count { it in lower } }
+        val others = designs - matched.toSet()
         var lastReport: List<Pair<Boolean?, String>> = emptyList()
-        for (design in ordered) {
-            val template = template(design) ?: run {
-                progress("Couldn't get LNReader's ${design.title} template.")
-                null
-            } ?: continue
-            design.variants.forEachIndexed { i, options ->
-                progress("Trying ${design.title} (${i + 1} of ${design.variants.size})…")
-                val code = build(template, design, site, name, id, options)
-                val report = testExtension(code, timeoutMs = 45_000)
-                if (report.passed()) return@runCatching Made(code, name, design.title, report)
-                lastReport = report
+
+        suspend fun tryDesigns(list: List<Design>): Made? {
+            for (design in list) {
+                val template = template(design)
+                if (template == null) {
+                    progress("Couldn't get LNReader's ${design.title} template.")
+                    continue
+                }
+                design.variants.forEachIndexed { i, options ->
+                    progress("Trying ${design.title} (${i + 1} of ${design.variants.size})…")
+                    val code = build(template, design, site, name, id, options)
+                    val report = testExtension(code, timeoutMs = 45_000)
+                    if (report.passed()) return Made(code, name, "LNReader's ${design.title} template", report)
+                    lastReport = report
+                }
             }
+            return null
         }
-        val reason = lastReport.lastOrNull { it.first == false }?.second
+
+        // 1. A known design spotted on the page: LNReader's template for it.
+        if (matched.isNotEmpty()) {
+            progress("Looks like ${matched.first().title}.")
+            tryDesigns(matched)?.let { return@runCatching it }
+        }
+
+        // 2. Read the pages and guess where the books, chapters and text are.
+        progress("No known design worked; reading the site's pages…")
+        val scanProblem: String? = try {
+            val rules = FenrirPageScan.scan(site, host, html, { fetchText(it) }, progress)
+            val engine = Injekt.get<android.app.Application>().assets.open("fenrir/page-scan-engine.js").bufferedReader().use { it.readText() }
+            val code = FenrirPageScan.build(engine, rules, id, name, site)
+            progress("Testing what was found…")
+            val report = testExtension(code, timeoutMs = 60_000)
+            if (report.passed()) return@runCatching Made(code, name, "a scan of the site's pages", report)
+            lastReport = report
+            report.lastOrNull { it.first == false }?.second
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            e.message
+        }
+
+        // 3. Last chance: the designs that weren't spotted.
+        tryDesigns(others)?.let { return@runCatching it }
+
         error(
-            "This site doesn't match a known design, or it blocks apps." +
-                (reason?.let { "\nLast try: $it" } ?: "") +
+            "Couldn't make a working extension for this site." +
+                (scanProblem?.let { "\nPage scan: $it" } ?: "") +
                 "\nTry the Simple tab instead.",
         )
     }

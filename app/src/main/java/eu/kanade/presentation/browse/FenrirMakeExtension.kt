@@ -529,7 +529,7 @@ private fun FenrirAutoTab(onOpenInCode: (String) -> Unit, onSimple: () -> Unit) 
         Text("Just type the link", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.size(6.dp))
         Text(
-            "Fenrir checks whether the site uses a common novel-site design and, if so, makes the extension from LNReader's template for it. It's tested before you can install it.",
+            "Fenrir first checks for a common novel-site design and uses LNReader's template for it. If there isn't one, it reads the site's pages to find the books, chapters and text. Either way it's tested before you can install it.",
             color = Muted, fontSize = 13.5.sp, lineHeight = 19.sp,
         )
         Spacer(Modifier.size(12.dp))
@@ -574,7 +574,7 @@ private fun FenrirAutoTab(onOpenInCode: (String) -> Unit, onSimple: () -> Unit) 
             Spacer(Modifier.size(14.dp))
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Field).padding(12.dp)) {
                 Text("✓ ${m.name} works", color = Good, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                Text("Made from LNReader's ${m.design} template", color = Muted, fontSize = 12.5.sp)
+                Text("Made from ${m.design}", color = Muted, fontSize = 12.5.sp)
                 Spacer(Modifier.size(6.dp))
                 m.report.drop(1).forEach { (ok, line) ->
                     Text(
