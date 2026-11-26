@@ -69,7 +69,10 @@ internal class NovelTextRenderer(
                     val cleanHtmlContent = normalizeHtmlForRendering(processedContent)
                     Html.fromHtml(cleanHtmlContent, Html.FROM_HTML_MODE_LEGACY, imageGetter, null)
                 }
-                SpannableStringBuilder(spanned)
+                SpannableStringBuilder(spanned).also {
+                    // Fenrir: no empty lines between paragraphs (the spacing setting makes the gap)
+                    if (!rawHtmlMode) collapseBlankLines(it, keepOne = paragraphSpacing <= 0f)
+                }
             }
 
             val spacingPx = (paragraphSpacing * fontSize * density).toInt()
@@ -196,6 +199,56 @@ internal class NovelTextRenderer(
             ?: withWidth.maxByOrNull { it.second!! }
             ?: candidates.first()
         img.attr("src", best.first)
+    }
+
+    /**
+     * Fenrir: Android's HTML reader ends every paragraph with an empty line, and sites add empty
+     * paragraphs (spaces, &nbsp;, <br>) on top; with the paragraph spacing added to each of those
+     * lines, gaps were several lines tall, and a page could start on them (a big empty band at the
+     * top). Empty lines are removed, so the gap is just the paragraph spacing; with spacing off,
+     * one empty line stays between paragraphs. Pictures (U+FFFC) never count as empty.
+     */
+    private fun collapseBlankLines(text: SpannableStringBuilder, keepOne: Boolean) {
+        fun blank(c: Char) = c == ' ' || c == '\t' || c == '\u00a0' || c == '\u200b' || c == '\u3000' || c == '\r'
+        // line ranges [start, endExclusive) without their '\n'
+        val lines = ArrayList<IntArray>()
+        var start = 0
+        for (i in 0..text.length) {
+            if (i == text.length || text[i] == '\n') {
+                lines += intArrayOf(start, i)
+                start = i + 1
+            }
+        }
+        val isBlank = BooleanArray(lines.size) { k ->
+            val (a, b) = lines[k].let { it[0] to it[1] }
+            (a until b).all { blank(text[it]) }
+        }
+        // decide which blank lines go: leading/trailing ones, and all but [keepOne] in a run
+        val drop = BooleanArray(lines.size)
+        var run = 0
+        var seenText = false
+        for (k in lines.indices) {
+            if (isBlank[k]) {
+                run++
+                drop[k] = !seenText || run > (if (keepOne) 1 else 0)
+            } else {
+                run = 0
+                seenText = true
+            }
+        }
+        // trailing empty lines go too
+        for (k in lines.indices.reversed()) {
+            if (!isBlank[k]) break
+            drop[k] = true
+        }
+        // delete from the end so earlier positions stay valid; each line goes with its '\n'
+        for (k in lines.indices.reversed()) {
+            if (!drop[k]) continue
+            val a = lines[k][0]
+            val b = minOf(lines[k][1] + 1, text.length)
+            // the last line has no '\n' after it: take the one before it instead
+            if (b == lines[k][1] && a > 0) text.delete(a - 1, b) else text.delete(a, b)
+        }
     }
 
     private fun applyParagraphSpans(spannable: Spannable, spacingPx: Int, indentPx: Int) {
