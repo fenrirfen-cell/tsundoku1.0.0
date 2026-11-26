@@ -47,8 +47,18 @@ object FenrirPageScan {
     )
     private val nextTexts = listOf("Next", "Next ›", "Next »", "Next >", "›", "»", ">", "Next Page", "next")
 
+    // Site menus, headers and footers (not lists that merely have "menu" somewhere in a class name).
+    private val chromeWords = setOf("menu", "navbar", "nav", "navigation", "header", "footer", "breadcrumb", "breadcrumbs", "sidebar")
     private fun inChrome(el: Element): Boolean =
-        el.parents().any { p -> p.tagName() in setOf("nav", "header", "footer") || p.id().contains("menu", true) || p.className().contains("menu", true) }
+        el.parents().any { p ->
+            p.tagName() in setOf("nav", "header", "footer") ||
+                p.attr("role") == "navigation" ||
+                p.id().lowercase() in chromeWords ||
+                p.classNames().any { it.lowercase() in chromeWords }
+        }
+
+    /** What the scan saw, for the error message when it can't finish. */
+    private val notes = mutableListOf<String>()
 
     private fun cleanClasses(el: Element) = el.classNames()
         .filter { it.matches(Regex("[A-Za-z_][A-Za-z0-9_-]*")) && it.none(Char::isDigit) && it.length < 40 }
@@ -87,7 +97,11 @@ object FenrirPageScan {
             val el = cur ?: return null
             val parent = el.parent() ?: return null
             val sig = simple(el).removePrefix("#")
-            val alike = parent.children().count { it.tagName() == el.tagName() && cleanClasses(it) == cleanClasses(el) }
+            // Siblings of the same kind: same tag, and sharing a class (some items carry extra ones like "active").
+            val mine = cleanClasses(el).toSet()
+            val alike = parent.children().count { sib ->
+                sib.tagName() == el.tagName() && (mine.isEmpty() && cleanClasses(sib).isEmpty() || cleanClasses(sib).any { it in mine })
+            }
             if (alike >= 4 && sig.isNotBlank() && !simple(el).startsWith("#")) return el
             cur = parent
         }
@@ -107,7 +121,8 @@ object FenrirPageScan {
             if (!accept(href)) return@forEach
             val item = itemOf(a) ?: return@forEach
             val parent = item.parent() ?: return@forEach
-            val key = unique(parent, doc) + " > " + simple(item)
+            // Item selector: tag + its first class, so items with extra classes still match.
+            val key = unique(parent, doc) + " > " + item.tagName() + (cleanClasses(item).firstOrNull()?.let { ".$it" } ?: "")
             byItemSig.getOrPut(key) { mutableListOf() } += item to href
         }
         return byItemSig.mapNotNull { (sel, pairs) ->
@@ -194,7 +209,10 @@ object FenrirPageScan {
 
         // 2. A book page: its chapter list.
         progress("Reading a book page…")
-        val bookUrl = books.links.first()
+        notes.clear()
+        // Book pages are usually shallower than chapter pages: start from the shallowest link.
+        val bookUrl = books.links.minByOrNull { segments(it).size } ?: books.links.first()
+        notes += "book page ${bookUrl.removePrefix(site)}"
         val bookHtml = get(bookUrl)
         val bookDoc = Jsoup.parse(bookHtml, bookUrl)
         val bookPath = segments(bookUrl)
@@ -207,6 +225,7 @@ object FenrirPageScan {
         var toc: String? = null
         var tocPaged: String? = null
         val inPage = chapterGroups.maxByOrNull { it.links.size }
+        notes += "${bookDoc.select("a[href]").size} links, ${inPage?.links?.size ?: 0} chapters there"
         // The full list may be on its own page ("More chapters", "Table of contents"…).
         val tocFound = if ((inPage?.links?.size ?: 0) < 20) findTocPage(bookDoc, bookUrl, host, get) else null
         // A handful of links (like "First chapter" / "Latest chapter") isn't the full list.
@@ -223,7 +242,7 @@ object FenrirPageScan {
                     chapterApi = found.first
                     found.second
                 } else {
-                    inPage ?: error("Found books, but the chapter list loads in a way extensions can't copy (a script that doesn't ask a plain address).")
+                    inPage ?: error("Found books, but not their chapter list. (Saw: ${notes.joinToString("; ")})")
                 }
             }
         val chapterFilter = when {
@@ -268,9 +287,13 @@ object FenrirPageScan {
             href.isNotBlank() && sameHost(href, host) && href.substringBefore('#') != bookUrl.substringBefore('#') &&
                 (tocText.containsMatchIn(a.text().trim()) || tocHref.containsMatchIn(java.net.URI(href).path.orEmpty()))
         }.map { it.absUrl("href").substringBefore('#') }.distinct().take(4)
+        if (candidates.isEmpty()) notes += "no chapter-list link"
         for (url in candidates) {
-            val doc = runCatching { Jsoup.parse(get(url), url) }.getOrNull() ?: continue
-            val group = chapterGroup(doc, host, bookUrl)?.takeIf { it.links.size >= 5 } ?: continue
+            val doc = runCatching { Jsoup.parse(get(url), url) }.getOrNull()
+            if (doc == null) { notes += "couldn't open ${java.net.URI(url).path}"; continue }
+            val found = chapterGroup(doc, host, bookUrl)
+            notes += "${java.net.URI(url).path}: ${doc.select("a[href]").size} links, ${found?.links?.size ?: 0} chapters"
+            val group = found?.takeIf { it.links.size >= 5 } ?: continue
             val first = segments(url).firstOrNull() ?: continue
             val selector = "a[href*='/$first/']"
             if (bookDoc.select(selector).none { it.absUrl("href").substringBefore('#') == url }) continue
