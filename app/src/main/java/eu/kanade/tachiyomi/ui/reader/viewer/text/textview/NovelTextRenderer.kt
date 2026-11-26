@@ -209,7 +209,15 @@ internal class NovelTextRenderer(
      * one empty line stays between paragraphs. Pictures (U+FFFC) never count as empty.
      */
     private fun collapseBlankLines(text: SpannableStringBuilder, keepOne: Boolean) {
-        fun blank(c: Char) = c == ' ' || c == '\t' || c == '\u00a0' || c == '\u200b' || c == '\u3000' || c == '\r'
+        // nothing visible: any kind of space, and invisible marks sites slip in (zero-width
+        // spaces/joiners, word joiner, byte-order mark, soft hyphen, direction marks…). A picture
+        // (U+FFFC) is never blank.
+        fun blank(c: Char): Boolean {
+            if (c == '\uFFFC') return false
+            if (c.isWhitespace() || Character.isSpaceChar(c)) return true
+            val type = Character.getType(c)
+            return type == Character.FORMAT.toInt() || type == Character.CONTROL.toInt() || c == '\u00ad'
+        }
         // line ranges [start, endExclusive) without their '\n'
         val lines = ArrayList<IntArray>()
         var start = 0

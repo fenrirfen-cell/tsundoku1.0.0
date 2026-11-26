@@ -111,7 +111,9 @@
             b.dataset.tdTidy = '1';
             if (b.id === CONTAINER_ID || b.querySelector('img, svg, video, hr, table, iframe, canvas')) continue;
             if (b.children.length && b.querySelector('p, div, h1, h2, h3, h4, h5, h6')) continue;
-            var text = (b.textContent || '').replace(/[\s\u00a0\u200b\u3000]+/g, '');
+            // nothing visible: spaces and invisible marks (zero-width spaces/joiners, word joiner,
+            // byte-order mark, soft hyphen, direction marks)
+            var text = (b.textContent || '').replace(/[\s\u00a0\u00ad\u200b-\u200f\u2028-\u202f\u205f-\u2064\u3000\ufeff]+/g, '');
             if (text === '') b.style.display = 'none';
         }
         var brs = el.querySelectorAll('br');

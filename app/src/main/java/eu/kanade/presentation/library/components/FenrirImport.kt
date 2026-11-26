@@ -136,8 +136,42 @@ object FenrirImport {
         return null
     }
 
-    suspend fun check(context: Context, rawUrl: String, referer: String? = null): Result = withContext(Dispatchers.IO) {
-        val url = rawUrl.trim().let { if (!it.startsWith("http")) "https://$it" else it }
+    /** Fenrir: the file id in a Google Drive file link (…/file/d/ID/…, ?id=ID), or null. */
+    private fun driveFileId(url: String): String? {
+        val host = hostOf(url)
+        if (host != "drive.google.com" && host != "drive.usercontent.google.com" && host != "docs.google.com") return null
+        Regex("""/file/d/([A-Za-z0-9_-]{10,})""").find(url)?.let { return it.groupValues[1] }
+        return Regex("""[?&]id=([A-Za-z0-9_-]{10,})""").find(url)?.groupValues?.get(1)
+    }
+
+    /**
+     * Fenrir: Drive's "can't scan this file for viruses" page (big files) has a form whose fields
+     * make the real download link.
+     */
+    private fun driveConfirmUrl(html: String): String? {
+        val form = Regex("""<form[^>]*id="download-form"[^>]*action="([^"]+)"[^>]*>(.*?)</form>""", RegexOption.DOT_MATCHES_ALL).find(html)
+            ?: return null
+        val action = form.groupValues[1].replace("&amp;", "&")
+        val fields = Regex("""<input[^>]*type="hidden"[^>]*name="([^"]+)"[^>]*value="([^"]*)"""").findAll(form.groupValues[2])
+            .joinToString("&") { "${Uri.encode(it.groupValues[1])}=${Uri.encode(it.groupValues[2].replace("&amp;", "&"))}" }
+        return if (fields.isBlank()) action else "$action?$fields"
+    }
+
+    suspend fun check(context: Context, rawUrl: String, referer: String? = null, driveConfirmed: Boolean = false): Result = withContext(Dispatchers.IO) {
+        val typed = rawUrl.trim().let { if (!it.startsWith("http")) "https://$it" else it }
+        if (hostOf(typed) == "drive.google.com" && typed.contains("/folders/")) {
+            return@withContext Result.Stop(
+                "Drive folders can't be opened from a link",
+                "Share each book's own link, or use From your phone → ☰ → Google Drive to pick several at once.",
+            )
+        }
+        // Fenrir: a Drive file link opens Drive's preview page; ask for the file itself instead
+        // (it has to be shared with "Anyone with the link").
+        val url = if (hostOf(typed) == "drive.usercontent.google.com") {
+            typed // already a download link (or the virus-scan step's own link): as it is
+        } else {
+            driveFileId(typed)?.let { "https://drive.usercontent.google.com/download?id=$it&export=download&confirm=t" } ?: typed
+        }
         val host = hostOf(url)
         if (host.isEmpty()) return@withContext Result.Stop("That's not a link", "Paste the whole web address, starting with https://")
         var secure = url.startsWith("https://")
@@ -174,6 +208,19 @@ object FenrirImport {
             val body = r.body ?: return@withContext Result.Stop("Empty file", "The link gave back nothing.")
             if (type.contains("text/html")) {
                 val html = body.string()
+                if (driveFileId(url) != null) {
+                    // Drive answered with a page instead of the file: the virus-scan step for big
+                    // files (follow it once), or the file isn't shared publicly
+                    if (!driveConfirmed) {
+                        driveConfirmUrl(html)?.let { next ->
+                            if (next != url) return@withContext check(context, next, referer, driveConfirmed = true)
+                        }
+                    }
+                    return@withContext Result.Stop(
+                        "Couldn't get the file from Google Drive",
+                        "Make sure the file is shared with \"Anyone with the link\", or use From your phone → ☰ → Google Drive.",
+                    )
+                }
                 // the address that answered (https after a retry, or after redirects), so the books' links resolve right
                 return@withContext scanPage(r.request.url.toString(), host, html)
             }
