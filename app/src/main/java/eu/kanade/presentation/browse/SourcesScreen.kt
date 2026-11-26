@@ -116,10 +116,6 @@ fun SourcesScreen(
                 item(key = "fenrir-mybooks", contentType = "mybooks") {
                     eu.kanade.presentation.library.components.FenrirMyBooksCard()
                 }
-                // Fenrir: book catalogs on both Novel and Manga.
-                item(key = "fenrir-catalogs", contentType = "catalogs") {
-                    eu.kanade.presentation.library.components.FenrirCatalogsCard()
-                }
                 if (lastUsed != null) {
                     item(key = "fenrir-continue", contentType = "continue") {
                         FenrirContinueBrowsingCard(lastUsed, onOpen = { open(lastUsed, Listing.Popular) })
