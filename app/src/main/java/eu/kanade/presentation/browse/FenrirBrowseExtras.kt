@@ -477,6 +477,19 @@ fun FenrirReadAddSheet(novelSide: Boolean, onDismiss: () -> Unit) {
                     color = MutedText,
                     fontSize = 13.sp,
                 )
+                if (novelSide) {
+                    // Fenrir: make your own novel extension (Simple builder or Code editor).
+                    Text(
+                        "Make your own extension ›",
+                        color = Color(0xFFFF4D57),
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(top = 8.dp).clickable {
+                            onDismiss()
+                            navigator?.push(FenrirMakeExtensionScreen())
+                        },
+                    )
+                }
                 Spacer(Modifier.size(8.dp))
                 OutlinedTextField(
                     value = link,

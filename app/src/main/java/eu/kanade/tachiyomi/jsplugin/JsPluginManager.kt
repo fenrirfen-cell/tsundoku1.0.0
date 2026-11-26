@@ -44,6 +44,11 @@ const val FENRIR_NOVEL_REPO =
 class JsPluginManager(
     private val context: Context,
 ) {
+    companion object {
+        /** Fenrir: marks extensions made in the app (Make extension → Code). */
+        const val CUSTOM_REPO = "fenrir:custom"
+    }
+
     private val networkHelper: NetworkHelper = Injekt.get()
     private val sourcePreferences: SourcePreferences = Injekt.get()
     private val storageManager: StorageManager = Injekt.get()
@@ -379,6 +384,38 @@ class JsPluginManager(
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e) { "Failed to install plugin '$pluginId' from backup" }
             false
+        }
+    }
+
+    /* ------------------------------------------------ Fenrir: extensions you make in the app */
+
+    /** Reads id, name, version and site from plugin code (same rules as installed plugins). */
+    fun describeCode(code: String): JsPlugin = extractPluginInfo(code, "my-extension")
+
+    /** Extensions made in Make extension → Code. */
+    fun customPlugins(): List<InstalledJsPlugin> =
+        _installedPlugins.value.filter { it.repositoryUrl == CUSTOM_REPO || it.plugin.repositoryUrl == CUSTOM_REPO }
+
+    /** Installs (or replaces) an extension written in the app. Unlike backups, always overwrites. */
+    suspend fun installCustomPlugin(code: String): Result<JsPlugin> = withContext(Dispatchers.IO) {
+        runCatching {
+            val dir = pluginsDir ?: error("The plugins folder isn't available.")
+            val plugin = extractPluginInfo(code, "my-extension").copy(repositoryUrl = CUSTOM_REPO)
+            val other = _installedPlugins.value.find { it.plugin.id == plugin.id }
+            if (other != null && other.repositoryUrl != CUSTOM_REPO && other.plugin.repositoryUrl != CUSTOM_REPO) {
+                error("An installed extension already uses the id \"${plugin.id}\". Change this.id first.")
+            }
+            (dir.replaceFile("${plugin.id}.js") ?: error("Couldn't save the extension.")).writeUtf8(code)
+            (dir.replaceFile("${plugin.id}.json") ?: error("Couldn't save the extension.")).writeText(json.encodeToString(plugin))
+            val installed = InstalledJsPlugin(plugin = plugin, code = code, installedVersion = plugin.version, repositoryUrl = CUSTOM_REPO)
+            _installedPlugins.update { current -> current.filter { it.plugin.id != plugin.id } + installed }
+            rebuildSources()
+            val langCode = plugin.langCode()
+            if (langCode.isNotEmpty()) {
+                val currentLangs = sourcePreferences.enabledLanguages.get()
+                if (langCode !in currentLangs) sourcePreferences.enabledLanguages.set(currentLangs + langCode)
+            }
+            plugin
         }
     }
 
