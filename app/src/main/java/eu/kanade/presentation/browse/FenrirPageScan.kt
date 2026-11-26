@@ -3,6 +3,8 @@ package eu.kanade.presentation.browse
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 
 /**
  * Fenrir: Make extension → Auto, second try. When a site isn't built on a known design,
@@ -275,7 +277,7 @@ object FenrirPageScan {
 
     /** Opens [url] in a hidden browser and lists the addresses its scripts ask for. */
     private suspend fun watchRequests(url: String): List<String> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-        val context = uy.kohesive.injekt.Injekt.get<android.app.Application>()
+        val context = Injekt.get<android.app.Application>()
         val seen = java.util.Collections.synchronizedList(mutableListOf<String>())
         val web = android.webkit.WebView(context)
         try {
@@ -313,7 +315,7 @@ object FenrirPageScan {
             domStorageEnabled = true
         }
         runCatching {
-            val ua = uy.kohesive.injekt.Injekt.get<eu.kanade.tachiyomi.network.NetworkHelper>().defaultUserAgentProvider()
+            val ua = Injekt.get<eu.kanade.tachiyomi.network.NetworkHelper>().defaultUserAgentProvider()
             if (ua.isNotBlank()) settings.userAgentString = ua
         }
         android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
@@ -321,7 +323,7 @@ object FenrirPageScan {
 
     private suspend fun fetchXhr(url: String, referer: String): String = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         val headers = okhttp3.Headers.Builder().add("X-Requested-With", "XMLHttpRequest").add("Referer", referer).build()
-        uy.kohesive.injekt.Injekt.get<eu.kanade.tachiyomi.network.NetworkHelper>().client
+        Injekt.get<eu.kanade.tachiyomi.network.NetworkHelper>().client
             .newCall(eu.kanade.tachiyomi.network.GET(url, headers)).execute().use { r ->
                 if (!r.isSuccessful) error("HTTP ${r.code}")
                 r.body?.string().orEmpty()
