@@ -24,11 +24,57 @@ class FenrirScannedSite {
     return href.replace(/^https?:\/\/[^/]+/, '').replace(/#.*$/, '') || '/';
   }
 
-  async loadPage(path) {
+  async loadText(path, headers) {
     const url = this.absolute(path);
-    const result = await fetchApi(url);
+    const result = await fetchApi(url, headers ? { headers } : undefined);
     if (!result.ok) throw new Error('HTTP ' + result.status + ' for ' + url);
-    return load(await result.text());
+    return result.text();
+  }
+
+  async loadPage(path) {
+    return load(await this.loadText(path));
+  }
+
+  // Chapter lists fetched by the site's script may come back as JSON: turn them into links.
+  toHtml(text) {
+    const t = (text || '').trim();
+    if (t[0] !== '{' && t[0] !== '[') return t;
+    let data;
+    try { data = JSON.parse(t); } catch (e) { return t; }
+    const parts = [];
+    const walk = v => {
+      if (typeof v === 'string') {
+        if (v.indexOf('<a') !== -1) parts.push(v);
+      } else if (Array.isArray(v)) {
+        v.forEach(walk);
+      } else if (v && typeof v === 'object') {
+        const url = v.url || v.link || v.href || v.path;
+        const name = v.title || v.name || v.chapter_title || v.chapterName || v.chapter_name;
+        if (typeof url === 'string' && typeof name === 'string' && (url[0] === '/' || /^https?:/.test(url))) {
+          parts.push('<a href="' + url.replace(/"/g, '&quot;') + '">' + name.replace(/</g, '&lt;') + '</a>');
+        } else {
+          Object.keys(v).forEach(k => walk(v[k]));
+        }
+      }
+    };
+    walk(data);
+    return '<div class="fenrir-chapters">' + parts.join('\n') + '</div>';
+  }
+
+  // The address the site's own script asks for the chapter list, filled in for this book.
+  async chapterApiLinks(novelPath, raw, $) {
+    const api = RULES.chapterApi;
+    const segs = this.relative(novelPath).split('?')[0].split('/').filter(Boolean);
+    const values = api.vars.map(v => {
+      if (v.seg !== undefined) return segs[v.seg] || '';
+      if (v.sel) return $(v.sel).attr(v.attr) || '';
+      const m = raw.match(new RegExp(v.re));
+      return m ? m[1] : '';
+    });
+    let url = api.url;
+    values.forEach((value, i) => { url = url.split('{' + i + '}').join(encodeURIComponent(value)); });
+    const body = await this.loadText(url, { 'X-Requested-With': 'XMLHttpRequest', 'Referer': this.absolute(novelPath) });
+    return this.chapterLinks(load(this.toHtml(body)));
   }
 
   image(img) {
@@ -104,17 +150,18 @@ class FenrirScannedSite {
   }
 
   async parseNovel(novelPath) {
-    const $ = await this.loadPage(novelPath);
+    const raw = await this.loadText(novelPath);
+    const $ = load(raw);
     const name = ($(RULES.title).first().text() || $('meta[property="og:title"]').attr('content') || '').replace(/\s+/g, ' ').trim();
     const cover = this.absolute($('meta[property="og:image"]').attr('content') || '') || this.image($('img').first());
     const summary = ($('meta[property="og:description"]').attr('content') || $('meta[name="description"]').attr('content') || '').trim();
 
-    let chapters = this.chapterLinks($);
+    let chapters = RULES.chapterApi ? await this.chapterApiLinks(novelPath, raw, $) : this.chapterLinks($);
     // Chapter lists split over pages: follow "Next" a limited number of times.
     let page = $;
     const visited = {};
     visited[this.relative(novelPath)] = true;
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < (RULES.chapterApi ? 0 : 60); i++) {
       const next = this.relative(this.nextPage(page));
       if (!next || visited[next]) break;
       visited[next] = true;

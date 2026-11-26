@@ -24,7 +24,12 @@ object FenrirPageScan {
         val nextWords: List<String>,
         val content: String,
         val search: String?,
+        /** When the chapter list is loaded by the site's script: that address and how to fill it in. */
+        val chapterApi: ChapterApi? = null,
     )
+
+    /** [url] has {0}, {1}… filled from [vars] (each a small JS object: {seg:n}, {sel,attr} or {re}). */
+    class ChapterApi(val url: String, val vars: List<String>)
 
     private val skipSegments = setOf(
         "tag", "tags", "genre", "genres", "category", "categories", "author", "authors", "search",
@@ -185,15 +190,28 @@ object FenrirPageScan {
         // 2. A book page: its chapter list.
         progress("Reading a book page…")
         val bookUrl = books.links.first()
-        val bookDoc = Jsoup.parse(get(bookUrl), bookUrl)
+        val bookHtml = get(bookUrl)
+        val bookDoc = Jsoup.parse(bookHtml, bookUrl)
         val bookPath = segments(bookUrl)
         val chapterGroups = groups(bookDoc, host) { href ->
             href.substringBefore('#') != bookUrl.substringBefore('#') &&
                 (Regex("(?i)chapter|chap|/ch-?\\d|/c\\d|episode|/\\d+/?$").containsMatchIn(href) ||
                     (bookPath.isNotEmpty() && segments(href).take(bookPath.size) == bookPath && segments(href).size > bookPath.size))
         }
-        val chapters = chapterGroups.maxByOrNull { it.links.size }
-            ?: error("Found books, but no chapter list on the book page. The site may load chapters with scripts.")
+        var chapterApi: ChapterApi? = null
+        val inPage = chapterGroups.maxByOrNull { it.links.size }
+        // A handful of links (like "First chapter" / "Latest chapter") isn't the full list.
+        val chapters = inPage?.takeIf { it.links.size >= 5 }
+            ?: run {
+                progress("Chapters load with a script; watching the book page…")
+                val found = findChapterApi(bookUrl, bookHtml, host, books.links.getOrNull(1), get)
+                if (found != null) {
+                    chapterApi = found.first
+                    found.second
+                } else {
+                    inPage ?: error("Found books, but the chapter list loads in a way extensions can't copy (a script that doesn't ask a plain address).")
+                }
+            }
         val chapterFilter = when {
             chapters.links.count { "chapter" in it.lowercase() } >= chapters.links.size * 0.8 -> "chapter"
             else -> ""
@@ -218,7 +236,205 @@ object FenrirPageScan {
             nextWords = nextWords,
             content = content,
             search = searchUrl(home, site, host),
+            chapterApi = chapterApi,
         )
+    }
+
+    /* ---------------------------------------------- chapter lists loaded by a script */
+
+    private val staticFile = Regex("(?i)\\.(js|css|png|jpe?g|gif|webp|svg|ico|woff2?|ttf|otf|mp4|mp3|m3u8|map)(\\?|$)")
+    private val trackers = listOf("google", "doubleclick", "facebook", "analytics", "cloudflareinsights", "gtag", "adservice", "disqus", "pixel")
+
+    /** Same as the engine's toHtml: chapter lists sent as JSON become links. */
+    fun toHtml(text: String): String {
+        val t = text.trim()
+        if (!t.startsWith("{") && !t.startsWith("[")) return t
+        val data = runCatching { kotlinx.serialization.json.Json.parseToJsonElement(t) }.getOrNull() ?: return t
+        val parts = mutableListOf<String>()
+        fun walk(v: kotlinx.serialization.json.JsonElement) {
+            when (v) {
+                is kotlinx.serialization.json.JsonPrimitive -> if (v.isString && "<a" in v.content) parts += v.content
+                is kotlinx.serialization.json.JsonArray -> v.forEach { walk(it) }
+                is kotlinx.serialization.json.JsonObject -> {
+                    fun str(vararg keys: String) = keys.firstNotNullOfOrNull { k ->
+                        (v[k] as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it.isString }?.content
+                    }
+                    val url = str("url", "link", "href", "path")
+                    val name = str("title", "name", "chapter_title", "chapterName", "chapter_name")
+                    if (url != null && name != null && (url.startsWith("/") || url.startsWith("http"))) {
+                        parts += "<a href=\"${url.replace("\"", "&quot;")}\">${name.replace("<", "&lt;")}</a>"
+                    } else {
+                        v.values.forEach { walk(it) }
+                    }
+                }
+            }
+        }
+        walk(data)
+        return "<div class=\"fenrir-chapters\">" + parts.joinToString("\n") + "</div>"
+    }
+
+    /** Opens [url] in a hidden browser and lists the addresses its scripts ask for. */
+    private suspend fun watchRequests(url: String): List<String> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+        val context = uy.kohesive.injekt.Injekt.get<android.app.Application>()
+        val seen = java.util.Collections.synchronizedList(mutableListOf<String>())
+        val web = android.webkit.WebView(context)
+        try {
+            web.setDefaultSettingsSafely()
+            web.settings.blockNetworkImage = true
+            web.webViewClient = object : android.webkit.WebViewClient() {
+                override fun shouldInterceptRequest(view: android.webkit.WebView, request: android.webkit.WebResourceRequest): android.webkit.WebResourceResponse? {
+                    if (request.method.equals("GET", true) && !request.isForMainFrame) seen += request.url.toString()
+                    return null
+                }
+            }
+            web.loadUrl(url)
+            kotlinx.coroutines.delay(7_000)
+            // Some pages only load chapters after scrolling or opening a Chapters tab.
+            web.evaluateJavascript(
+                """
+                window.scrollTo(0, document.body.scrollHeight);
+                Array.from(document.querySelectorAll('button, [role=tab], a[href^="#"], li, span'))
+                  .filter(function (e) { return /^(chapters?|table of contents|toc|chapter list)$/i.test((e.textContent || '').trim()); })
+                  .slice(0, 3).forEach(function (e) { try { e.click(); } catch (x) {} });
+                """.trimIndent(),
+                null,
+            )
+            kotlinx.coroutines.delay(4_000)
+            seen.toList()
+        } finally {
+            web.stopLoading()
+            web.destroy()
+        }
+    }
+
+    private fun android.webkit.WebView.setDefaultSettingsSafely() {
+        with(settings) {
+            javaScriptEnabled = true
+            domStorageEnabled = true
+        }
+        runCatching {
+            val ua = uy.kohesive.injekt.Injekt.get<eu.kanade.tachiyomi.network.NetworkHelper>().defaultUserAgentProvider()
+            if (ua.isNotBlank()) settings.userAgentString = ua
+        }
+        android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+    }
+
+    private suspend fun fetchXhr(url: String, referer: String): String = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val headers = okhttp3.Headers.Builder().add("X-Requested-With", "XMLHttpRequest").add("Referer", referer).build()
+        uy.kohesive.injekt.Injekt.get<eu.kanade.tachiyomi.network.NetworkHelper>().client
+            .newCall(eu.kanade.tachiyomi.network.GET(url, headers)).execute().use { r ->
+                if (!r.isSuccessful) error("HTTP ${r.code}")
+                r.body?.string().orEmpty()
+            }
+    }
+
+    private fun chapterGroup(doc: Document, host: String, bookUrl: String): Group? {
+        val bookPath = segments(bookUrl)
+        return groups(doc, host) { href ->
+            href.substringBefore('#') != bookUrl.substringBefore('#') &&
+                (Regex("(?i)chapter|chap|/ch-?\\d|/c\\d|episode|/\\d+/?$").containsMatchIn(href) ||
+                    (bookPath.isNotEmpty() && segments(href).take(bookPath.size) == bookPath && segments(href).size > bookPath.size))
+        }.maxByOrNull { it.links.size }
+    }
+
+    /**
+     * Turns the address the script asked for into a pattern: parts that come from the book's link
+     * or from the book page become {0}, {1}…; returns null if an id can't be traced back.
+     */
+    private fun generalize(apiUrl: String, bookUrl: String, bookHtml: String, bookDoc: Document): ChapterApi? {
+        val bookSegs = segments(bookUrl)
+        val uri = runCatching { java.net.URI(apiUrl) }.getOrNull() ?: return null
+        val tokens = (uri.path.orEmpty().split('/') + uri.query.orEmpty().split('&').map { it.substringAfter('=', "") })
+            .map { runCatching { java.net.URLDecoder.decode(it, "UTF-8") }.getOrDefault(it) }
+            .filter { it.length >= 3 }
+            .distinct()
+            .sortedByDescending { it.length }
+        // Only the part after the host is rewritten (a book word like "novel" may also be in the host).
+        val head = "${uri.scheme}://${uri.rawAuthority}"
+        var url = apiUrl.removePrefix(head)
+        val vars = mutableListOf<String>()
+        val json = kotlinx.serialization.json.Json
+        fun js(v: String) = json.encodeToString(kotlinx.serialization.json.JsonPrimitive(v))
+        for (token in tokens) {
+            val idLike = token.any(Char::isDigit) || token in bookSegs
+            if (!idLike) continue
+            val seg = bookSegs.indexOf(token)
+            val variable = when {
+                seg >= 0 -> "{ seg: $seg }"
+                else -> {
+                    val holder = bookDoc.getAllElements().firstOrNull { el -> el.attributes().any { it.value == token } }
+                    if (holder != null) {
+                        val attr = holder.attributes().first { it.value == token }.key
+                        "{ sel: ${js(unique(holder, bookDoc))}, attr: ${js(attr)} }"
+                    } else {
+                        val m = Regex("([A-Za-z_][A-Za-z0-9_-]{1,40})[\"']?\\s*[:=]\\s*[\"']?" + Regex.escape(token) + "\\b").find(bookHtml)
+                            ?: continue // not traceable: keep it as is (the second-book check catches mistakes)
+                        val name = m.groupValues[1] // letters, digits, _ and - only
+                        "{ re: ${js(name + "[\"']?\\s*[:=]\\s*[\"']?([\\w-]+)")} }"
+                    }
+                }
+            }
+            val index = vars.size
+            vars += variable
+            url = url.replace(java.net.URLEncoder.encode(token, "UTF-8"), "{$index}").replace(token, "{$index}")
+        }
+        if (vars.isEmpty()) return null // the same address for every book: not a per-book list
+        return ChapterApi(head + url, vars)
+    }
+
+    /** Fills a [ChapterApi] for another book, the same way the engine does. */
+    private fun fill(api: ChapterApi, bookUrl: String, bookHtml: String, bookDoc: Document): String? {
+        val segs = segments(bookUrl)
+        var url = api.url
+        api.vars.forEachIndexed { i, v ->
+            val value = when {
+                v.startsWith("{ seg:") -> segs.getOrNull(Regex("\\d+").find(v)!!.value.toInt())
+                v.startsWith("{ sel:") -> {
+                    val parts = Regex("\"((?:[^\"\\\\]|\\\\.)*)\"").findAll(v).map { kotlinx.serialization.json.Json.decodeFromString<String>(it.value) }.toList()
+                    bookDoc.selectFirst(parts[0])?.attr(parts[1])
+                }
+                else -> {
+                    val pattern = kotlinx.serialization.json.Json.decodeFromString<String>(Regex("\"(.*)\"").find(v)!!.value)
+                    Regex(pattern).find(bookHtml)?.groupValues?.getOrNull(1)
+                }
+            } ?: return null
+            url = url.replace("{$i}", java.net.URLEncoder.encode(value, "UTF-8"))
+        }
+        return url
+    }
+
+    private suspend fun findChapterApi(
+        bookUrl: String,
+        bookHtml: String,
+        host: String,
+        otherBookUrl: String?,
+        get: suspend (String) -> String,
+    ): Pair<ChapterApi, Group>? {
+        val base = host.removePrefix("www.").split('.').takeLast(2).joinToString(".")
+        val asked = watchRequests(bookUrl)
+            .map { it.substringBefore('#') }
+            .filter { u ->
+                val h = runCatching { java.net.URI(u).host.orEmpty() }.getOrDefault("")
+                h.endsWith(base) && !staticFile.containsMatchIn(u) && trackers.none { it in u.lowercase() } && u != bookUrl
+            }
+            .distinct()
+            .take(15)
+        val bookDoc = Jsoup.parse(bookHtml, bookUrl)
+        for (u in asked) {
+            val body = runCatching { fetchXhr(u, bookUrl) }.getOrNull() ?: continue
+            val frag = Jsoup.parse(toHtml(body), u)
+            val group = chapterGroup(frag, host, bookUrl)?.takeIf { it.links.size >= 2 } ?: continue
+            val api = generalize(u, bookUrl, bookHtml, bookDoc) ?: continue
+            // Make sure the pattern also works for a second book.
+            if (otherBookUrl != null) {
+                val otherHtml = runCatching { get(otherBookUrl) }.getOrNull() ?: continue
+                val otherUrl = fill(api, otherBookUrl, otherHtml, Jsoup.parse(otherHtml, otherBookUrl)) ?: continue
+                val otherBody = runCatching { fetchXhr(otherUrl, otherBookUrl) }.getOrNull() ?: continue
+                if (chapterGroup(Jsoup.parse(toHtml(otherBody), otherUrl), host, otherBookUrl) == null) continue
+            }
+            return api to group
+        }
+        return null
     }
 
     /** The extension's code: header lines the app reads, the rules, then the shared engine. */
@@ -244,6 +460,9 @@ object FenrirPageScan {
             append("  nextWords: ${if (rules.nextWords.isEmpty()) "null" else rules.nextWords.joinToString(", ", "[", "]") { j.jsString(it) }},\n")
             append("  content: ${j.jsString(rules.content)},\n")
             append("  search: ${opt(rules.search)},\n")
+            rules.chapterApi?.let { api ->
+                append("  chapterApi: { url: ${j.jsString(api.url)}, vars: [${api.vars.joinToString(", ")}] },\n")
+            }
             append("};\n")
             append(engine)
         }
