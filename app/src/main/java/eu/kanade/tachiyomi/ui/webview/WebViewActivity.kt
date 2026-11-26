@@ -80,6 +80,7 @@ class WebViewActivity : BaseActivity() {
                 onOpenInBrowser = this::openInBrowser,
                 onClearCookies = this::clearCookies,
                 onDownload = if (intent.getBooleanExtra(IMPORT_KEY, false)) this::importDownload else null,
+                adBlockAvailable = intent.getBooleanExtra(IMPORT_KEY, false),
             )
         }
     }
