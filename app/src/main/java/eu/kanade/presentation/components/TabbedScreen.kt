@@ -106,7 +106,8 @@ fun TabbedScreen(
                 verticalAlignment = Alignment.Top,
             ) { page ->
                 tabs[page].content(
-                    PaddingValues(bottom = contentPadding.calculateBottomPadding()),
+                    // Fenrir: room under the last row so the island never covers it.
+                    PaddingValues(bottom = contentPadding.calculateBottomPadding() + 112.dp),
                     snackbarHostState,
                 )
             }

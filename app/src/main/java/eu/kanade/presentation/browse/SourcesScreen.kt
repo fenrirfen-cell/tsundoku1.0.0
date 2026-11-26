@@ -116,10 +116,9 @@ fun SourcesScreen(
                 item(key = "fenrir-mybooks", contentType = "mybooks") {
                     eu.kanade.presentation.library.components.FenrirMyBooksCard()
                 }
-                if (novelSide) {
-                    item(key = "fenrir-catalogs", contentType = "catalogs") {
-                        eu.kanade.presentation.library.components.FenrirCatalogsCard()
-                    }
+                // Fenrir: book catalogs on both Novel and Manga.
+                item(key = "fenrir-catalogs", contentType = "catalogs") {
+                    eu.kanade.presentation.library.components.FenrirCatalogsCard()
                 }
                 if (lastUsed != null) {
                     item(key = "fenrir-continue", contentType = "continue") {
