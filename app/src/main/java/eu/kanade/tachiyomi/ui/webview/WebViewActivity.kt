@@ -7,6 +7,8 @@ import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.core.net.toUri
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import eu.kanade.presentation.webview.WebViewScreenContent
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.network.NetworkHelper
@@ -77,7 +79,37 @@ class WebViewActivity : BaseActivity() {
                 onShare = this::shareWebpage,
                 onOpenInBrowser = this::openInBrowser,
                 onClearCookies = this::clearCookies,
+                onDownload = if (intent.getBooleanExtra(IMPORT_KEY, false)) this::importDownload else null,
             )
+        }
+    }
+
+    // Fenrir: a download started while browsing for a book. Fetched with the browser's own cookies
+    // and name (the app's downloader shares them), checked like any import, then back to Import.
+    private var importing = false
+
+    private fun importDownload(url: String, pageUrl: String?) {
+        if (importing) return
+        if (!url.startsWith("http")) {
+            toast("This site builds the file inside the page, so it can't be caught here. Try Share → Fenrir Vault from your browser.", Toast.LENGTH_LONG)
+            return
+        }
+        importing = true
+        toast("Downloading…")
+        lifecycleScope.launch {
+            val result = runCatching {
+                eu.kanade.presentation.library.components.FenrirImport.check(this@WebViewActivity, url, referer = pageUrl)
+            }.getOrNull()
+            importing = false
+            when (result) {
+                is eu.kanade.presentation.library.components.FenrirImport.Result.Book -> {
+                    eu.kanade.presentation.library.components.FenrirBrowserImports.add(result.uri.toString())
+                    toast("Got “${result.name}”")
+                    finish()
+                }
+                is eu.kanade.presentation.library.components.FenrirImport.Result.Stop -> toast("${result.title}: ${result.why}", Toast.LENGTH_LONG)
+                else -> toast("That download isn't a book file.", Toast.LENGTH_LONG)
+            }
         }
     }
 
@@ -121,6 +153,14 @@ class WebViewActivity : BaseActivity() {
         private const val URL_KEY = "url_key"
         private const val SOURCE_KEY = "source_key"
         private const val TITLE_KEY = "title_key"
+        private const val IMPORT_KEY = "fenrir_import_key"
+
+        /**
+         * Fenrir: the in-app browser for Import a book: browse any site (signed in, human checks
+         * passed) and a book download started there is imported.
+         */
+        fun newImportIntent(context: Context, url: String): Intent =
+            newIntent(context, url, title = "Find a book").putExtra(IMPORT_KEY, true)
 
         fun newIntent(context: Context, url: String, sourceId: Long? = null, title: String? = null): Intent {
             return Intent(context, WebViewActivity::class.java).apply {
