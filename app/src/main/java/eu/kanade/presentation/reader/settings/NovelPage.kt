@@ -529,6 +529,12 @@ internal fun ColumnScope.NovelAppearanceTab(viewModel: ReaderSettingsViewModel, 
         pref = viewModel.preferences.novelKeepScreenOn,
     )
 
+    // Fenrir: tidy the spacing sites add between paragraphs (both renderers)
+    CheckboxItem(
+        label = "Remove extra paragraph spacing",
+        pref = viewModel.preferences.novelRemoveExtraSpacing,
+    )
+
     // Block Media (images, videos, audio)
     CheckboxItem(
         label = stringResource(TDMR.strings.pref_novel_block_media),

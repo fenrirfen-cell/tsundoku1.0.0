@@ -404,6 +404,9 @@ class ReaderPreferences(
     // Show raw HTML (display HTML tags without parsing) - useful for debugging
     val novelShowRawHtml: Preference<Boolean> = preferenceStore.getBoolean("pref_novel_show_raw_html", false)
 
+    // Fenrir: tidy chapters' spacing (like LNReader's "Remove extra paragraph spacing")
+    val novelRemoveExtraSpacing: Preference<Boolean> = preferenceStore.getBoolean("pref_novel_remove_extra_spacing", true)
+
     // TTS (Text-to-Speech) preferences
     val novelTtsSpeed: Preference<Float> = preferenceStore.getFloat("pref_novel_tts_speed", 1.0f)
     val novelTtsPitch: Preference<Float> = preferenceStore.getFloat("pref_novel_tts_pitch", 1.0f)
