@@ -112,8 +112,12 @@ object FenrirAutoExtension {
             append("// this.site = ${jsString(site)}\n")
             append(template.trimEnd())
             append("\n;(function () {\n")
-            append("  var Design = exports.default.constructor;\n")
-            append("  exports.default = new Design($meta);\n")
+            append("  var base = exports.default;\n")
+            append("  var Design = base.constructor;\n")
+            append("  var meta = $meta;\n")
+            // The design's code expects its filter settings (genres, sort…); keep the template's defaults.
+            append("  if (base.filters) meta.filters = base.filters;\n")
+            append("  exports.default = new Design(meta);\n")
             append("})();\n")
         }
     }
