@@ -422,13 +422,40 @@ object FenrirCatalogs {
         saved.value = next
     }
 
+    /** Fenrir: the catalog's site shows an "are you human" check (Cloudflare). */
+    class HumanCheck : Exception("This site asks for a human check. Tap Open site, pass the check there, then come back and tap Try again.")
+
+    private fun isCloudflare(e: Throwable): Boolean = generateSequence(e) { it.cause }.take(6).any { t ->
+        "cloudflare" in t.javaClass.simpleName.lowercase() ||
+            listOf("cloudflare", "captcha", "human").any { it in (t.message ?: "").lowercase() }
+    }
+
     suspend fun fetch(url: String): Result<Feed> = withContext(Dispatchers.IO) {
         runCatching {
             val client = Injekt.get<NetworkHelper>().client
-            client.newCall(GET(url)).execute().use { r ->
-                if (r.code == 401 || r.code == 403) error("This catalog needs a login, which Fenrir Read doesn't support yet.")
+            // Fenrir: ask like a phone browser would (some sites refuse plain app requests).
+            val lang = java.util.Locale.getDefault().toLanguageTag().ifBlank { "en-US" }
+            val headers = okhttp3.Headers.Builder()
+                .add("Accept", "application/atom+xml;profile=opds-catalog,application/atom+xml,application/xml;q=0.9,text/xml;q=0.9,text/html;q=0.8,*/*;q=0.7")
+                .add("Accept-Language", if (lang.startsWith("en")) "$lang,en;q=0.9" else "$lang,en-US;q=0.8,en;q=0.7")
+                .build()
+            val response = try {
+                client.newCall(GET(url, headers)).execute()
+            } catch (e: java.io.IOException) {
+                if (isCloudflare(e)) throw HumanCheck() else throw e
+            }
+            response.use { r ->
+                val body = r.body?.string().orEmpty()
+                val head = body.take(64 * 1024).lowercase()
+                val challenge = r.header("cf-mitigated").equals("challenge", true) ||
+                    (r.code in listOf(403, 429, 503) && r.header("Server").orEmpty().contains("cloudflare", true)) ||
+                    (r.header("Content-Type").orEmpty().contains("html", true) &&
+                        listOf("challenge-platform", "cf-chl", "just a moment...", "cf_chl_opt", "cf-turnstile").any { it in head })
+                if (challenge) throw HumanCheck()
+                if (r.code == 401) error("This catalog needs a login, which Fenrir Read doesn't support yet.")
+                if (r.code == 403) error("This catalog isn't open to visitors (403).")
                 if (!r.isSuccessful) error("The catalog answered with an error (${r.code}).")
-                parse(url, r.body?.string().orEmpty())
+                parse(url, body)
             }
         }
     }
@@ -554,6 +581,9 @@ class FenrirCatalogScreen(private val name: String, private val url: String) : S
         var query by remember { mutableStateOf("") }
         var feed by remember { mutableStateOf<FenrirCatalogs.Feed?>(null) }
         var error by remember { mutableStateOf<String?>(null) }
+        var humanCheck by remember { mutableStateOf(false) }
+        var reload by remember { mutableStateOf(0) }
+        var stopUrl by remember { mutableStateOf<String?>(null) }
         val extra = remember { mutableStateListOf<FenrirCatalogs.Entry>() }
         var next by remember { mutableStateOf<String?>(null) }
         val downloading = remember { mutableStateListOf<String>() }
@@ -561,9 +591,16 @@ class FenrirCatalogScreen(private val name: String, private val url: String) : S
         // Fenrir: tick several books, then get them all. Kept while moving between pages of the catalog.
         val selected = remember { mutableStateMapOf<String, FenrirCatalogs.Entry>() }
         var batch by remember { mutableStateOf<String?>(null) }
-        LaunchedEffect(current) {
-            feed = null; error = null; extra.clear()
-            FenrirCatalogs.fetch(current).onSuccess { feed = it; next = it.next }.onFailure { error = it.message ?: "Couldn't load the catalog." }
+        LaunchedEffect(current, reload) {
+            feed = null; error = null; humanCheck = false; extra.clear()
+            FenrirCatalogs.fetch(current).onSuccess { feed = it; next = it.next }.onFailure {
+                humanCheck = it is FenrirCatalogs.HumanCheck
+                error = it.message ?: "Couldn't load the catalog."
+            }
+        }
+        // Fenrir: Open site for human checks (the browser shares its cookies with the app).
+        val openSite: (String) -> Unit = { link ->
+            context.startActivity(eu.kanade.tachiyomi.ui.webview.WebViewActivity.newIntent(context, link, title = name))
         }
         Column(Modifier.fillMaxSize().background(Color(0xFF0B0B0F))) {
             Header(name, feed?.title?.takeIf { it.isNotBlank() && it != name } ?: "Catalog") { navigator.pop() }
@@ -581,10 +618,35 @@ class FenrirCatalogScreen(private val name: String, private val url: String) : S
                     )
                 }
             }
-            message?.let { Text(it, color = Color(0xFFFFB547), fontSize = 12.5.sp, modifier = Modifier.padding(horizontal = 18.dp)) }
+            message?.let { msg ->
+                Row(Modifier.padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(msg, color = Color(0xFFFFB547), fontSize = 12.5.sp, modifier = Modifier.weight(1f))
+                    stopUrl?.let { link ->
+                        Text(
+                            "Open site", color = Red, fontWeight = FontWeight.Bold, fontSize = 13.sp,
+                            modifier = Modifier.clip(CircleShape).clickable { openSite(link) }.padding(horizontal = 10.dp, vertical = 6.dp),
+                        )
+                    }
+                }
+            }
             val f = feed
             when {
-                error != null -> Text(error!!, color = Color(0xFFFF8A91), fontSize = 14.sp, modifier = Modifier.padding(20.dp))
+                error != null -> Column(Modifier.padding(20.dp)) {
+                    Text(error!!, color = Color(0xFFFF8A91), fontSize = 14.sp)
+                    Row(Modifier.padding(top = 14.dp)) {
+                        if (humanCheck) {
+                            Text(
+                                "Open site", color = Color.White, fontWeight = FontWeight.Bold,
+                                modifier = Modifier.clip(CircleShape).background(Red).clickable { openSite(current) }.padding(horizontal = 18.dp, vertical = 10.dp),
+                            )
+                            Spacer(Modifier.width(10.dp))
+                        }
+                        Text(
+                            "Try again", color = Color.White, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clip(CircleShape).background(CardBg).border(1.dp, Rim, CircleShape).clickable { reload++ }.padding(horizontal = 18.dp, vertical = 10.dp),
+                        )
+                    }
+                }
                 f == null -> Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Red) }
                 else -> {
                     val list = f.entries + extra
@@ -649,7 +711,7 @@ class FenrirCatalogScreen(private val name: String, private val url: String) : S
                                                 scope.launch {
                                                     when (val r = FenrirImport.check(context, dl)) {
                                                         is FenrirImport.Result.Book -> navigator.push(eu.kanade.tachiyomi.ui.library.ImportEpubScreen(initialUriStrings = listOf(r.uri.toString())))
-                                                        is FenrirImport.Result.Stop -> message = "${e.title}: ${r.title}"
+                                                        is FenrirImport.Result.Stop -> { message = "${e.title}: ${r.why}"; stopUrl = r.openUrl }
                                                         else -> message = "${e.title}: couldn't download"
                                                     }
                                                     downloading -= dl
@@ -710,6 +772,7 @@ class FenrirCatalogScreen(private val name: String, private val url: String) : S
                                         batch = "Getting ${i + 1} of ${picks.size}…"
                                         when (val r = FenrirImport.check(context, e.download!!)) {
                                             is FenrirImport.Result.Book -> got += r.uri.toString()
+                                            is FenrirImport.Result.Stop -> { failed += e.title; r.openUrl?.let { stopUrl = it } }
                                             else -> failed += e.title
                                         }
                                     }
