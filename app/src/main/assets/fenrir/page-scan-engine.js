@@ -156,6 +156,14 @@ class FenrirScannedSite {
     const cover = this.absolute($('meta[property="og:image"]').attr('content') || '') || this.image($('img').first());
     const summary = ($('meta[property="og:description"]').attr('content') || $('meta[name="description"]').attr('content') || '').trim();
 
+    let tocHref = RULES.toc ? $(RULES.toc).first().attr('href') : '';
+    if (tocHref) return {
+      path: novelPath,
+      name,
+      cover,
+      summary,
+      chapters: this.ordered(await this.tocChapters(this.relative(tocHref))),
+    };
     let chapters = RULES.chapterApi ? await this.chapterApiLinks(novelPath, raw, $) : this.chapterLinks($);
     // Chapter lists split over pages: follow "Next" a limited number of times.
     let page = $;
@@ -171,8 +179,38 @@ class FenrirScannedSite {
       chapters = chapters.concat(more);
     }
 
+    return {
+      path: novelPath,
+      name,
+      cover,
+      summary,
+      chapters: this.ordered(chapters),
+    };
+  }
+
+  // The full chapter list on its own page ("More chapters", "Table of contents"…), often split into numbered pages.
+  async tocChapters(tocPath) {
+    let chapters = [];
+    const seenPages = {};
+    let url = tocPath;
+    for (let p = 1; p <= 150 && url && !seenPages[url]; p++) {
+      seenPages[url] = true;
+      const $ = await this.loadPage(url);
+      const before = chapters.length;
+      const known = {};
+      chapters.forEach(c => { known[c.path] = true; });
+      this.chapterLinks($).forEach(c => { if (!known[c.path]) chapters.push(c); });
+      if (chapters.length === before) break;
+      if (RULES.tocPaged === 'path') url = tocPath.replace(/\/1\/?$/, '/' + (p + 1));
+      else if (RULES.tocPaged === 'query') url = tocPath.replace(/([?&](?:page|p|pg)=)1(?=&|$)/, '$1' + (p + 1));
+      else url = this.relative(this.nextPage($));
+    }
+    return chapters;
+  }
+
+  ordered(list) {
     const seen = {};
-    chapters = chapters.filter(c => (seen[c.path] ? false : (seen[c.path] = true)));
+    let chapters = list.filter(c => (seen[c.path] ? false : (seen[c.path] = true)));
     const number = c => {
       const m = c.name.match(/(\d+(\.\d+)?)/);
       return m ? parseFloat(m[1]) : NaN;
@@ -182,13 +220,7 @@ class FenrirScannedSite {
       const last = number(chapters[chapters.length - 1]);
       if (!isNaN(first) && !isNaN(last) && first > last) chapters.reverse();
     }
-    return {
-      path: novelPath,
-      name,
-      cover,
-      summary,
-      chapters: chapters.map((c, i) => ({ name: c.name, path: c.path, chapterNumber: i + 1 })),
-    };
+    return chapters.map((c, i) => ({ name: c.name, path: c.path, chapterNumber: i + 1 }));
   }
 
   async parseChapter(chapterPath) {
