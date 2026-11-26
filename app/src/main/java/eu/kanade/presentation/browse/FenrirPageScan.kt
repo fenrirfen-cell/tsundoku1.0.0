@@ -141,10 +141,50 @@ object FenrirPageScan {
         }
     }
 
-    private fun bookGroup(doc: Document, host: String): Group? =
+    private fun bookGroups(doc: Document, host: String): List<Group> =
         groups(doc, host) { href -> !Regex("(?i)chapter|/ch-?\\d|/c\\d").containsMatchIn(href) }
             .filter { it.links.size >= 5 }
-            .maxByOrNull { it.links.size + (if (it.hasImages) 10 else 0) + (if (it.filter.isNotEmpty()) 5 else 0) }
+            .sortedByDescending { it.links.size + (if (it.hasImages) 10 else 0) + (if (it.filter.isNotEmpty()) 5 else 0) }
+            .take(3)
+
+    private class ChapterFind(
+        val bookUrl: String,
+        val bookDoc: Document,
+        val chapters: Group,
+        val toc: String? = null,
+        val tocPaged: String? = null,
+        val api: ChapterApi? = null,
+    )
+
+    /** Looks for the chapter list of [bookUrl]: on the page, on its own page, or (if [watch]) from the page's script. */
+    private suspend fun chaptersOf(
+        bookUrl: String,
+        otherBook: String?,
+        site: String,
+        host: String,
+        watch: Boolean,
+        get: suspend (String) -> String,
+        progress: (String) -> Unit,
+    ): ChapterFind? {
+        notes += "book page ${bookUrl.removePrefix(site)}"
+        val bookHtml = runCatching { get(bookUrl) }.getOrElse { notes += "couldn't open it"; return null }
+        val bookDoc = Jsoup.parse(bookHtml, bookUrl)
+        val inPage = chapterGroup(bookDoc, host, bookUrl)
+        notes += "${bookDoc.select("a[href]").size} links, ${inPage?.links?.size ?: 0} chapters there"
+        if ((inPage?.links?.size ?: 0) >= 20) return ChapterFind(bookUrl, bookDoc, inPage!!)
+        // The full list may be on its own page ("More chapters", "Table of contents"…).
+        findTocPage(bookDoc, bookUrl, host, get)?.let { (selector, paged, group) ->
+            progress("Found the full chapter list on its own page.")
+            return ChapterFind(bookUrl, bookDoc, group, toc = selector, tocPaged = paged)
+        }
+        if (inPage != null && inPage.links.size >= 5) return ChapterFind(bookUrl, bookDoc, inPage)
+        if (!watch) return null
+        progress("Chapters may load with a script; watching the book page…")
+        findChapterApi(bookUrl, bookHtml, host, otherBook, get)?.let { (api, group) ->
+            return ChapterFind(bookUrl, bookDoc, group, api = api)
+        }
+        return inPage?.let { ChapterFind(bookUrl, bookDoc, it) }
+    }
 
     private fun pagedUrl(doc: Document, host: String, listUrl: String): String? {
         val links = doc.select("a[href]").map { it.absUrl("href") }.filter { it.isNotBlank() && sameHost(it, host) }
@@ -196,55 +236,38 @@ object FenrirPageScan {
             .map { it.first.absUrl("href").substringBefore('#') }
             .distinct().take(4).forEach { candidates += it }
 
-        var best: Triple<String, Document, Group>? = null
-        var bestScore = -1
+        // Every list of links that could be books, best first (a list of genres can look like books too).
+        val lists = mutableListOf<Triple<String, Document, Group>>()
         for (url in candidates.distinct()) {
             val doc = if (url == "$site/") home else runCatching { Jsoup.parse(get(url), url) }.getOrNull() ?: continue
-            val group = bookGroup(doc, host) ?: continue
-            val score = group.links.size + (if (pagedUrl(doc, host, url) != null) 20 else 0) + (if (url != "$site/") 3 else 0)
-            if (score > bestScore) { bestScore = score; best = Triple(url, doc, group) }
+            bookGroups(doc, host).forEach { lists += Triple(url, doc, it) }
         }
-        val (listUrl, listDoc, books) = best ?: error("Couldn't find a list of books on this site. It may build its pages with scripts.")
-        progress("Found ${books.links.size} books on ${listUrl.removePrefix(site).ifBlank { "/" }}.")
+        if (lists.isEmpty()) error("Couldn't find a list of books on this site. It may build its pages with scripts.")
+        val ranked = lists.sortedByDescending { (url, doc, group) ->
+            group.links.size + (if (pagedUrl(doc, host, url) != null) 20 else 0) + (if (url != "$site/") 3 else 0) +
+                (if (group.hasImages) 10 else 0)
+        }.distinctBy { it.third.links.first() }.take(6)
 
-        // 2. A book page: its chapter list.
+        // 2. A book page: its chapter list. Try each list until one leads to chapters.
         progress("Reading a book page…")
         notes.clear()
-        // Book pages are usually shallower than chapter pages: start from the shallowest link.
-        val bookUrl = books.links.minByOrNull { segments(it).size } ?: books.links.first()
-        notes += "book page ${bookUrl.removePrefix(site)}"
-        val bookHtml = get(bookUrl)
-        val bookDoc = Jsoup.parse(bookHtml, bookUrl)
-        val bookPath = segments(bookUrl)
-        val chapterGroups = groups(bookDoc, host) { href ->
-            href.substringBefore('#') != bookUrl.substringBefore('#') &&
-                (Regex("(?i)chapter|chap|/ch-?\\d|/c\\d|episode|/\\d+/?$").containsMatchIn(href) ||
-                    (bookPath.isNotEmpty() && segments(href).take(bookPath.size) == bookPath && segments(href).size > bookPath.size))
-        }
-        var chapterApi: ChapterApi? = null
-        var toc: String? = null
-        var tocPaged: String? = null
-        val inPage = chapterGroups.maxByOrNull { it.links.size }
-        notes += "${bookDoc.select("a[href]").size} links, ${inPage?.links?.size ?: 0} chapters there"
-        // The full list may be on its own page ("More chapters", "Table of contents"…).
-        val tocFound = if ((inPage?.links?.size ?: 0) < 20) findTocPage(bookDoc, bookUrl, host, get) else null
-        // A handful of links (like "First chapter" / "Latest chapter") isn't the full list.
-        val chapters = tocFound?.let { (selector, paged, group) ->
-            toc = selector
-            tocPaged = paged
-            progress("Found the full chapter list on its own page.")
-            group
-        } ?: inPage?.takeIf { it.links.size >= 5 }
-            ?: run {
-                progress("Chapters load with a script; watching the book page…")
-                val found = findChapterApi(bookUrl, bookHtml, host, books.links.getOrNull(1), get)
-                if (found != null) {
-                    chapterApi = found.first
-                    found.second
-                } else {
-                    inPage ?: error("Found books, but not their chapter list. (Saw: ${notes.joinToString("; ")})")
-                }
+        var found: Pair<Triple<String, Document, Group>, ChapterFind>? = null
+        for (watch in listOf(false, true)) {
+            for (entry in if (watch) ranked.take(2) else ranked) {
+                val books = entry.third
+                val find = chaptersOf(books.links.first(), books.links.getOrNull(1), site, host, watch, get, progress)
+                if (find != null) { found = entry to find; break }
             }
+            if (found != null) break
+        }
+        val (listEntry, find) = found ?: error("Found lists of links, but none led to a chapter list. (Saw: ${notes.takeLast(9).joinToString("; ")})")
+        val (listUrl, listDoc, books) = listEntry
+        progress("Found ${books.links.size} books on ${listUrl.removePrefix(site).ifBlank { "/" }}.")
+        val bookDoc = find.bookDoc
+        val chapters = find.chapters
+        val chapterApi = find.api
+        val toc = find.toc
+        val tocPaged = find.tocPaged
         val chapterFilter = when {
             chapters.links.count { "chapter" in it.lowercase() } >= chapters.links.size * 0.8 -> "chapter"
             else -> ""
