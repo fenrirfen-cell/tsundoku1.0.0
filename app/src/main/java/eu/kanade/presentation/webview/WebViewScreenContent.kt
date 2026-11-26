@@ -81,7 +81,12 @@ fun WebViewScreenContent(
     onUrlChange: (String) -> Unit = {},
     // Fenrir: when set, a download started on the page is handed over (url, page it came from)
     onDownload: ((url: String, pageUrl: String?) -> Unit)? = null,
+    // Fenrir: offer ad blocking (Browse in Import a book); on/off is remembered
+    adBlockAvailable: Boolean = false,
 ) {
+    val fenrirContext = androidx.compose.ui.platform.LocalContext.current
+    var blockAds by remember { mutableStateOf(adBlockAvailable && FenrirAdBlock.isEnabled(fenrirContext)) }
+    val blockAdsNow = androidx.compose.runtime.rememberUpdatedState(blockAds)
     val coroutineScope = rememberCoroutineScope()
 
     val windowStack = remember {
@@ -137,11 +142,28 @@ fun WebViewScreenContent(
                 }
             }
 
+            // Fenrir: requests to ad networks get an empty answer while ad blocking is on
+            override fun shouldInterceptRequest(
+                view: WebView?,
+                request: WebResourceRequest?,
+            ): android.webkit.WebResourceResponse? {
+                if (blockAdsNow.value && FenrirAdBlock.isAdHost(request?.url?.host)) return FenrirAdBlock.blocked()
+                return super.shouldInterceptRequest(view, request)
+            }
+
             override fun shouldOverrideUrlLoading(
                 view: WebView?,
                 request: WebResourceRequest?,
             ): Boolean {
                 val url = request?.url?.toString() ?: return false
+
+                // Fenrir: with ad blocking on, an ad site, or a jump to another site the page made by
+                // itself (not a tap, not the server's own redirect), is stopped
+                val req = request ?: return false
+                if (blockAdsNow.value && req.isForMainFrame) {
+                    if (FenrirAdBlock.isAdHost(req.url?.host)) return true
+                    if (!req.hasGesture() && !req.isRedirect && !FenrirAdBlock.sameSite(url, view?.url)) return true
+                }
 
                 // Ignore intents urls
                 if (url.startsWith("intent://")) return true
@@ -167,6 +189,24 @@ fun WebViewScreenContent(
                 isUserGesture: Boolean,
                 resultMsg: Message,
             ): Boolean {
+                // Fenrir: with ad blocking on, no pop-up / new-tab windows. A tapped new-tab link still
+                // works when it's on the same site or looks like a download: it opens in this page.
+                // Anything else (pop-under ads) is dropped.
+                if (blockAdsNow.value) {
+                    if (!isUserGesture) return false
+                    val catcher = WebView(view.context)
+                    catcher.webViewClient = object : android.webkit.WebViewClient() {
+                        override fun shouldOverrideUrlLoading(v: WebView, r: WebResourceRequest): Boolean {
+                            val target = r.url.toString()
+                            if (FenrirAdBlock.looksWanted(target, view.url)) view.loadUrl(target)
+                            v.post { v.destroy() }
+                            return true
+                        }
+                    }
+                    (resultMsg.obj as? WebView.WebViewTransport)?.webView = catcher
+                    resultMsg.sendToTarget()
+                    return true
+                }
                 // if it wasn't initiated by a user gesture, we should ignore it like a normal browser would
                 if (isUserGesture) {
                     windowStack.push(WebViewWindow(resultMsg, WebViewNavigator(coroutineScope)))
@@ -275,6 +315,18 @@ fun WebViewScreenContent(
                                         onClick = { onClearCookies(currentUrl) },
                                     ),
                                 ).toMutableList().apply {
+                                    if (adBlockAvailable) {
+                                        add(
+                                            AppBar.OverflowAction(
+                                                title = if (blockAds) "Block ads: on (tap to turn off)" else "Block ads: off (tap to turn on)",
+                                                onClick = {
+                                                    blockAds = !blockAds
+                                                    FenrirAdBlock.setEnabled(fenrirContext, blockAds)
+                                                    navigator.reload()
+                                                },
+                                            ),
+                                        )
+                                    }
                                     if (windowStack.size > 1) {
                                         add(
                                             0,
