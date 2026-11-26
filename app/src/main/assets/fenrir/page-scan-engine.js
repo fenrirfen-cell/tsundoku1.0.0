@@ -111,7 +111,17 @@ class FenrirScannedSite {
   async popularNovels(pageNo) {
     if (pageNo > 1 && !RULES.listPaged) return [];
     const url = pageNo > 1 ? RULES.listPaged.replace('{page}', String(pageNo)) : RULES.list;
-    return this.books(await this.loadPage(url));
+    const $ = await this.loadPage(url);
+    const list = this.books($);
+    if (!list.length && pageNo === 1) {
+      // Say what was seen, so a wrong guess can be fixed.
+      const items = $(RULES.items);
+      const firstLink = items.length ? (items.first().find('a').attr('href') || 'none') : 'none';
+      throw new Error('No books: "' + RULES.items + '" matched ' + items.length + ' items (first link: ' + firstLink +
+        ', filter "' + RULES.linkFilter + '") on ' + url + ' — page "' + $('title').text().trim().slice(0, 60) +
+        '", ' + $('a').length + ' links');
+    }
+    return list;
   }
 
   async searchNovels(searchTerm, pageNo) {
