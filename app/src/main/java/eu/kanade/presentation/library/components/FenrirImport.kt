@@ -62,12 +62,33 @@ object FenrirImport {
 
     sealed interface Result {
         data class Book(val uri: Uri, val name: String, val bytes: Long, val secure: Boolean, val host: String, val convertedFrom: String? = null) : Result
-        data class Page(val host: String, val links: List<Pair<String, String>>) : Result // name to url
+        /** [pageUrl]: the page the links came from (sent as Referer when downloading them). */
+        data class Page(val host: String, val links: List<Pair<String, String>>, val pageUrl: String = "") : Result // name to url
         /** [openUrl]: the site wants a human check; it can be passed in the in-app browser, then try again. */
         data class Stop(val title: String, val why: String, val openUrl: String? = null) : Result
     }
 
     private val client by lazy { Injekt.get<NetworkHelper>().client }
+
+    /**
+     * Fenrir: a request that looks like a phone browser opening the page (what Chrome sends), not
+     * like an app: some sites answer apps with 403 while Chrome on the same phone gets the page.
+     * [referer]: the page a book link came from (sites that only allow downloads from their pages).
+     */
+    private fun browserGet(url: String, referer: String? = null): okhttp3.Request {
+        val lang = java.util.Locale.getDefault().toLanguageTag().ifBlank { "en-US" }
+        val headers = okhttp3.Headers.Builder()
+            .add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+            .add("Accept-Language", if (lang.startsWith("en")) "$lang,en;q=0.9" else "$lang,en-US;q=0.8,en;q=0.7")
+            .add("Upgrade-Insecure-Requests", "1")
+            .add("Sec-Fetch-Dest", "document")
+            .add("Sec-Fetch-Mode", "navigate")
+            .add("Sec-Fetch-Site", if (referer != null) "same-origin" else "none")
+            .add("Sec-Fetch-User", "?1")
+            .apply { referer?.let { add("Referer", it) } }
+            .build()
+        return GET(url, headers)
+    }
 
     /** The same client without the Cloudflare handler: to see what the site really answered. */
     private val plainClient by lazy {
@@ -82,7 +103,7 @@ object FenrirImport {
      */
     private fun cloudflareStop(url: String): Result.Stop {
         val probe = runCatching {
-            plainClient.newCall(GET(url)).execute().use { r ->
+            plainClient.newCall(browserGet(url)).execute().use { r ->
                 val body = runCatching { r.peekBody(64 * 1024).string() }.getOrDefault("").lowercase()
                 val challenge = r.header("cf-mitigated").equals("challenge", true) ||
                     listOf("challenge-platform", "cf-chl", "just a moment", "cf_chl_opt", "turnstile").any { it in body }
@@ -115,17 +136,17 @@ object FenrirImport {
         return null
     }
 
-    suspend fun check(context: Context, rawUrl: String): Result = withContext(Dispatchers.IO) {
+    suspend fun check(context: Context, rawUrl: String, referer: String? = null): Result = withContext(Dispatchers.IO) {
         val url = rawUrl.trim().let { if (!it.startsWith("http")) "https://$it" else it }
         val host = hostOf(url)
         if (host.isEmpty()) return@withContext Result.Stop("That's not a link", "Paste the whole web address, starting with https://")
         var secure = url.startsWith("https://")
         // Fenrir: a plain http:// link is blocked by Android; the same address over https usually works
-        val firstTry = runCatching { client.newCall(GET(url)).execute() }
+        val firstTry = runCatching { client.newCall(browserGet(url, referer)).execute() }
         val response = firstTry.getOrNull() ?: run {
             val error = firstTry.exceptionOrNull()
             if (!secure && url.startsWith("http://")) {
-                runCatching { client.newCall(GET("https://" + url.removePrefix("http://"))).execute() }.getOrNull()
+                runCatching { client.newCall(browserGet("https://" + url.removePrefix("http://"), referer)).execute() }.getOrNull()
                     ?.also { secure = true }
             } else {
                 null
@@ -296,7 +317,7 @@ object FenrirImport {
             name to abs
         }.distinctBy { it.second }.take(200).toList()
         if (links.isEmpty()) return Result.Stop("No books on this page", "Couldn't find any EPUB downloads on $host.")
-        return Result.Page(host, links)
+        return Result.Page(host, links, pageUrl)
     }
 }
 
@@ -408,7 +429,7 @@ fun FenrirImportSheet(onDismiss: () -> Unit, openImporter: (List<String>) -> Uni
                             val stops = mutableListOf<String>()
                             urls.forEachIndexed { i, url ->
                                 progress = "Downloading ${i + 1} of ${urls.size}…"
-                                when (val one = FenrirImport.check(context, url)) {
+                                when (val one = FenrirImport.check(context, url, referer = r.pageUrl.ifBlank { null })) {
                                     is FenrirImport.Result.Book -> got += one.uri.toString()
                                     is FenrirImport.Result.Stop -> stops += one.title
                                     else -> stops += "Not a book"
