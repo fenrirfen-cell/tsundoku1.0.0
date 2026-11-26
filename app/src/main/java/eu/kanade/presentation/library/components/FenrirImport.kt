@@ -2,6 +2,7 @@ package eu.kanade.presentation.library.components
 
 import android.content.Context
 import android.net.Uri
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,6 +28,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -57,6 +59,13 @@ import java.util.zip.ZipFile
  * installer renamed to .epub is stopped), DRM-locked books are explained, sizes are capped, and
  * nothing in the file is ever run. A web page is scanned for the book files on it.
  */
+/** Fenrir: books caught by the in-app browser, waiting for the Import a book sheet. */
+object FenrirBrowserImports {
+    val books = kotlinx.coroutines.flow.MutableStateFlow<List<String>>(emptyList())
+    fun add(uri: String) { books.value = books.value + uri }
+    fun take(): List<String> = books.value.also { books.value = emptyList() }
+}
+
 object FenrirImport {
     const val MAX_BYTES = 1024L * 1024 * 1024 // about 1 GB per file
 
@@ -343,6 +352,15 @@ fun FenrirImportSheet(onDismiss: () -> Unit, openImporter: (List<String>) -> Uni
     var result by remember { mutableStateOf<FenrirImport.Result?>(null) }
     val picked = remember { mutableStateListOf<String>() }
     var progress by remember { mutableStateOf<String?>(null) }
+    // Fenrir: a book caught in the in-app browser (Browse) goes straight to the importer
+    val caught by FenrirBrowserImports.books.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(caught) {
+        if (caught.isNotEmpty()) {
+            val uris = FenrirBrowserImports.take()
+            onDismiss()
+            openImporter(uris)
+        }
+    }
     // From your phone: any book file; non-EPUBs are converted first.
     val phonePicker = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments(),
@@ -377,7 +395,10 @@ fun FenrirImportSheet(onDismiss: () -> Unit, openImporter: (List<String>) -> Uni
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
-            Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                Modifier.padding(top = 10.dp).horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
                 Pill("Check link", primary = true, enabled = link.isNotBlank() && !busy) {
                     busy = true; result = null; picked.clear()
                     scope.launch {
@@ -387,6 +408,13 @@ fun FenrirImportSheet(onDismiss: () -> Unit, openImporter: (List<String>) -> Uni
                     }
                 }
                 Pill("From your phone", primary = false, enabled = !busy) { phonePicker.launch(arrayOf("*/*")) }
+                // Fenrir: browse a site in the app (sign in, pass checks); a book download there is imported
+                Pill("Browse", primary = false, enabled = !busy) {
+                    val start = link.trim().takeIf { it.isNotBlank() }
+                        ?.let { if (it.startsWith("http")) it else "https://$it" }
+                        ?: "https://www.google.com"
+                    runCatching { context.startActivity(eu.kanade.tachiyomi.ui.webview.WebViewActivity.newImportIntent(context, start)) }
+                }
             }
             if (busy) {
                 Row(Modifier.padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {

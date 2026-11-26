@@ -79,6 +79,8 @@ fun WebViewScreenContent(
     onClearCookies: (String) -> Unit,
     headers: Map<String, String> = emptyMap(),
     onUrlChange: (String) -> Unit = {},
+    // Fenrir: when set, a download started on the page is handed over (url, page it came from)
+    onDownload: ((url: String, pageUrl: String?) -> Unit)? = null,
 ) {
     val coroutineScope = rememberCoroutineScope()
 
@@ -343,6 +345,11 @@ fun WebViewScreenContent(
                     }
 
                     webView.setUserAgent(headers["user-agent"] ?: defaultUserAgentProvider())
+                    if (onDownload != null) {
+                        webView.setDownloadListener { downloadUrl, _, _, _, _ ->
+                            onDownload(downloadUrl, webView.url)
+                        }
+                    }
                 },
                 onDispose = { webView ->
                     val window = windowStack.items.find { it.webView == webView }
