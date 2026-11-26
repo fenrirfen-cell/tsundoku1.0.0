@@ -41,6 +41,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -557,6 +558,9 @@ class FenrirCatalogScreen(private val name: String, private val url: String) : S
         var next by remember { mutableStateOf<String?>(null) }
         val downloading = remember { mutableStateListOf<String>() }
         var message by remember { mutableStateOf<String?>(null) }
+        // Fenrir: tick several books, then get them all. Kept while moving between pages of the catalog.
+        val selected = remember { mutableStateMapOf<String, FenrirCatalogs.Entry>() }
+        var batch by remember { mutableStateOf<String?>(null) }
         LaunchedEffect(current) {
             feed = null; error = null; extra.clear()
             FenrirCatalogs.fetch(current).onSuccess { feed = it; next = it.next }.onFailure { error = it.message ?: "Couldn't load the catalog." }
@@ -581,12 +585,30 @@ class FenrirCatalogScreen(private val name: String, private val url: String) : S
             val f = feed
             when {
                 error != null -> Text(error!!, color = Color(0xFFFF8A91), fontSize = 14.sp, modifier = Modifier.padding(20.dp))
-                f == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Red) }
+                f == null -> Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Red) }
                 else -> {
                     val list = f.entries + extra
+                    val books = list.filter { it.download != null }
+                    if (books.isNotEmpty()) {
+                        val allPicked = books.all { it.download in selected }
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                if (selected.isEmpty()) "Tap covers to pick books" else "${selected.size} picked",
+                                color = Muted, fontSize = 12.5.sp, modifier = Modifier.weight(1f),
+                            )
+                            Text(
+                                if (allPicked) "Unselect page" else "Select all on this page",
+                                color = Red, fontWeight = FontWeight.Bold, fontSize = 13.sp,
+                                modifier = Modifier.clip(CircleShape).clickable(enabled = batch == null) {
+                                    if (allPicked) books.forEach { selected.remove(it.download) }
+                                    else books.forEach { selected[it.download!!] = it }
+                                }.padding(horizontal = 8.dp, vertical = 6.dp),
+                            )
+                        }
+                    }
                     LazyVerticalGrid(
                         columns = GridCells.Adaptive(110.dp),
-                        modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp),
+                        modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 10.dp),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
@@ -600,10 +622,25 @@ class FenrirCatalogScreen(private val name: String, private val url: String) : S
                             }
                         }
                         items(list.filter { it.download != null }) { e ->
+                            val picked = e.download in selected
                             Column {
-                                Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(12.dp)).background(Color(0xFF22232C))) {
+                                Box(
+                                    Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(12.dp)).background(Color(0xFF22232C))
+                                        .then(if (picked) Modifier.border(3.dp, Red, RoundedCornerShape(12.dp)) else Modifier)
+                                        .clickable(enabled = batch == null) {
+                                            if (picked) selected.remove(e.download) else selected[e.download!!] = e
+                                        },
+                                ) {
                                     if (e.cover != null) AsyncImage(model = e.cover, contentDescription = e.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                                     else Text(e.title.take(2).uppercase(), color = Color(0xFF55555F), fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center))
+                                    Box(
+                                        Modifier.align(Alignment.TopStart).padding(6.dp).size(26.dp).clip(CircleShape)
+                                            .background(if (picked) Red else Color(0xB30C0C10))
+                                            .border(1.5.dp, Color.White, CircleShape),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        if (picked) Text("✓", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                    }
                                     Box(
                                         Modifier.align(Alignment.BottomEnd).padding(6.dp).size(32.dp).clip(CircleShape).background(Color(0xD10C0C10))
                                             .clickable(enabled = e.download !in downloading) {
@@ -643,6 +680,52 @@ class FenrirCatalogScreen(private val name: String, private val url: String) : S
                             }
                         }
                         item(span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(40.dp)) }
+                    }
+                }
+            }
+            if (selected.isNotEmpty()) {
+                Row(
+                    Modifier.fillMaxWidth().background(CardBg).padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        batch ?: "${selected.size} book${if (selected.size == 1) "" else "s"} picked",
+                        color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f),
+                    )
+                    if (batch == null) {
+                        Text(
+                            "Clear", color = Muted, fontSize = 13.sp,
+                            modifier = Modifier.clip(CircleShape).clickable { selected.clear() }.padding(horizontal = 10.dp, vertical = 8.dp),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "Get ${selected.size}",
+                            color = Color.White, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clip(CircleShape).background(Red).clickable {
+                                val picks = selected.values.toList()
+                                scope.launch {
+                                    val got = mutableListOf<String>()
+                                    val failed = mutableListOf<String>()
+                                    picks.forEachIndexed { i, e ->
+                                        batch = "Getting ${i + 1} of ${picks.size}…"
+                                        when (val r = FenrirImport.check(context, e.download!!)) {
+                                            is FenrirImport.Result.Book -> got += r.uri.toString()
+                                            else -> failed += e.title
+                                        }
+                                    }
+                                    batch = null
+                                    selected.clear()
+                                    message = when {
+                                        failed.isEmpty() -> null
+                                        failed.size == 1 -> "Couldn't get: ${failed[0]}"
+                                        else -> "Couldn't get ${failed.size} books: ${failed.take(3).joinToString()}${if (failed.size > 3) "…" else ""}"
+                                    }
+                                    if (got.isNotEmpty()) navigator.push(eu.kanade.tachiyomi.ui.library.ImportEpubScreen(initialUriStrings = got))
+                                }
+                            }.padding(horizontal = 16.dp, vertical = 10.dp),
+                        )
+                    } else {
+                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Red)
                     }
                 }
             }
