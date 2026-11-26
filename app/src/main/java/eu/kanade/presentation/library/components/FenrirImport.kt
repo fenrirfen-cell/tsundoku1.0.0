@@ -69,6 +69,35 @@ object FenrirImport {
 
     private val client by lazy { Injekt.get<NetworkHelper>().client }
 
+    /** The same client without the Cloudflare handler: to see what the site really answered. */
+    private val plainClient by lazy {
+        client.newBuilder()
+            .apply { interceptors().removeAll { it is eu.kanade.tachiyomi.network.interceptor.CloudflareInterceptor } }
+            .build()
+    }
+
+    /**
+     * Fenrir: after the Cloudflare handler gave up, one plain look at [url]: a real "are you human"
+     * page (Open site helps) or the site simply refusing (403 Forbidden, a login…), where it doesn't.
+     */
+    private fun cloudflareStop(url: String): Result.Stop {
+        val probe = runCatching {
+            plainClient.newCall(GET(url)).execute().use { r ->
+                val body = runCatching { r.peekBody(64 * 1024).string() }.getOrDefault("").lowercase()
+                val challenge = r.header("cf-mitigated").equals("challenge", true) ||
+                    listOf("challenge-platform", "cf-chl", "just a moment", "cf_chl_opt", "turnstile").any { it in body }
+                r.code to challenge
+            }
+        }.getOrNull()
+        return when {
+            probe == null || probe.second -> Result.Stop("Couldn't open the link", HUMAN_CHECK, openUrl = url)
+            probe.first == 401 -> Result.Stop("Couldn't open the link", "This address needs you to be signed in to the site, which the importer can't do. Download the book in your browser and tap Share → Fenrir Vault.")
+            probe.first == 403 -> Result.Stop("This folder isn't open to visitors", FORBIDDEN)
+            probe.first == 404 -> Result.Stop("Couldn't open the link", "There's nothing at this address (404). Check the link.")
+            else -> Result.Stop("Couldn't open the link", "The site answered with an error (${probe.first}).")
+        }
+    }
+
     fun hostOf(url: String) = runCatching { Uri.parse(url).host }.getOrNull()?.removePrefix("www.").orEmpty()
 
     private val famous = listOf("google", "amazon", "apple", "microsoft", "paypal", "facebook", "gutenberg", "standardebooks", "github", "webnovel", "royalroad")
@@ -101,21 +130,21 @@ object FenrirImport {
             } else {
                 null
             }
-                ?: return@withContext Result.Stop(
-                    "Couldn't open the link",
-                    whyFailed(error, url),
-                    openUrl = url.takeIf { isHumanCheck(error) },
-                )
+                ?: return@withContext if (isHumanCheck(error)) {
+                    cloudflareStop(url)
+                } else {
+                    Result.Stop("Couldn't open the link", whyFailed(error, url))
+                }
         }
         response.use { r ->
             if (!r.isSuccessful) {
                 // Cloudflare-style "are you human" page: passable in the in-app browser
                 val challenge = (r.code == 403 || r.code == 503 || r.code == 429) &&
                     (r.header("cf-mitigated") != null || r.header("Server").orEmpty().contains("cloudflare", true))
-                return@withContext if (challenge) {
-                    Result.Stop("Couldn't open the link", HUMAN_CHECK, openUrl = r.request.url.toString())
-                } else {
-                    Result.Stop("Couldn't open the link", "The site answered with an error (${r.code}).")
+                return@withContext when {
+                    challenge -> cloudflareStop(r.request.url.toString())
+                    r.code == 403 -> Result.Stop("This folder isn't open to visitors", FORBIDDEN)
+                    else -> Result.Stop("Couldn't open the link", "The site answered with an error (${r.code}).")
                 }
             }
             val type = r.header("Content-Type").orEmpty().lowercase()
@@ -220,6 +249,9 @@ object FenrirImport {
         if (out.length() > MAX_BYTES) { out.delete(); return@withContext Result.Stop("Too big", "Files over about 1 GB aren't imported.") }
         process(out, name, secure = true, host = "your phone")
     }
+
+    private const val FORBIDDEN = "The site refuses to show this address to anyone (403 Forbidden), so there's no way in from here. " +
+        "Open the site's page that links to the books and paste that link instead, or start a book's download in your browser and tap Share → Fenrir Vault."
 
     private const val HUMAN_CHECK = "The site asks for a human check. Tap Open site, pass the check there, then come back and tap Check link."
 
