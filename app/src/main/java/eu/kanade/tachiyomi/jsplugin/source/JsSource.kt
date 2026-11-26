@@ -410,6 +410,9 @@ class JsSource(
      * Execute a browse method call, consuming a matching inferHasNextPage probe result if one
      * is pending so paging forward doesn't refetch the page the probe already pulled.
      */
+    /** Fenrir: Make extension → Test. Runs a plugin call and lets its real error through. */
+    suspend fun fenrirRawCall(methodCall: String): String = withContext(Dispatchers.IO) { executePluginMethod(methodCall) }
+
     private suspend fun executeBrowseMethod(methodCall: String): String {
         browseProbeCache.remove(methodCall)?.let { (cached, ts) ->
             if (System.currentTimeMillis() - ts < BROWSE_PROBE_TTL_MS) {
