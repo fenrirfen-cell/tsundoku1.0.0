@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -261,11 +262,27 @@ fun FenrirKindToggle(
                 Text(label, color = if (on) Color.White else Color(0xFF9A9AA6), fontSize = 13.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium)
                 badges.getOrNull(i)?.takeIf { it > 0 }?.let { n ->
                     Spacer(Modifier.width(6.dp))
+                    // Fenrir: badge grows with the font size and keeps the number centred.
                     Box(
-                        Modifier.size(18.dp).clip(CircleShape).background(FenrirReadUi.Accent),
+                        Modifier.clip(CircleShape).background(FenrirReadUi.Accent)
+                            .defaultMinSize(minWidth = 18.dp, minHeight = 18.dp)
+                            .padding(horizontal = 5.dp, vertical = 2.dp),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text("$n", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            "$n",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            style = androidx.compose.ui.text.TextStyle(
+                                fontSize = 10.sp,
+                                lineHeight = 10.sp,
+                                platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = false),
+                                lineHeightStyle = androidx.compose.ui.text.style.LineHeightStyle(
+                                    alignment = androidx.compose.ui.text.style.LineHeightStyle.Alignment.Center,
+                                    trim = androidx.compose.ui.text.style.LineHeightStyle.Trim.Both,
+                                ),
+                            ),
+                        )
                     }
                 }
             }
