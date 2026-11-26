@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
@@ -21,8 +22,10 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -87,6 +90,12 @@ fun WebViewScreenContent(
     val fenrirContext = androidx.compose.ui.platform.LocalContext.current
     var blockAds by remember { mutableStateOf(adBlockAvailable && FenrirAdBlock.isEnabled(fenrirContext)) }
     val blockAdsNow = androidx.compose.runtime.rememberUpdatedState(blockAds)
+    // Fenrir (Browse): books gathered so far, the download in progress, and the page's book list
+    val importMode = onDownload != null
+    val imports = eu.kanade.presentation.library.components.FenrirBrowserImports
+    val collected by imports.collected.collectAsState()
+    val importProgress by imports.progress.collectAsState()
+    var pageBooks by remember { mutableStateOf<List<Pair<String, String>>?>(null) }
     val coroutineScope = rememberCoroutineScope()
 
     val windowStack = remember {
@@ -315,6 +324,29 @@ fun WebViewScreenContent(
                                         onClick = { onClearCookies(currentUrl) },
                                     ),
                                 ).toMutableList().apply {
+                                    if (importMode) {
+                                        add(
+                                            0,
+                                            AppBar.OverflowAction(
+                                                title = "Get all books on this page",
+                                                onClick = {
+                                                    scope.launch {
+                                                        val raw = currentWindow.webView?.let { wv ->
+                                                            runCatching { wv.getHtml() }.getOrNull()
+                                                        }.orEmpty()
+                                                        // the page's HTML comes back as a JavaScript string
+                                                        val html = runCatching { org.json.JSONTokener(raw).nextValue() as? String }.getOrNull() ?: raw
+                                                        val found = imports.pageBooks(currentUrl, html)
+                                                        if (found.isEmpty()) {
+                                                            android.widget.Toast.makeText(fenrirContext, "No book downloads found on this page.", android.widget.Toast.LENGTH_LONG).show()
+                                                        } else {
+                                                            pageBooks = found
+                                                        }
+                                                    }
+                                                },
+                                            ),
+                                        )
+                                    }
                                     if (adBlockAvailable) {
                                         add(
                                             AppBar.OverflowAction(
@@ -376,6 +408,7 @@ fun WebViewScreenContent(
             }
         },
     ) { contentPadding ->
+        androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
         // We need to key the WebView composable to the window object since simply updating the WebView composable will
         // not cause it to re-invoke the WebView factory and render the new current window's WebView. This lets us
         // completely reset the WebView composable when the current window switches.
@@ -427,6 +460,97 @@ fun WebViewScreenContent(
                             }
                         }
                 },
+            )
+        }
+        // Fenrir (Browse): what's been gathered, and the import button
+        if (importMode && (collected.isNotEmpty() || importProgress != null)) {
+            androidx.compose.material3.Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(contentPadding)
+                    .padding(12.dp)
+                    .fillMaxWidth(),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
+                color = androidx.compose.ui.graphics.Color(0xFF1E1E24),
+                shadowElevation = 6.dp,
+            ) {
+                androidx.compose.foundation.layout.Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
+                        Text(
+                            text = when (collected.size) {
+                                0 -> "No books yet"
+                                1 -> "1 book ready"
+                                else -> "${collected.size} books ready"
+                            },
+                            color = androidx.compose.ui.graphics.Color.White,
+                            style = MaterialTheme.typography.titleSmall,
+                        )
+                        Text(
+                            text = importProgress ?: collected.lastOrNull()?.first.orEmpty(),
+                            color = androidx.compose.ui.graphics.Color(0xFF9A9AA6),
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                        )
+                    }
+                    if (collected.isNotEmpty()) {
+                        androidx.compose.material3.Button(
+                            onClick = onNavigateUp, // leaving the browser imports them all
+                            enabled = importProgress == null,
+                        ) { Text(if (collected.size == 1) "Import" else "Import ${collected.size}") }
+                    }
+                }
+            }
+        }
+        }
+        // Fenrir (Browse): pick which of the page's books to get
+        pageBooks?.let { found ->
+            val picked = androidx.compose.runtime.remember(found) { androidx.compose.runtime.mutableStateListOf<String>().apply { addAll(found.map { it.second }) } }
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { pageBooks = null },
+                title = { Text("${found.size} books on this page") },
+                text = {
+                    androidx.compose.foundation.lazy.LazyColumn(Modifier.heightIn(max = 420.dp)) {
+                        items(found.size) { i ->
+                            val (name, link) = found[i]
+                            androidx.compose.foundation.layout.Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth().clickable {
+                                    if (link in picked) picked.remove(link) else picked.add(link)
+                                },
+                            ) {
+                                androidx.compose.material3.Checkbox(checked = link in picked, onCheckedChange = null)
+                                Text(name, maxLines = 2, modifier = Modifier.padding(start = 8.dp))
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(
+                        enabled = picked.isNotEmpty() && importProgress == null,
+                        onClick = {
+                            val links = found.map { it.second }.filter { it in picked }
+                            val from = currentUrl
+                            pageBooks = null
+                            scope.launch {
+                                var failed = 0
+                                links.forEachIndexed { i, link ->
+                                    imports.progress.value = "Downloading ${i + 1} of ${links.size}…"
+                                    val before = imports.collected.value.size
+                                    imports.collect(fenrirContext, link, from)
+                                    if (imports.collected.value.size == before) failed++
+                                }
+                                imports.progress.value = null
+                                if (failed > 0) {
+                                    android.widget.Toast.makeText(fenrirContext, "$failed of ${links.size} couldn't be downloaded.", android.widget.Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        },
+                    ) { Text("Get ${picked.size}") }
+                },
+                dismissButton = { androidx.compose.material3.TextButton(onClick = { pageBooks = null }) { Text("Cancel") } },
             )
         }
     }

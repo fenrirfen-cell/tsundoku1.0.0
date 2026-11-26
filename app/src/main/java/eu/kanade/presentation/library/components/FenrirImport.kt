@@ -59,11 +59,43 @@ import java.util.zip.ZipFile
  * installer renamed to .epub is stopped), DRM-locked books are explained, sizes are capped, and
  * nothing in the file is ever run. A web page is scanned for the book files on it.
  */
-/** Fenrir: books caught by the in-app browser, waiting for the Import a book sheet. */
+/**
+ * Fenrir: books from the in-app browser (Browse). [collected] gathers them while browsing (one tap
+ * per download, or "Get all books on this page"); leaving the browser hands them to [books],
+ * which the Import a book sheet passes to the importer.
+ */
 object FenrirBrowserImports {
     val books = kotlinx.coroutines.flow.MutableStateFlow<List<String>>(emptyList())
+    /** name to file uri, gathered in the browser so far */
+    val collected = kotlinx.coroutines.flow.MutableStateFlow<List<Pair<String, String>>>(emptyList())
+    /** "Downloading 2 of 5…" while fetching, else null */
+    val progress = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+
     fun add(uri: String) { books.value = books.value + uri }
     fun take(): List<String> = books.value.also { books.value = emptyList() }
+
+    /** Hands what was gathered in the browser to the importer. */
+    fun deliverCollected() {
+        val uris = collected.value.map { it.second }
+        collected.value = emptyList()
+        if (uris.isNotEmpty()) books.value = books.value + uris
+    }
+
+    /** Downloads [url] like any import (browser cookies and name) and adds it; a short message. */
+    suspend fun collect(context: android.content.Context, url: String, referer: String?): String =
+        when (val r = runCatching { FenrirImport.check(context, url, referer = referer) }.getOrNull()) {
+            is FenrirImport.Result.Book -> {
+                val uri = r.uri.toString()
+                if (collected.value.none { it.second == uri }) collected.value = collected.value + (r.name to uri)
+                "Got “${r.name}”"
+            }
+            is FenrirImport.Result.Stop -> "${r.title}: ${r.why}"
+            else -> "That isn't a book file."
+        }
+
+    /** Book links (name to url) on a page the browser is showing, from its HTML. */
+    fun pageBooks(pageUrl: String, html: String): List<Pair<String, String>> =
+        (FenrirImport.pageResult(pageUrl, html) as? FenrirImport.Result.Page)?.links.orEmpty()
 }
 
 object FenrirImport {
@@ -311,6 +343,9 @@ object FenrirImport {
     }
 
     /** Every EPUB link on the page (plus "download" buttons that point at one). */
+    /** The book links on a page whose HTML is already in hand (the in-app browser's page). */
+    fun pageResult(pageUrl: String, html: String): Result = scanPage(pageUrl, hostOf(pageUrl), html)
+
     private fun scanPage(pageUrl: String, host: String, html: String): Result {
         val base = runCatching { java.net.URI(pageUrl) }.getOrNull()
         val re = Regex("""<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>(.*?)</a>""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
