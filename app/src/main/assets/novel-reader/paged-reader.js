@@ -98,8 +98,40 @@
         return document.body.clientWidth || window.innerWidth || 1;
     }
 
+    // Fenrir: blank paragraphs (only spaces, &nbsp; or <br>) that many sites put between the real
+    // ones each became a whole empty line on top of the paragraph spacing, and a paragraph that
+    // started a page kept its top spacing - pages with big empty bands. Hidden (not removed, so
+    // positions and read-aloud stay intact); runs of <br> become one; paragraph spacing goes
+    // below each paragraph only, so nothing is left at the top of a page.
+    function tidyBlankSpace(el) {
+        var blocks = el.querySelectorAll('p, div');
+        for (var i = 0; i < blocks.length; i++) {
+            var b = blocks[i];
+            if (b.dataset.tdTidy) continue;
+            b.dataset.tdTidy = '1';
+            if (b.id === CONTAINER_ID || b.querySelector('img, svg, video, hr, table, iframe, canvas')) continue;
+            if (b.children.length && b.querySelector('p, div, h1, h2, h3, h4, h5, h6')) continue;
+            var text = (b.textContent || '').replace(/[\s\u00a0\u200b\u3000]+/g, '');
+            if (text === '') b.style.display = 'none';
+        }
+        var brs = el.querySelectorAll('br');
+        for (var j = 0; j < brs.length; j++) {
+            var br = brs[j];
+            var prev = br.previousSibling;
+            while (prev && prev.nodeType === 3 && !/\S/.test(prev.nodeValue.replace(/\u00a0/g, ' '))) prev = prev.previousSibling;
+            if (prev && prev.nodeName === 'BR') br.style.display = 'none';
+        }
+        if (!document.getElementById('td-paged-tidy')) {
+            var st = document.createElement('style');
+            st.id = 'td-paged-tidy';
+            st.textContent = '#' + CONTAINER_ID + ' p { margin-top: 0 !important; }';
+            document.head.appendChild(st);
+        }
+    }
+
     function applyColumnLayout() {
         var el = container();
+        tidyBlankSpace(el);
         var w = pageWidth();
         el.style.columnWidth = w + 'px';
         el.style.MozColumnWidth = w + 'px';
