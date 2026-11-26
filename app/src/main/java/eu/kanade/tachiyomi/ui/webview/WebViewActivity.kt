@@ -86,31 +86,20 @@ class WebViewActivity : BaseActivity() {
     }
 
     // Fenrir: a download started while browsing for a book. Fetched with the browser's own cookies
-    // and name (the app's downloader shares them), checked like any import, then back to Import.
-    private var importing = false
-
+    // and name (the app's downloader shares them), checked like any import, and added to the list
+    // at the bottom; the browser stays open for more. Leaving it imports them all.
     private fun importDownload(url: String, pageUrl: String?) {
-        if (importing) return
         if (!url.startsWith("http")) {
             toast("This site builds the file inside the page, so it can't be caught here. Try Share → Fenrir Vault from your browser.", Toast.LENGTH_LONG)
             return
         }
-        importing = true
-        toast("Downloading…")
+        val imports = eu.kanade.presentation.library.components.FenrirBrowserImports
+        if (imports.progress.value != null) return
+        imports.progress.value = "Downloading…"
         lifecycleScope.launch {
-            val result = runCatching {
-                eu.kanade.presentation.library.components.FenrirImport.check(this@WebViewActivity, url, referer = pageUrl)
-            }.getOrNull()
-            importing = false
-            when (result) {
-                is eu.kanade.presentation.library.components.FenrirImport.Result.Book -> {
-                    eu.kanade.presentation.library.components.FenrirBrowserImports.add(result.uri.toString())
-                    toast("Got “${result.name}”")
-                    finish()
-                }
-                is eu.kanade.presentation.library.components.FenrirImport.Result.Stop -> toast("${result.title}: ${result.why}", Toast.LENGTH_LONG)
-                else -> toast("That download isn't a book file.", Toast.LENGTH_LONG)
-            }
+            val message = imports.collect(this@WebViewActivity, url, pageUrl)
+            imports.progress.value = null
+            toast(message, Toast.LENGTH_LONG)
         }
     }
 
@@ -120,6 +109,10 @@ class WebViewActivity : BaseActivity() {
     }
 
     override fun finish() {
+        // Fenrir: books gathered in Browse go to the importer when the browser closes
+        if (intent.getBooleanExtra(IMPORT_KEY, false)) {
+            eu.kanade.presentation.library.components.FenrirBrowserImports.deliverCollected()
+        }
         super.finish()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             overrideActivityTransition(
