@@ -99,6 +99,14 @@ fun WebView.setDefaultSettings() {
         displayZoomControls = false
     }
 
+    // Fenrir: don't tag every request with "sent by an app" (X-Requested-With): Chrome doesn't,
+    // and some sites answer that tag with 403 while Chrome on the same phone gets the page.
+    runCatching {
+        if (androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.REQUESTED_WITH_HEADER_ALLOW_LIST)) {
+            androidx.webkit.WebSettingsCompat.setRequestedWithHeaderOriginAllowList(settings, emptySet())
+        }
+    }
+
     CookieManager.getInstance().acceptThirdPartyCookies(this)
 }
 
