@@ -28,6 +28,9 @@ object FenrirPageScan {
         val search: String?,
         /** When the chapter list is loaded by the site's script: that address and how to fill it in. */
         val chapterApi: ChapterApi? = null,
+        /** A link on the book page to its full chapter list, and how that list's pages are numbered. */
+        val toc: String? = null,
+        val tocPaged: String? = null,
     )
 
     /** [url] has {0}, {1}… filled from [vars] (each a small JS object: {seg:n}, {sel,attr} or {re}). */
@@ -201,9 +204,18 @@ object FenrirPageScan {
                     (bookPath.isNotEmpty() && segments(href).take(bookPath.size) == bookPath && segments(href).size > bookPath.size))
         }
         var chapterApi: ChapterApi? = null
+        var toc: String? = null
+        var tocPaged: String? = null
         val inPage = chapterGroups.maxByOrNull { it.links.size }
+        // The full list may be on its own page ("More chapters", "Table of contents"…).
+        val tocFound = if ((inPage?.links?.size ?: 0) < 20) findTocPage(bookDoc, bookUrl, host, get) else null
         // A handful of links (like "First chapter" / "Latest chapter") isn't the full list.
-        val chapters = inPage?.takeIf { it.links.size >= 5 }
+        val chapters = tocFound?.let { (selector, paged, group) ->
+            toc = selector
+            tocPaged = paged
+            progress("Found the full chapter list on its own page.")
+            group
+        } ?: inPage?.takeIf { it.links.size >= 5 }
             ?: run {
                 progress("Chapters load with a script; watching the book page…")
                 val found = findChapterApi(bookUrl, bookHtml, host, books.links.getOrNull(1), get)
@@ -239,7 +251,37 @@ object FenrirPageScan {
             content = content,
             search = searchUrl(home, site, host),
             chapterApi = chapterApi,
+            toc = toc,
+            tocPaged = tocPaged,
         )
+    }
+
+    /* ---------------------------------------------- chapter list on its own page */
+
+    private val tocText = Regex("(?i)^(more chapters?|view more|view all|see all|show all|all chapters|chapter list|chapters list|table of contents|contents|catalog(ue)?|toc|full list|index)\\b")
+    private val tocHref = Regex("(?i)(catalog|chapters|chapter-list|chapterlist|toc|contents|/index)")
+
+    /** Finds a link from the book page to its full chapter list. Returns (link selector, paging, chapters). */
+    private suspend fun findTocPage(bookDoc: Document, bookUrl: String, host: String, get: suspend (String) -> String): Triple<String, String?, Group>? {
+        val candidates = bookDoc.select("a[href]").filter { a ->
+            val href = a.absUrl("href")
+            href.isNotBlank() && sameHost(href, host) && href.substringBefore('#') != bookUrl.substringBefore('#') &&
+                (tocText.containsMatchIn(a.text().trim()) || tocHref.containsMatchIn(java.net.URI(href).path.orEmpty()))
+        }.map { it.absUrl("href").substringBefore('#') }.distinct().take(4)
+        for (url in candidates) {
+            val doc = runCatching { Jsoup.parse(get(url), url) }.getOrNull() ?: continue
+            val group = chapterGroup(doc, host, bookUrl)?.takeIf { it.links.size >= 5 } ?: continue
+            val first = segments(url).firstOrNull() ?: continue
+            val selector = "a[href*='/$first/']"
+            if (bookDoc.select(selector).none { it.absUrl("href").substringBefore('#') == url }) continue
+            val paged = when {
+                Regex("/1/?$").containsMatchIn(java.net.URI(url).path.orEmpty()) && java.net.URI(url).query == null -> "path"
+                Regex("[?&](page|p|pg)=1(&|$)").containsMatchIn(url) -> "query"
+                else -> null
+            }
+            return Triple(selector, paged, group)
+        }
+        return null
     }
 
     /* ---------------------------------------------- chapter lists loaded by a script */
@@ -462,6 +504,8 @@ object FenrirPageScan {
             append("  nextWords: ${if (rules.nextWords.isEmpty()) "null" else rules.nextWords.joinToString(", ", "[", "]") { j.jsString(it) }},\n")
             append("  content: ${j.jsString(rules.content)},\n")
             append("  search: ${opt(rules.search)},\n")
+            append("  toc: ${opt(rules.toc)},\n")
+            append("  tocPaged: ${opt(rules.tocPaged)},\n")
             rules.chapterApi?.let { api ->
                 append("  chapterApi: { url: ${j.jsString(api.url)}, vars: [${api.vars.joinToString(", ")}] },\n")
             }
