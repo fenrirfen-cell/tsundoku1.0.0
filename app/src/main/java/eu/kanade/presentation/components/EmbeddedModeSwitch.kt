@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.graphics.Brush
 
 import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.layout.wrapContentSize
 
 import androidx.compose.foundation.shape.RoundedCornerShape
 
@@ -712,7 +713,6 @@ private fun MugiReadHeader(modifier: Modifier) {
                         )
                     }
                 })
-                MugiLogoTip(Modifier.align(Alignment.BottomStart).offset(y = 40.dp))
             }
             Box {
                 Box(
@@ -756,6 +756,7 @@ private fun MugiReadHeader(modifier: Modifier) {
                 }
             }
         }
+        MugiLogoTip(Modifier.align(Alignment.BottomStart).offset(x = 14.dp, y = 30.dp))
     }
 }
 
@@ -768,24 +769,29 @@ private fun MugiReadHeader(modifier: Modifier) {
 private fun MugiLogoTip(modifier: Modifier) {
     val context = LocalContext.current
     val prefs = androidx.compose.runtime.remember { context.getSharedPreferences("fenrir_ui", android.content.Context.MODE_PRIVATE) }
-    var show by androidx.compose.runtime.remember {
-        androidx.compose.runtime.mutableStateOf(prefs.getInt("mugi_logo_tip_seen", 0) < 4)
-    }
+    var show by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     androidx.compose.runtime.LaunchedEffect(Unit) {
-        if (show) prefs.edit().putInt("mugi_logo_tip_seen", prefs.getInt("mugi_logo_tip_seen", 0) + 1).apply()
+        if (prefs.getInt("mugi_logo_tip_seen", 0) >= 4) return@LaunchedEffect
+        // after the opening animation, and only for a few seconds
+        kotlinx.coroutines.delay(3500)
+        prefs.edit().putInt("mugi_logo_tip_seen", prefs.getInt("mugi_logo_tip_seen", 0) + 1).apply()
+        show = true
         kotlinx.coroutines.delay(6000)
         show = false
     }
-    if (!show) return
-    androidx.compose.ui.window.Popup(
-        alignment = Alignment.TopStart,
-        offset = androidx.compose.ui.unit.IntOffset(0, with(androidx.compose.ui.platform.LocalDensity.current) { 6.dp.roundToPx() }),
+    androidx.compose.animation.AnimatedVisibility(
+        visible = show,
+        modifier = modifier.wrapContentSize(unbounded = true),
+        enter = androidx.compose.animation.fadeIn(),
+        exit = androidx.compose.animation.fadeOut(),
     ) {
         Text(
             "▲ Tap the logo for Search, Filter & sort, For you…",
             color = androidx.compose.ui.graphics.Color(0xFF2E180A),
             fontSize = 12.sp,
-            modifier = modifier
+            maxLines = 1,
+            modifier = Modifier
+                .shadow(6.dp, RoundedCornerShape(10.dp))
                 .clip(RoundedCornerShape(10.dp))
                 .background(androidx.compose.ui.graphics.Color(0xFFE2BA72))
                 .clickable { prefs.edit().putInt("mugi_logo_tip_seen", 99).apply(); show = false }
