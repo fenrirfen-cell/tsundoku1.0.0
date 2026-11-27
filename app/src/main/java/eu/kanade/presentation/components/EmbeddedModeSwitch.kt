@@ -2,6 +2,8 @@ package eu.kanade.presentation.components
 
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.Casino
@@ -175,6 +177,10 @@ private fun ModeSegment(
  */
 @Composable
 private fun FenrirReadHeader(modifier: Modifier, openWatch: (Activity) -> Unit) {
+    if (EmbeddedHost.isMugi) {
+        MugiReadHeader(modifier)
+        return
+    }
     val topLook = eu.kanade.presentation.library.components.FenrirLibraryLook.current.value
     val context = LocalContext.current
     val accent = eu.kanade.presentation.reader.FenrirAccent
@@ -532,13 +538,19 @@ private fun FenrirUpdateMenuItem(u: eu.kanade.tachiyomi.EmbeddedHost.AppUpdateIn
  * tools (search, For you, filter & sort, a random book, checking for new chapters, more).
  */
 @Composable
-private fun FenrirReadWordmarkMenu() {
+private fun FenrirReadWordmarkMenu(label: (@Composable () -> Unit)? = null) {
     val accent = eu.kanade.presentation.reader.FenrirAccent
     val white = androidx.compose.ui.graphics.Color.White
     val entry = FenrirReadMenu.current.value
     var open by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     var more by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     Box(Modifier.fillMaxSize()) {
+        // MugiVerse: the logo is the button for the same library menu
+        if (label != null) Box(
+            Modifier
+                .clip(RoundedCornerShape(10.dp))
+                .clickable(enabled = entry != null, onClickLabel = "Library menu") { more = false; open = true },
+        ) { label() } else
         FenrirCarvedPanel(onClick = if (entry != null) ({ more = false; open = true }) else null) {
             Row(verticalAlignment = Alignment.Bottom) {
                 FenrirCarvedText("FENRIR", 14.5.dp, letterSpacing = 1.dp, modifier = Modifier.alignByBaseline())
@@ -622,4 +634,121 @@ private fun FenrirMenuRow(
             .height(46.dp)
             .clip(RoundedCornerShape(18.dp)),
     )
+}
+
+
+/**
+ * MugiVerse on Read: the captain's cabin behind the MugiVerse logo with a gold READ ribbon (tap
+ * it for the library menu: looks, filters, import…), then Search and the bell (app updates).
+ */
+@Composable
+private fun MugiReadHeader(modifier: Modifier) {
+    val gold = androidx.compose.ui.graphics.Color(0xFFD9B26A)
+    val appUpdate by eu.kanade.tachiyomi.EmbeddedHost.appUpdate.collectAsState()
+    var bell by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    Box(
+        modifier
+            .fillMaxWidth()
+            .background(androidx.compose.ui.graphics.Color(0xFF28170F)),
+    ) {
+        androidx.compose.foundation.Image(
+            androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.mugi_library_cabin),
+            contentDescription = null,
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            alignment = Alignment.TopCenter,
+            modifier = Modifier.matchParentSize(),
+        )
+        Box(
+            Modifier.matchParentSize().background(
+                Brush.verticalGradient(listOf(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.55f), androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.12f))),
+            ),
+        )
+        Row(
+            Modifier
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .fillMaxWidth()
+                .height(66.dp)
+                .padding(start = 14.dp, end = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(Modifier.weight(1f).fillMaxHeight()) {
+                FenrirReadWordmarkMenu(label = {
+                    Box(Modifier.width(176.dp).height(60.dp)) {
+                        androidx.compose.foundation.Image(
+                            androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.mugi_logo),
+                            contentDescription = "MugiVerse",
+                            contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                            modifier = Modifier.width(168.dp).height(46.dp),
+                        )
+                        Text(
+                            "READ",
+                            color = androidx.compose.ui.graphics.Color(0xFF2E180A),
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                            fontSize = 10.sp,
+                            letterSpacing = 1.sp,
+                            maxLines = 1,
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .offset(x = 38.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(Brush.verticalGradient(listOf(androidx.compose.ui.graphics.Color(0xFFF3C75F), androidx.compose.ui.graphics.Color(0xFFB98222))))
+                                .padding(horizontal = 16.dp, vertical = 1.dp),
+                        )
+                    }
+                })
+            }
+            Box(
+                Modifier
+                    .size(44.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .clickable(role = Role.Button, onClickLabel = "Search your library") { FenrirReadMenu.current.value?.search?.invoke() },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Outlined.Search, contentDescription = "Search your library", tint = gold, modifier = Modifier.size(25.dp))
+            }
+            Spacer(Modifier.width(4.dp))
+            Box {
+                Box(
+                    Modifier
+                        .size(44.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .clickable(role = Role.Button, onClickLabel = "Notifications") { bell = true },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Outlined.Notifications, contentDescription = "Notifications", tint = gold, modifier = Modifier.size(25.dp))
+                    if (appUpdate != null) {
+                        Box(
+                            Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(top = 9.dp, end = 9.dp)
+                                .size(9.dp)
+                                .clip(androidx.compose.foundation.shape.CircleShape)
+                                .background(eu.kanade.presentation.reader.FenrirAccent),
+                        )
+                    }
+                }
+                androidx.compose.material3.DropdownMenu(
+                    expanded = bell,
+                    onDismissRequest = { bell = false },
+                    modifier = Modifier.width(240.dp).padding(horizontal = 6.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    containerColor = androidx.compose.ui.graphics.Color(0xFF1E140C),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, androidx.compose.ui.graphics.Color(0xFFC9954D)),
+                ) {
+                    val u = appUpdate
+                    if (u != null) {
+                        FenrirUpdateMenuItem(u) { bell = false }
+                    } else {
+                        Text(
+                            "You're all caught up",
+                            color = androidx.compose.ui.graphics.Color(0xFFB9B3A8),
+                            fontSize = 14.sp,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
 }

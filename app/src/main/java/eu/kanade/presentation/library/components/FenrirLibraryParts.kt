@@ -29,6 +29,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.paint
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.alpha
@@ -107,11 +108,13 @@ internal fun FenrirCategoryBar(
         return
     }
     // Fenrir: the bookcase's carved top rail, with a brass nameplate and brass knobs.
+    // MugiVerse: no rail (the cabin shows through) and a parchment plate.
+    val mugi = eu.kanade.tachiyomi.EmbeddedHost.isMugi
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(78.dp)
-            .fenrirRail()
+            .height(if (mugi) 70.dp else 78.dp)
+            .then(if (mugi) Modifier else Modifier.fenrirRail())
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -251,12 +254,19 @@ private fun FenrirCategoryButton(
                 }
             }
         }
+        val mugi = eu.kanade.tachiyomi.EmbeddedHost.isMugi
+        val parchment = androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.mugi_parchment)
         Box(
             Modifier
                 .widthIn(min = 176.dp, max = 250.dp)
-                .height(32.dp)
-                .fenrirBrass(pillShape)
-                .drawBehind { brassScrews(6.dp) }
+                .height(if (mugi) 38.dp else 32.dp)
+                .then(
+                    if (mugi) {
+                        Modifier.paint(parchment, contentScale = androidx.compose.ui.layout.ContentScale.FillBounds)
+                    } else {
+                        Modifier.fenrirBrass(pillShape).drawBehind { brassScrews(6.dp) }
+                    },
+                )
                 .padding(horizontal = 14.dp),
             contentAlignment = Alignment.Center,
         ) {
@@ -287,9 +297,10 @@ private fun FenrirCategoryButton(
                 Text(
                     c.visualName,
                     style = androidx.compose.ui.text.TextStyle(
-                        color = FenrirBrassText,
+                        color = if (mugi) Color(0xFF2E180A) else FenrirBrassText,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.ExtraBold,
+                        fontFamily = if (mugi) androidx.compose.ui.text.font.FontFamily.Serif else null,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         shadow = androidx.compose.ui.graphics.Shadow(Color(0x99FFF0C0), androidx.compose.ui.geometry.Offset(0f, 2f), 0f),
                     ),

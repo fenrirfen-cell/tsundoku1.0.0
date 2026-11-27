@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.res.imageResource
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -89,6 +91,8 @@ fun LibraryContent(
             .clipToBounds(),
     ) {
       val look = FenrirLibraryLook.current.value
+      // MugiVerse: the captain's cabin (Bookshelf look): gold frame, parchment category, cabin behind
+      val mugiRead = eu.kanade.tachiyomi.EmbeddedHost.isMugi && look == FenrirLibraryLook.Look.Bookshelf
       androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
       // Fenrir (Luxury): two layouts picked from the width you have (folded / unfolded, split screen)
       val wide = maxWidth >= 600.dp
@@ -157,7 +161,7 @@ fun LibraryContent(
                                 listOf(androidx.compose.ui.graphics.Color(0xFF2C1317), androidx.compose.ui.graphics.Color(0xFF0B0B0F)),
                             ),
                         )
-                        else -> Modifier.fenrirBookcaseBack()
+                        else -> if (mugiRead) Modifier.mugiCabinBack() else Modifier.fenrirBookcaseBack()
                     },
                 ),
         ) {
@@ -196,6 +200,14 @@ fun LibraryContent(
                     } else {
                         FenrirContinueReadingCard(lastRead, onOpen = { open() }, onClickCover = { onClickManga(lastRead.manga.id) })
                     }
+                } else if (lastRead != null && mugiRead) {
+                    MugiContinueReadingFrame(
+                        manga = lastRead,
+                        onOpen = {
+                            val resume = onResumeBook ?: onContinueReadingClicked
+                            if (resume != null) resume(lastRead) else onClickManga(lastRead.manga.id)
+                        },
+                    )
                 } else if (lastRead != null) {
                     FenrirContinueReadingCase(
                         manga = lastRead,
@@ -268,5 +280,25 @@ fun LibraryContent(
         LaunchedEffect(pagerState.currentPage) {
             onChangeCurrentPage(pagerState.currentPage)
         }
+    }
+}
+
+
+/** MugiVerse: the cabin picture (bottom part) behind Continue Reading and the category plate. */
+@Composable
+private fun Modifier.mugiCabinBack(): Modifier {
+    val img = androidx.compose.ui.graphics.ImageBitmap.imageResource(eu.kanade.tachiyomi.R.drawable.mugi_library_cabin)
+    return this.drawBehind {
+        drawRect(androidx.compose.ui.graphics.Color(0xFF28170F))
+        // scale to cover, keep the bottom (the lower shelves) under the frame
+        val scale = maxOf(size.width / img.width, size.height / img.height)
+        val w = img.width * scale
+        val h = img.height * scale
+        drawImage(
+            img,
+            dstOffset = androidx.compose.ui.unit.IntOffset(((size.width - w) / 2f).toInt(), (size.height - h).toInt()),
+            dstSize = androidx.compose.ui.unit.IntSize(w.toInt(), h.toInt()),
+        )
+        drawRect(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.25f))
     }
 }

@@ -94,9 +94,10 @@ fun MugiReadBar(
                     .padding(horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                left()
-                Spacer(Modifier.width(72.dp))
-                right()
+                // equal halves either side, so the compass sits exactly in the middle
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) { left() }
+                Spacer(Modifier.width(76.dp))
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) { right() }
             }
             Box(
                 Modifier

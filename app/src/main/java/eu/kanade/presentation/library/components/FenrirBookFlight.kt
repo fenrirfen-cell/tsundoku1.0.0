@@ -729,3 +729,104 @@ private fun rememberFenrirReaderLook(): FenrirReaderLook {
         }.getOrElse { FenrirReaderLook(Color.White, Color.Black, 16f, androidx.compose.ui.text.font.FontFamily.SansSerif) }
     }
 }
+
+/**
+ * MugiVerse: Continue Reading in the carved gold frame (parchment title on top). Your 3D book on
+ * the left flies out and opens just like from the glass case; title, chapter and progress beside it.
+ */
+@Composable
+internal fun MugiContinueReadingFrame(manga: LibraryManga, onOpen: () -> Unit) {
+    val total = manga.totalChapters.coerceAtLeast(0)
+    val read = manga.readCount.coerceIn(0, total.coerceAtLeast(0))
+    val progress = if (total > 0) read.toFloat() / total else 0f
+    val chapterLine = if (total > 0) "Chapter ${(read + 1).coerceAtMost(total)} of $total" else "Keep reading"
+    val cover = remember(manga.manga.id, manga.manga.coverLastModified) { manga.manga.asMangaCover() }
+    var bookRect by remember { mutableStateOf(Rect.Zero) }
+    val flying = FenrirBookFlight.isFlying(manga.manga.id)
+    LaunchedEffect(manga.manga.id, manga.readCount) {
+        FenrirFirstPage.forget(manga.manga.id)
+        FenrirFirstPage.prefetch(manga.manga)
+    }
+    val tapped: () -> Unit = {
+        if (FenrirBookFlight.current == null) {
+            FenrirBookFlight.start(manga.manga.id, cover, bookRect, onOpen, FenrirFirstPage.prefetch(manga.manga))
+        }
+    }
+    val ivory = Color(0xFFF4E3C1)
+    val serif = androidx.compose.ui.text.font.FontFamily.Serif
+    BoxWithConstraints(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .aspectRatio(682f / 410f)
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = tapped),
+    ) {
+        val w = maxWidth
+        val h = maxHeight
+        // dark inside, then the frame over it
+        Box(
+            Modifier
+                .padding(start = w * 0.05f, end = w * 0.05f, top = h * 0.17f, bottom = h * 0.1f)
+                .fillMaxSize()
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color(0xD928170F)),
+        )
+        androidx.compose.foundation.Image(
+            androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.mugi_reading_frame),
+            contentDescription = null,
+            contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
+            modifier = Modifier.fillMaxSize(),
+        )
+        Row(
+            Modifier
+                .fillMaxSize()
+                .padding(start = w * 0.09f, end = w * 0.1f, top = h * 0.27f, bottom = h * 0.17f),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            val bookH = h * 0.62f
+            Box(Modifier.width(bookH * FenrirTomeRatio).height(bookH)) {
+                FenrirTomeBook(
+                    cover = cover,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .wrapContentSize(Alignment.Center, unbounded = true)
+                        .height(bookH)
+                        .fenrirTomeShadow()
+                        .alpha(if (flying) 0f else 1f),
+                    onFrameBounds = { bookRect = fenrirTomeCoverRect(it) },
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(manga.manga.title, color = ivory, fontFamily = serif, fontSize = 15.sp, lineHeight = 17.sp, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Spacer(Modifier.height(3.dp))
+                Text(chapterLine, color = Color(0xFFCDBA92), fontFamily = serif, fontSize = 10.5.sp, maxLines = 1)
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f).height(6.dp).clip(CircleShape).background(Color(0xFF3A2A18))) {
+                        Box(Modifier.fillMaxWidth(progress.coerceIn(0.02f, 1f)).fillMaxHeight().background(Brush.horizontalGradient(listOf(Color(0xFFF3C75F), Color(0xFFE2A43A)))))
+                    }
+                    Spacer(Modifier.width(6.dp))
+                    Text("${(progress * 100).toInt()}%", color = ivory, fontSize = 10.5.sp, maxLines = 1)
+                }
+            }
+        }
+        // the parchment title across the top of the frame
+        Box(
+            Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = h * 0.12f)
+                .width(w * 0.46f)
+                .height(h * 0.14f),
+            contentAlignment = Alignment.Center,
+        ) {
+            androidx.compose.foundation.Image(
+                androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.mugi_parchment),
+                contentDescription = null,
+                contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
+                modifier = Modifier.fillMaxSize(),
+            )
+            Text("Continue Reading", color = Color(0xFF2E180A), fontFamily = serif, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1)
+        }
+    }
+}
