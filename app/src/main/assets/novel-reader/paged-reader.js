@@ -121,7 +121,23 @@
             var br = brs[j];
             var prev = br.previousSibling;
             while (prev && prev.nodeType === 3 && !/\S/.test(prev.nodeValue.replace(/\u00a0/g, ' '))) prev = prev.previousSibling;
-            if (prev && prev.nodeName === 'BR') br.style.display = 'none';
+            if (prev && prev.nodeName === 'BR') { br.style.display = 'none'; continue; }
+            // Fenrir: a <br> right after or before a paragraph (or at a paragraph's very start/end)
+            // only adds an empty line between paragraphs
+            var next = br.nextSibling;
+            while (next && next.nodeType === 3 && !/\S/.test(next.nodeValue.replace(/\u00a0/g, ' '))) next = next.nextSibling;
+            var isBlock = function (n) { return n && n.nodeType === 1 && /^(P|DIV|H[1-6]|HR|BLOCKQUOTE|UL|OL)$/.test(n.nodeName); };
+            if (!prev || !next || isBlock(prev) || isBlock(next)) br.style.display = 'none';
+        }
+        // plain-text paragraphs keep their line breaks; blank lines inside them are dropped
+        var pres = el.querySelectorAll('p');
+        for (var k = 0; k < pres.length; k++) {
+            var pp = pres[k];
+            if (pp.dataset.tdTrim || pp.style.whiteSpace !== 'pre-wrap' || pp.children.length) continue;
+            pp.dataset.tdTrim = '1';
+            var tx = pp.textContent;
+            var cleaned = tx.replace(/^[\s\u00a0\u200b\ufeff]+|[\s\u00a0\u200b\ufeff]+$/g, '').replace(/\n[\s\u00a0\u200b\ufeff]*\n/g, '\n');
+            if (cleaned !== tx) pp.textContent = cleaned;
         }
         if (!document.getElementById('td-paged-tidy')) {
             var st = document.createElement('style');

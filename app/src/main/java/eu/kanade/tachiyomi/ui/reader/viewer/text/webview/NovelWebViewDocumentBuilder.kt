@@ -55,7 +55,10 @@ internal object NovelWebViewDocumentBuilder {
             // Per-paragraph <p> (textContent-set, never parsed as markup) instead of one <pre>, so
             // plain text exposes the same block elements the copy/quote paragraph-index counter walks.
             val paragraphsJsonArray = input.processed.text
-                .split(Regex("\n{2,}"))
+                // Fenrir: a line holding only spaces (or no-break / zero-width spaces) also ends a
+                // paragraph; before, "\n \n \n" stayed inside one paragraph and showed as a big gap
+                .split(Regex("\n[\\s\u00a0\u200b\u3000\ufeff]*\n"))
+                .map { it.trim('\n', '\r', ' ', '\t', '\u00a0', '\u200b', '\u3000', '\ufeff') }
                 .filter { it.isNotEmpty() }
                 .joinToString(",", prefix = "[", postfix = "]") { quoteForJson(it) }
             """
