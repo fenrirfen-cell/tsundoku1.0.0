@@ -1882,7 +1882,8 @@ class ReaderActivity : BaseActivity() {
     // calling onPageInfoChanged when disabled/torn down), so it's only trustworthy while the
     // ACTIVE viewer is actually paged.
     private fun isPagedActive(state: ReaderViewModel.State) =
-        (state.viewer as? NovelWebViewViewer)?.isPagedModeActive() == true
+        (state.viewer as? NovelWebViewViewer)?.isPagedModeActive() == true ||
+            (state.viewer as? eu.kanade.tachiyomi.ui.reader.viewer.text.textview.NovelViewer)?.isPagedModeActive() == true
     private fun effectivePagedPageIndex(state: ReaderViewModel.State) =
         if (isPagedActive(state)) state.novelPageIndex else 0
     private fun effectivePagedPageCount(state: ReaderViewModel.State) =

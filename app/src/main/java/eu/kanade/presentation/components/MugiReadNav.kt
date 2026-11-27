@@ -92,8 +92,8 @@ fun MugiReadBar(
                     .padding(vertical = 6.dp)
                     .height(64.dp)
                     .clip(RoundedCornerShape(34.dp))
-                    .background(Brush.verticalGradient(listOf(Color(0xF21A1410), Color(0xF20C0906))))
-                    .border(1.dp, MugiRead.Gold, RoundedCornerShape(34.dp))
+                    .background(Color(0xFF19120E).copy(alpha = 0.96f))
+                    .border(1.dp, Color(0xFF9C7538), RoundedCornerShape(34.dp))
                     .padding(horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -121,6 +121,13 @@ fun MugiReadBar(
 fun MugiReadModeMenu(expanded: Boolean, onDismiss: () -> Unit, onPick: (MugiReadMode) -> Unit) {
     BackHandler(enabled = expanded, onBack = onDismiss)
     val reveal = remember { Animatable(0f) }
+    val flow = remember { Animatable(0f) }
+    LaunchedEffect(expanded) {
+        if (expanded) while (true) {
+            flow.snapTo(0f)
+            flow.animateTo(1f, tween(1700, easing = androidx.compose.animation.core.LinearEasing))
+        }
+    }
     LaunchedEffect(expanded) {
         reveal.animateTo(if (expanded) 1f else 0f, tween(if (expanded) 320 else 190, easing = FastOutSlowInEasing))
     }
@@ -160,7 +167,7 @@ fun MugiReadModeMenu(expanded: Boolean, onDismiss: () -> Unit, onPick: (MugiRead
                     targets.forEachIndexed { i, (m, fx) ->
                         val cx = size.width * 0.5f + (size.width * fx - size.width * 0.5f) * p
                         val top = tops[i] * p + 210.dp * (1 - p)
-                        val end = Offset(cx, (top + badge + 8.dp + 25.dp + 14.dp).toPx())
+                        val end = Offset(cx, (top + (badge + 8.dp) / 2).toPx())
                         val rise = origin.y - end.y
                         val c1 = Offset(origin.x + (end.x - origin.x) * 0.10f, origin.y - rise * 0.38f)
                         val c2 = Offset(end.x, end.y + rise * 0.32f)
@@ -171,7 +178,17 @@ fun MugiReadModeMenu(expanded: Boolean, onDismiss: () -> Unit, onPick: (MugiRead
                         drawPath(path, m.accent.copy(alpha = 0.10f * p), style = Stroke(9.dp.toPx()))
                         drawPath(path, m.accent.copy(alpha = 0.25f * p), style = Stroke(4.dp.toPx()))
                         drawPath(path, m.accent.copy(alpha = 0.9f * p), style = Stroke(1.3.dp.toPx()))
-                        drawCircle(m.accent.copy(alpha = 0.9f * p), 2.5.dp.toPx(), end)
+                        for (j in 0 until 3) {
+                            val tt = (flow.value + j / 3f + i * 0.11f) % 1f
+                            val v = 1f - tt
+                            val pt = Offset(
+                                v * v * v * origin.x + 3 * v * v * tt * c1.x + 3 * v * tt * tt * c2.x + tt * tt * tt * end.x,
+                                v * v * v * origin.y + 3 * v * v * tt * c1.y + 3 * v * tt * tt * c2.y + tt * tt * tt * end.y,
+                            )
+                            drawCircle(m.accent.copy(alpha = 0.28f * p), 7.dp.toPx(), pt)
+                            drawCircle(m.accent.copy(alpha = 0.6f * p), 3.5.dp.toPx(), pt)
+                            drawCircle(Color(0xFFFFF5E1).copy(alpha = p), 1.8.dp.toPx(), pt)
+                        }
                     }
                 }
                 targets.forEachIndexed { i, (m, fx) ->

@@ -250,6 +250,27 @@ class NovelViewer(val activity: ReaderActivity) : Viewer {
     // One page = one screen of text, cut at a whole line. TextPageTurner animates the turn.
     private fun isTextPagedMode(): Boolean = preferences.novelPagedMode.get() && !isAutoScrolling
 
+    /** True while pages are turned (the status bar and menu then show "page / pages"). */
+    fun isPagedModeActive(): Boolean = isTextPagedMode()
+
+    // Fenrir: which page of the current chapter is showing, and how many it has, from the chapter's
+    // title down to the end of its text, one screen of text per page.
+    private var lastPageInfo = -1 to -1
+    private fun publishTextPageInfo(scrollY: Int) {
+        val loaded = loadedChapters.getOrNull(currentChapterIndex) ?: return
+        val vh = scrollView.height - scrollView.paddingTop - scrollView.paddingBottom
+        if (vh <= 0 || !loaded.isTextSet) return
+        val start = contentTopOf(loaded.headerView) ?: loaded.block.container.top
+        val end = loaded.block.container.bottom
+        if (end <= start) return
+        val count = ((end - start + vh - 1) / vh).coerceAtLeast(1)
+        val index = ((scrollY - start + vh / 3).coerceAtLeast(0) / vh).coerceIn(0, count - 1)
+        if (lastPageInfo != index to count) {
+            lastPageInfo = index to count
+            activity.onNovelPageInfoChanged(index, count)
+        }
+    }
+
     private val textPageTurner by lazy {
         TextPageTurner(
             activity = activity,
@@ -392,10 +413,18 @@ class NovelViewer(val activity: ReaderActivity) : Viewer {
             isClickable = false
             isFocusable = false
         }
-        val bottom = View(activity).apply {
+        // Fenrir: the bottom mask also carries "Next · Chapter 2: title" when a chapter ends on
+        // this page (turning the page goes straight into it; no button)
+        val bottom = android.widget.TextView(activity).apply {
             visibility = View.GONE
             isClickable = false
             isFocusable = false
+            gravity = android.view.Gravity.CENTER_HORIZONTAL or android.view.Gravity.BOTTOM
+            textSize = 12.5f
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            val pad = (24 * activity.resources.displayMetrics.density).toInt()
+            setPadding(pad, 0, pad, (14 * activity.resources.displayMetrics.density).toInt())
         }
         container.addView(top, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, 0))
         container.addView(bottom, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, 0))
@@ -455,12 +484,23 @@ class NovelViewer(val activity: ReaderActivity) : Viewer {
         if (bottomH > vh / 4) bottomH = 0
         // Fenrir: the next chapter (its ─── line and title) never shows at the bottom of a page;
         // it starts on its own page, title at the top.
-        breakInside(cur, bottom)?.let { (start, _) ->
-            if (start > cur) bottomH = maxOf(bottomH, bottom - start)
+        var nextTitle: String? = null
+        breakInside(cur, bottom)?.let { (start, title) ->
+            if (start > cur) {
+                bottomH = maxOf(bottomH, bottom - start)
+                nextTitle = loadedChapters.firstOrNull { lc -> contentTopOf(lc.headerView) == title }?.chapter?.chapter?.name
+            }
         }
         val color = pageMaskColor()
         topMask.setBackgroundColor(color)
         bottomMask.setBackgroundColor(color)
+        (bottomMask as? android.widget.TextView)?.let { tv ->
+            val minH = (52 * activity.resources.displayMetrics.density).toInt()
+            val hint = if (nextTitle != null && bottomH >= minH) "Next · $nextTitle\nturn the page to keep reading ›" else ""
+            if (tv.text.toString() != hint) tv.text = hint
+            val (_, fg) = getThemeColors(preferences.novelTheme.get())
+            tv.setTextColor((fg and 0x00FFFFFF) or 0x99000000.toInt())
+        }
         setPageMask(topMask, screenTop, topH)
         setPageMask(bottomMask, screenTop + vh - bottomH, bottomH)
     }
@@ -601,6 +641,8 @@ class NovelViewer(val activity: ReaderActivity) : Viewer {
                 scheduleProgressSave(chapterProgress)
                 activity.onNovelProgressChanged(chapterProgress)
             }
+            // Fenrir: "3 / 11" for page mode (pages of the chapter you're in)
+            if (isTextPagedMode()) publishTextPageInfo(scrollY)
 
             if (!inGracePeriod && preferences.novelInfiniteScroll.get()) {
                 val autoLoadAt = preferences.novelAutoLoadNextChapterAt.get()

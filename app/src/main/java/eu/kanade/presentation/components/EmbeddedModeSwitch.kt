@@ -674,7 +674,7 @@ private fun MugiReadHeader(modifier: Modifier) {
                             modifier = Modifier.width(168.dp).height(46.dp),
                         )
                         Text(
-                            "READ",
+                            "READ ▾",
                             color = androidx.compose.ui.graphics.Color(0xFF2E180A),
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
                             fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
@@ -690,17 +690,8 @@ private fun MugiReadHeader(modifier: Modifier) {
                         )
                     }
                 })
+                MugiLogoTip(Modifier.align(Alignment.BottomStart).offset(y = 40.dp))
             }
-            Box(
-                Modifier
-                    .size(44.dp)
-                    .clip(androidx.compose.foundation.shape.CircleShape)
-                    .clickable(role = Role.Button, onClickLabel = "Search your library") { FenrirReadMenu.current.value?.search?.invoke() },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.Outlined.Search, contentDescription = "Search your library", tint = gold, modifier = Modifier.size(25.dp))
-            }
-            Spacer(Modifier.width(4.dp))
             Box {
                 Box(
                     Modifier
@@ -743,5 +734,40 @@ private fun MugiReadHeader(modifier: Modifier) {
                 }
             }
         }
+    }
+}
+
+
+/**
+ * MugiVerse: "▲ Tap the logo for Search, Filter & sort, For you…", the first few times Read opens
+ * (tap it to hide it for good). Nothing to see after that; the ▾ on READ stays as the cue.
+ */
+@Composable
+private fun MugiLogoTip(modifier: Modifier) {
+    val context = LocalContext.current
+    val prefs = androidx.compose.runtime.remember { context.getSharedPreferences("fenrir_ui", android.content.Context.MODE_PRIVATE) }
+    var show by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(prefs.getInt("mugi_logo_tip_seen", 0) < 4)
+    }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        if (show) prefs.edit().putInt("mugi_logo_tip_seen", prefs.getInt("mugi_logo_tip_seen", 0) + 1).apply()
+        kotlinx.coroutines.delay(6000)
+        show = false
+    }
+    if (!show) return
+    androidx.compose.ui.window.Popup(
+        alignment = Alignment.TopStart,
+        offset = androidx.compose.ui.unit.IntOffset(0, with(androidx.compose.ui.platform.LocalDensity.current) { 6.dp.roundToPx() }),
+    ) {
+        Text(
+            "▲ Tap the logo for Search, Filter & sort, For you…",
+            color = androidx.compose.ui.graphics.Color(0xFF2E180A),
+            fontSize = 12.sp,
+            modifier = modifier
+                .clip(RoundedCornerShape(10.dp))
+                .background(androidx.compose.ui.graphics.Color(0xFFE2BA72))
+                .clickable { prefs.edit().putInt("mugi_logo_tip_seen", 99).apply(); show = false }
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+        )
     }
 }
