@@ -59,6 +59,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import uy.kohesive.injekt.api.get
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -581,6 +582,33 @@ fun FenrirNovelModeSheet(viewModel: ReaderSettingsViewModel, onDismissRequest: (
                     prefs.novelPagedFlipEffect.set(true)
                 }, Modifier.weight(1f))
             }
+            // Fenrir: LNReader-style "Paged reading (Experimental)": the chapter is laid out as
+            // real pages that fill top to bottom ("1/11"), drawn by the web renderer.
+            val renderMode by prefs.novelRenderingMode.collectAsState()
+            val realPages = paged && renderMode == "webview"
+            Spacer(Modifier.height(10.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { setRealPages(prefs, !realPages) }
+                    .padding(horizontal = 4.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Paged reading (Experimental)", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    Text(
+                        "Real book pages that fill top to bottom, with 1/11 at the bottom. Turn the last page to go to the next chapter.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = realPages,
+                    onCheckedChange = { setRealPages(prefs, it) },
+                    colors = SwitchDefaults.colors(checkedTrackColor = FenrirAccent),
+                )
+            }
             if (!paged) {
                 SectionLabel("Chapters")
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -715,5 +743,29 @@ fun FenrirMangaModeSheet(
             ScreenSection(viewModel)
             Spacer(Modifier.height(16.dp))
         }
+    }
+}
+
+
+/**
+ * Paged reading (Experimental) on: pages + the web renderer (it can lay a chapter out as real
+ * pages). Off: back to the renderer you had before, and scrolling if that's what you had.
+ */
+private fun setRealPages(prefs: eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences, on: Boolean) {
+    val store = runCatching {
+        uy.kohesive.injekt.Injekt.get<android.app.Application>().getSharedPreferences("fenrir_ui", android.content.Context.MODE_PRIVATE)
+    }.getOrNull()
+    if (on) {
+        store?.edit()
+            ?.putString("real_pages_prev_render", prefs.novelRenderingMode.get())
+            ?.putBoolean("real_pages_prev_paged", prefs.novelPagedMode.get())
+            ?.apply()
+        prefs.novelPagedMode.set(true)
+        if (prefs.novelRenderingMode.get() != "webview") prefs.novelRenderingMode.set("webview")
+    } else {
+        val prevRender = store?.getString("real_pages_prev_render", "default") ?: "default"
+        val prevPaged = store?.getBoolean("real_pages_prev_paged", false) ?: false
+        prefs.novelPagedMode.set(prevPaged)
+        prefs.novelRenderingMode.set(if (prevRender == "webview") "default" else prevRender)
     }
 }
