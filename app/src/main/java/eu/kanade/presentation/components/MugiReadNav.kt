@@ -43,6 +43,9 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.imageResource
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -206,4 +209,34 @@ fun MugiReadModeMenu(expanded: Boolean, onDismiss: () -> Unit, onPick: (MugiRead
             }
         }
     }
+}
+
+/**
+ * One cabin picture behind the Read header and the Continue Reading area together: each part
+ * draws its own slice, so the beams, lantern and porthole run on without a seam or a repeat.
+ */
+object MugiCabin {
+    val headerPx = androidx.compose.runtime.mutableIntStateOf(0)
+    val bodyPx = androidx.compose.runtime.mutableIntStateOf(0)
+}
+
+@Composable
+fun Modifier.mugiCabin(header: Boolean): Modifier {
+    val img = androidx.compose.ui.graphics.ImageBitmap.imageResource(R.drawable.mugi_library_cabin)
+    return this
+        .onSizeChanged { if (header) MugiCabin.headerPx.intValue = it.height else MugiCabin.bodyPx.intValue = it.height }
+        .drawBehind {
+            drawRect(Color(0xFF28170F))
+            val headerH = MugiCabin.headerPx.intValue.toFloat()
+            val total = headerH + MugiCabin.bodyPx.intValue.toFloat().coerceAtLeast(if (header) size.height * 3f else size.height)
+            val scale = maxOf(size.width / img.width, total / img.height)
+            val w = img.width * scale
+            val h = img.height * scale
+            val top = if (header) 0f else -headerH
+            drawImage(
+                img,
+                dstOffset = androidx.compose.ui.unit.IntOffset(((size.width - w) / 2f).toInt(), top.toInt()),
+                dstSize = androidx.compose.ui.unit.IntSize(w.toInt(), h.toInt()),
+            )
+        }
 }

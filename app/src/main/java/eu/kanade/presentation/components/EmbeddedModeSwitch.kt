@@ -649,18 +649,11 @@ private fun MugiReadHeader(modifier: Modifier) {
     Box(
         modifier
             .fillMaxWidth()
-            .background(androidx.compose.ui.graphics.Color(0xFF28170F)),
+            .mugiCabin(header = true),
     ) {
-        androidx.compose.foundation.Image(
-            androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.mugi_library_cabin),
-            contentDescription = null,
-            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-            alignment = Alignment.TopCenter,
-            modifier = Modifier.matchParentSize(),
-        )
         Box(
             Modifier.matchParentSize().background(
-                Brush.verticalGradient(listOf(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.55f), androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.12f))),
+                Brush.verticalGradient(listOf(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.5f), androidx.compose.ui.graphics.Color.Transparent)),
             ),
         )
         Row(

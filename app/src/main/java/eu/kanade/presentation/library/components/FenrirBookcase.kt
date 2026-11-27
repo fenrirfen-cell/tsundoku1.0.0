@@ -228,6 +228,7 @@ internal fun Modifier.fenrirPlank(coverPadding: Dp, ratio: Float, pageInset: Dp,
     // outside the wood picture, so its shelves showed up empty). Taken modulo the screen width,
     // so a page that hasn't slid in yet still gets the right piece of wood.
     val xState = remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    val mugiShelf = eu.kanade.tachiyomi.EmbeddedHost.isMugi
     this
         .onGloballyPositioned {
             val raw = it.positionInRoot().x
@@ -249,7 +250,8 @@ internal fun Modifier.fenrirPlank(coverPadding: Dp, ratio: Float, pageInset: Dp,
             val w = right - left
             val h = topDepth + front
             val k = plank.width / screenW
-            fenrirShelfLight()
+            // MugiVerse: no spotlights over the shelves (the cabin's lanterns light them)
+            if (!mugiShelf) fenrirShelfLight()
             val sx = ((x + left) * k).toInt().coerceIn(0, plank.width - 1)
             val sw = (w * k).toInt().coerceIn(1, plank.width - sx)
             drawImage(

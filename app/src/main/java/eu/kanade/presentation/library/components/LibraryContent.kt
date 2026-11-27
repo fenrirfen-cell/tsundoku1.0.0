@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
+import eu.kanade.presentation.components.mugiCabin
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.res.imageResource
 import androidx.compose.runtime.LaunchedEffect
@@ -161,7 +162,7 @@ fun LibraryContent(
                                 listOf(androidx.compose.ui.graphics.Color(0xFF2C1317), androidx.compose.ui.graphics.Color(0xFF0B0B0F)),
                             ),
                         )
-                        else -> if (mugiRead) Modifier.mugiCabinBack() else Modifier.fenrirBookcaseBack()
+                        else -> if (mugiRead) Modifier.mugiCabin(header = false) else Modifier.fenrirBookcaseBack()
                     },
                 ),
         ) {
@@ -246,7 +247,7 @@ fun LibraryContent(
             // Fenrir (Luxury): the case's top cap and ceiling lights, joining the band to the shelves
             if (look == FenrirLibraryLook.Look.Luxury) LuxCaseTop(geom)
             // Fenrir: ivy hanging from the rail over the top corners of the bookcase.
-            if (look == FenrirLibraryLook.Look.Bookshelf) Box(Modifier.fillMaxWidth().height(0.dp)) {
+            if (look == FenrirLibraryLook.Look.Bookshelf && !mugiRead) Box(Modifier.fillMaxWidth().height(0.dp)) {
                 androidx.compose.foundation.Image(
                     androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.fenrir_ivy_left),
                     contentDescription = null,

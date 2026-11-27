@@ -766,7 +766,7 @@ internal fun MugiContinueReadingFrame(manga: LibraryManga, onOpen: () -> Unit) {
         // dark inside, then the frame over it
         Box(
             Modifier
-                .padding(start = w * 0.05f, end = w * 0.05f, top = h * 0.17f, bottom = h * 0.1f)
+                .padding(start = w * 0.085f, end = w * 0.085f, top = h * 0.29f, bottom = h * 0.12f)
                 .fillMaxSize()
                 .clip(RoundedCornerShape(10.dp))
                 .background(Color(0xD928170F)),
@@ -780,10 +780,10 @@ internal fun MugiContinueReadingFrame(manga: LibraryManga, onOpen: () -> Unit) {
         Row(
             Modifier
                 .fillMaxSize()
-                .padding(start = w * 0.09f, end = w * 0.1f, top = h * 0.27f, bottom = h * 0.17f),
+                .padding(start = w * 0.13f, end = w * 0.14f, top = h * 0.36f, bottom = h * 0.17f),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            val bookH = h * 0.62f
+            val bookH = h * 0.46f
             Box(Modifier.width(bookH * FenrirTomeRatio).height(bookH)) {
                 FenrirTomeBook(
                     cover = cover,
@@ -798,9 +798,9 @@ internal fun MugiContinueReadingFrame(manga: LibraryManga, onOpen: () -> Unit) {
             }
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
-                Text(manga.manga.title, color = ivory, fontFamily = serif, fontSize = 15.sp, lineHeight = 17.sp, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Text(manga.manga.title, color = ivory, fontFamily = serif, fontSize = 13.sp, lineHeight = 15.sp, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 Spacer(Modifier.height(3.dp))
-                Text(chapterLine, color = Color(0xFFCDBA92), fontFamily = serif, fontSize = 10.5.sp, maxLines = 1)
+                Text(chapterLine, color = Color(0xFFCDBA92), fontFamily = serif, fontSize = 9.5.sp, maxLines = 1)
                 Spacer(Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.weight(1f).height(6.dp).clip(CircleShape).background(Color(0xFF3A2A18))) {
@@ -815,9 +815,9 @@ internal fun MugiContinueReadingFrame(manga: LibraryManga, onOpen: () -> Unit) {
         Box(
             Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = h * 0.12f)
-                .width(w * 0.46f)
-                .height(h * 0.14f),
+                .padding(top = h * 0.2f)
+                .width(w * 0.42f)
+                .height(h * 0.13f),
             contentAlignment = Alignment.Center,
         ) {
             androidx.compose.foundation.Image(
@@ -826,7 +826,7 @@ internal fun MugiContinueReadingFrame(manga: LibraryManga, onOpen: () -> Unit) {
                 contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
                 modifier = Modifier.fillMaxSize(),
             )
-            Text("Continue Reading", color = Color(0xFF2E180A), fontFamily = serif, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1)
+            Text("Continue Reading", color = Color(0xFF2E180A), fontFamily = serif, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1)
         }
     }
 }
