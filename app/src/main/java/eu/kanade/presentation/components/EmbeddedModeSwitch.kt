@@ -64,6 +64,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
@@ -649,7 +650,28 @@ private fun MugiReadHeader(modifier: Modifier) {
     Box(
         modifier
             .fillMaxWidth()
-            .mugiCabin(header = true),
+            .mugiCabin(header = true)
+            // a carved beam along the bottom edge, with a soft shadow falling on the shelves below,
+            // so the books slide under the ceiling instead of against a hard cut
+            .drawWithContent {
+                drawContent()
+                val h = size.height
+                drawRect(
+                    Brush.verticalGradient(listOf(androidx.compose.ui.graphics.Color(0xFF3A2414), androidx.compose.ui.graphics.Color(0xFF1C110A)), startY = h - 6.dp.toPx(), endY = h),
+                    topLeft = androidx.compose.ui.geometry.Offset(0f, h - 6.dp.toPx()),
+                    size = androidx.compose.ui.geometry.Size(size.width, 6.dp.toPx()),
+                )
+                drawRect(
+                    androidx.compose.ui.graphics.Color(0xFFB98A42).copy(alpha = 0.85f),
+                    topLeft = androidx.compose.ui.geometry.Offset(0f, h - 6.dp.toPx()),
+                    size = androidx.compose.ui.geometry.Size(size.width, 1.dp.toPx()),
+                )
+                drawRect(
+                    Brush.verticalGradient(listOf(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.55f), androidx.compose.ui.graphics.Color.Transparent), startY = h, endY = h + 22.dp.toPx()),
+                    topLeft = androidx.compose.ui.geometry.Offset(0f, h),
+                    size = androidx.compose.ui.geometry.Size(size.width, 22.dp.toPx()),
+                )
+            },
     ) {
         Box(
             Modifier.matchParentSize().background(

@@ -275,7 +275,7 @@ class NovelViewer(val activity: ReaderActivity) : Viewer {
         TextPageTurner(
             activity = activity,
             container = container,
-            target = scrollView,
+            targetView = { if (spreadOn) container else scrollView },
             isCurl = { preferences.novelPagedFlipEffect.get() },
             swipeEnabled = { preferences.novelPagedSwipeEnabled.get() },
             commitFraction = { preferences.novelPagedDragCommitPercent.get() / 100f },
@@ -357,9 +357,18 @@ class NovelViewer(val activity: ReaderActivity) : Viewer {
 
     // Scroll position of the next/previous page, or null at the end/start of the loaded text.
     private fun textPageTarget(forward: Boolean): Int? {
-        val raw = textPageTargetRaw(forward)
+        // Fenrir: two pages side by side turn two at a time
+        if (spreadOn) {
+            val cur = scrollView.scrollY
+            val first = textPageTarget(forward, cur) ?: return null
+            return textPageTarget(forward, first) ?: first
+        }
+        return textPageTarget(forward, scrollView.scrollY)
+    }
+
+    private fun textPageTarget(forward: Boolean, cur: Int): Int? {
+        val raw = textPageTargetRaw(forward, cur)
         val vh = scrollView.height - scrollView.paddingTop - scrollView.paddingBottom
-        val cur = scrollView.scrollY
         return if (forward) {
             // The next chapter's title on this page: the next page starts at that title.
             val br = if (vh > 0) chapterBreaks().filter { (_, title) -> title > cur && title <= cur + vh }.minByOrNull { it.second } else null
@@ -372,13 +381,13 @@ class NovelViewer(val activity: ReaderActivity) : Viewer {
         }
     }
 
-    private fun textPageTargetRaw(forward: Boolean): Int? {
+    private fun textPageTargetRaw(forward: Boolean, cur: Int = scrollView.scrollY): Int? {
         applyPagedPadding(true)
         val child = scrollView.getChildAt(0) ?: return null
         val vh = scrollView.height - scrollView.paddingTop - scrollView.paddingBottom
         if (vh <= 0) return null
-        val range = (child.height - vh).coerceAtLeast(0)
-        val cur = scrollView.scrollY
+        // with two pages side by side the right page may start past the last scroll position
+        val range = (child.height - vh).coerceAtLeast(0) + (if (spreadOn) vh else 0)
         return if (forward) {
             if (cur >= range) return null
             val bottom = cur + vh
@@ -400,6 +409,100 @@ class NovelViewer(val activity: ReaderActivity) : Viewer {
             to.coerceAtLeast(0).takeIf { it < cur }
         }
     }
+
+    // ---- Two pages side by side (wide screens held sideways) ---------------------------------
+    // The text takes the left half; the right half draws the same text again, one page further on,
+    // so it reads like an open book. Pages then turn two at a time.
+    private var spreadOn = false
+    private var spreadMirror: SpreadMirror? = null
+
+    private fun wantSpread(): Boolean {
+        if (!isTextPagedMode()) return false
+        val w = container.width
+        val h = container.height
+        if (w <= 0 || h <= 0) return false
+        return w > h && w / activity.resources.displayMetrics.density >= 600f
+    }
+
+    private fun applySpread() {
+        val want = wantSpread()
+        if (want == spreadOn) return
+        spreadOn = want
+        val lp = scrollView.layoutParams ?: return
+        if (want) {
+            val half = container.width / 2
+            lp.width = half
+            scrollView.layoutParams = lp
+            val mirror = spreadMirror ?: SpreadMirror().also { m ->
+                spreadMirror = m
+                container.addView(m, FrameLayout.LayoutParams(half, FrameLayout.LayoutParams.MATCH_PARENT).apply { leftMargin = half })
+            }
+            (mirror.layoutParams as FrameLayout.LayoutParams).let { p ->
+                p.width = half
+                p.leftMargin = half
+                mirror.layoutParams = p
+            }
+            mirror.visibility = View.VISIBLE
+        } else {
+            lp.width = android.view.ViewGroup.LayoutParams.MATCH_PARENT
+            scrollView.layoutParams = lp
+            spreadMirror?.visibility = View.GONE
+        }
+    }
+
+    private fun updateSpreadMirror() {
+        val m = spreadMirror ?: return
+        if (!spreadOn) return
+        val vh = scrollView.height - scrollView.paddingTop - scrollView.paddingBottom
+        val cur = scrollView.scrollY
+        m.startY = textPageTarget(true, cur) ?: (cur + vh)
+        m.invalidate()
+    }
+
+    private inner class SpreadMirror : View(activity) {
+        var startY = 0
+        private val paint = android.graphics.Paint()
+
+        init {
+            isClickable = false
+            isFocusable = false
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            val root = scrollView.getChildAt(0) ?: return
+            val top = scrollView.top + scrollView.paddingTop
+            val vh = scrollView.height - scrollView.paddingTop - scrollView.paddingBottom
+            val bg = pageMaskColor()
+            canvas.drawColor(bg)
+            if (vh <= 0) return
+            val pageEnd = startY + vh
+            canvas.save()
+            canvas.clipRect(0, top, width, top + vh)
+            canvas.translate(root.left.toFloat(), (top - startY).toFloat())
+            root.draw(canvas)
+            canvas.restore()
+            // only whole lines, and the next chapter starts on its own page
+            var cut = 0
+            textLineAt(pageEnd - 1)?.let { (lineTop, lineBottom) ->
+                if (lineBottom > pageEnd && lineTop > startY) cut = pageEnd - lineTop
+            }
+            breakInside(startY, pageEnd)?.let { (start, _) -> if (start > startY) cut = maxOf(cut, pageEnd - start) }
+            if (cut > 0) {
+                paint.color = bg
+                canvas.drawRect(0f, (top + vh - cut).toFloat(), width.toFloat(), (top + vh).toFloat(), paint)
+            }
+            // the fold down the middle of the book
+            val fold = 14f * resources.displayMetrics.density
+            paint.shader = android.graphics.LinearGradient(
+                0f, 0f, fold, 0f,
+                android.graphics.Color.argb(70, 0, 0, 0), android.graphics.Color.TRANSPARENT,
+                android.graphics.Shader.TileMode.CLAMP,
+            )
+            canvas.drawRect(0f, 0f, fold, height.toFloat(), paint)
+            paint.shader = null
+        }
+    }
+
     // ---- Page masks for TextView paging -----------------------------------------------------
     // Cover a half-cut line at the top/bottom edge with the page color, so each page shows only
     // whole lines (the cut line starts the next page anyway).
@@ -447,9 +550,12 @@ class NovelViewer(val activity: ReaderActivity) : Viewer {
         if (show) {
             val lp = v.layoutParams as FrameLayout.LayoutParams
             // Only touch layout when something changed, so the layout listener can't loop.
-            if (lp.topMargin != top || lp.height != height) {
+            // with two pages side by side the masks only cover the left page
+            val w = if (spreadOn) scrollView.width else FrameLayout.LayoutParams.MATCH_PARENT
+            if (lp.topMargin != top || lp.height != height || lp.width != w) {
                 lp.topMargin = top
                 lp.height = height
+                lp.width = w
                 v.layoutParams = lp
             }
         }
@@ -459,6 +565,8 @@ class NovelViewer(val activity: ReaderActivity) : Viewer {
 
     private fun updatePageMasks() {
         applyPagedPadding(isTextPagedMode())
+        applySpread()
+        updateSpreadMirror()
         val topMask = pageMaskTop ?: return
         val bottomMask = pageMaskBottom ?: return
         if (!isTextPagedMode()) {
@@ -2387,9 +2495,28 @@ class NovelViewer(val activity: ReaderActivity) : Viewer {
     }
 
     fun setProgressPercent(percent: Int) {
+        // Fenrir: in page mode the slider jumps to a whole page of the chapter
+        if (isTextPagedMode() && jumpToPage(percent)) return
         val progress = percent.coerceIn(0, 100) / 100f
         setScrollProgress(progress)
         maybeLoadNextChapterFromSlider()
+    }
+
+    private fun jumpToPage(percent: Int): Boolean {
+        val loaded = loadedChapters.getOrNull(currentChapterIndex) ?: return false
+        val vh = scrollView.height - scrollView.paddingTop - scrollView.paddingBottom
+        if (vh <= 0 || !loaded.isTextSet) return false
+        val start = contentTopOf(loaded.headerView) ?: loaded.block.container.top
+        val end = loaded.block.container.bottom
+        if (end <= start) return false
+        val count = ((end - start + vh - 1) / vh).coerceAtLeast(1)
+        val page = ((percent.coerceIn(0, 100) / 100f) * (count - 1)).roundToInt()
+        var y = start + page * vh
+        // start the page on a whole line
+        textLineAt(y)?.let { (lineTop, lineBottom) -> if (lineTop < y && lineBottom > y) y = lineTop }
+        scrollView.scrollTo(0, y)
+        updatePageMasks()
+        return true
     }
 
     private fun maybeLoadNextChapterFromSlider() {

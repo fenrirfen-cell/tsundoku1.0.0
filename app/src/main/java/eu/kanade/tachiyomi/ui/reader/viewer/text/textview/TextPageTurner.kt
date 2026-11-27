@@ -26,7 +26,8 @@ import kotlin.math.abs
 class TextPageTurner(
     private val activity: Activity,
     private val container: FrameLayout,
-    private val target: View,
+    // Fenrir: what turns (the text, or both pages when two sit side by side)
+    private val targetView: () -> View,
     private val isCurl: () -> Boolean,
     private val swipeEnabled: () -> Boolean,
     private val commitFraction: () -> Float,
@@ -36,6 +37,7 @@ class TextPageTurner(
     private val nextPos: (forward: Boolean) -> Int?,
     private val onEdge: (forward: Boolean) -> Unit,
 ) {
+    private val target: View get() = targetView()
     private var curlView: PageCurlView? = null
     private var slideView: ImageView? = null
     private var slideBitmap: Bitmap? = null
