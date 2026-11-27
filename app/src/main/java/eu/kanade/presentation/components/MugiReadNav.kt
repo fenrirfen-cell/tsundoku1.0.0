@@ -151,26 +151,24 @@ fun MugiReadModeMenu(expanded: Boolean, onDismiss: () -> Unit, onPick: (MugiRead
             val tops = listOf(97.dp, 18.dp, 97.dp)
             Box(Modifier.align(Alignment.BottomCenter).width(menuWidth).height(282.dp)) {
                 Canvas(Modifier.matchParentSize()) {
+                    // every line starts at the compass centre and follows its medallion as it moves
                     val origin = Offset(size.width * 0.5f, size.height)
                     val p = reveal.value.coerceIn(0f, 1f)
                     targets.forEachIndexed { i, (m, fx) ->
-                        val end = Offset(size.width * fx, (tops[i] + badge + 34.dp).toPx())
-                        val c1 = Offset(origin.x + (end.x - origin.x) * 0.10f, origin.y - 79.dp.toPx())
-                        val c2 = Offset(end.x, end.y + 64.dp.toPx())
+                        val cx = size.width * 0.5f + (size.width * fx - size.width * 0.5f) * p
+                        val top = tops[i] * p + 210.dp * (1 - p)
+                        val end = Offset(cx, (top + badge + 8.dp + 25.dp + 14.dp).toPx())
+                        val rise = origin.y - end.y
+                        val c1 = Offset(origin.x + (end.x - origin.x) * 0.10f, origin.y - rise * 0.38f)
+                        val c2 = Offset(end.x, end.y + rise * 0.32f)
                         val path = Path().apply {
                             moveTo(origin.x, origin.y)
-                            for (step in 1..45) {
-                                val t = p * step / 45f
-                                val v = 1f - t
-                                lineTo(
-                                    v * v * v * origin.x + 3 * v * v * t * c1.x + 3 * v * t * t * c2.x + t * t * t * end.x,
-                                    v * v * v * origin.y + 3 * v * v * t * c1.y + 3 * v * t * t * c2.y + t * t * t * end.y,
-                                )
-                            }
+                            cubicTo(c1.x, c1.y, c2.x, c2.y, end.x, end.y)
                         }
                         drawPath(path, m.accent.copy(alpha = 0.10f * p), style = Stroke(9.dp.toPx()))
                         drawPath(path, m.accent.copy(alpha = 0.25f * p), style = Stroke(4.dp.toPx()))
                         drawPath(path, m.accent.copy(alpha = 0.9f * p), style = Stroke(1.3.dp.toPx()))
+                        drawCircle(m.accent.copy(alpha = 0.9f * p), 2.5.dp.toPx(), end)
                     }
                 }
                 targets.forEachIndexed { i, (m, fx) ->
