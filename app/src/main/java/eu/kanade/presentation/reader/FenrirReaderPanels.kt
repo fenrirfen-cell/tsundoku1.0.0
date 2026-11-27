@@ -623,9 +623,61 @@ fun FenrirNovelModeSheet(viewModel: ReaderSettingsViewModel, onDismissRequest: (
                 Spacer(Modifier.height(10.dp))
                 SwitchRow("Swipe to turn pages", pref = prefs.novelPagedSwipeEnabled)
             }
+            // Fenrir: tighten or loosen the gaps between lines and between paragraphs.
+            SectionLabel("Spacing")
+            SpacingStepper("Line spacing", prefs.novelLineHeight, 1.0f, 3.0f, "×")
+            SpacingStepper("Paragraph spacing", prefs.novelParagraphSpacing, 0f, 3.0f, " em")
             ScreenSection(viewModel)
             Spacer(Modifier.height(16.dp))
         }
+    }
+}
+
+@Composable
+private fun SpacingStepper(
+    label: String,
+    pref: tachiyomi.core.common.preference.Preference<Float>,
+    min: Float,
+    max: Float,
+    unit: String,
+) {
+    val value by pref.collectAsState()
+    fun step(d: Float) {
+        val v = (Math.round((value + d) * 10f) / 10f).coerceIn(min, max)
+        pref.set(v)
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+        StepButton("−", enabled = value > min + 0.001f) { step(-0.1f) }
+        Text(
+            String.format(java.util.Locale.US, "%.1f", value) + unit,
+            fontSize = 14.sp,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.width(64.dp),
+        )
+        StepButton("+", enabled = value < max - 0.001f) { step(0.1f) }
+    }
+}
+
+@Composable
+private fun StepButton(text: String, enabled: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+        )
     }
 }
 
