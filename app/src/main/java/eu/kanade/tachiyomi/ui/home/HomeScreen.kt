@@ -171,6 +171,8 @@ object HomeScreen : Screen() {
                             .consumeWindowInsets(contentPadding)
                             .nestedScroll(barsScroll),
                     ) {
+                        val mugi = eu.kanade.tachiyomi.EmbeddedHost.isMugi
+                        val mugiMenu = androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
                         val bottomNavVisible by produceState(initialValue = true) {
                             showBottomNavEvent.receiveAsFlow().collectLatest { value = it }
                         }
@@ -211,9 +213,27 @@ object HomeScreen : Screen() {
                         }
                         // Fenrir: "may not work · Install anyway?" for novel plugins whose site is down.
                         eu.kanade.presentation.browse.FenrirInstallCheckDialog()
+                        // MugiVerse: the compass menu (Watch / Ani-Drama / Read), over the page.
+                        if (mugi) {
+                            val activity = androidx.compose.ui.platform.LocalContext.current as? android.app.Activity
+                            eu.kanade.presentation.components.MugiReadModeMenu(
+                                expanded = mugiMenu.value,
+                                onDismiss = { mugiMenu.value = false },
+                                onPick = { m ->
+                                    mugiMenu.value = false
+                                    when (m) {
+                                        eu.kanade.presentation.components.MugiReadMode.WATCH ->
+                                            activity?.let { eu.kanade.tachiyomi.EmbeddedHost.openWatch?.invoke(it) }
+                                        eu.kanade.presentation.components.MugiReadMode.ANI_DRAMA ->
+                                            activity?.let { eu.kanade.tachiyomi.EmbeddedHost.openAniDrama?.invoke(it) }
+                                        eu.kanade.presentation.components.MugiReadMode.READ -> Unit
+                                    }
+                                },
+                            )
+                        }
                         run {
                             AnimatedVisibility(
-                                visible = bottomNavVisible && barsShown &&
+                                visible = (mugiMenu.value || bottomNavVisible && barsShown) &&
                                     eu.kanade.presentation.library.components.FenrirBookFlight.current == null,
                                 modifier = Modifier.align(Alignment.BottomCenter),
                                 enter = androidx.compose.animation.slideInVertically(androidx.compose.animation.core.tween(260)) { it } +
@@ -221,7 +241,11 @@ object HomeScreen : Screen() {
                                 exit = androidx.compose.animation.slideOutVertically(androidx.compose.animation.core.tween(260)) { it } +
                                     androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(200)),
                             ) {
-                                FenrirGlassNavBar(tabs, fenrirHaze)
+                                if (mugi) {
+                                    MugiNavBar(tabs, mugiMenu.value) { mugiMenu.value = !mugiMenu.value }
+                                } else {
+                                    FenrirGlassNavBar(tabs, fenrirHaze)
+                                }
                             }
                         }
                     }
@@ -296,20 +320,36 @@ object HomeScreen : Screen() {
         }
     }
 
+    // MugiVerse: Library · Updates · compass · History · Browse · More, gold rim, amber highlight.
     @Composable
-    private fun RowScope.GlassNavItem(tab: eu.kanade.presentation.util.Tab) {
+    private fun MugiNavBar(tabs: List<eu.kanade.presentation.util.Tab>, menuOpen: Boolean, onCompass: () -> Unit) {
+        val amber = eu.kanade.presentation.components.MugiRead.Amber
+        eu.kanade.presentation.components.MugiReadBar(
+            menuOpen = menuOpen,
+            onCompass = onCompass,
+            left = { tabs.take(2).fastForEach { GlassNavItem(it, amber, plain = true, enabled = !menuOpen) } },
+            right = { tabs.drop(2).fastForEach { GlassNavItem(it, amber, plain = true, enabled = !menuOpen) } },
+        )
+    }
+
+    @Composable
+    private fun RowScope.GlassNavItem(
+        tab: eu.kanade.presentation.util.Tab,
+        accent: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color(0xFFFF4D57),
+        plain: Boolean = false,
+        enabled: Boolean = true,
+    ) {
         val tabNavigator = LocalTabNavigator.current
         val navigator = LocalNavigator.currentOrThrow
         val scope = rememberCoroutineScope()
         val selected = tabNavigator.current::class == tab::class
-        val accent = androidx.compose.ui.graphics.Color(0xFFFF4D57)
-        val tint = if (selected) accent else androidx.compose.ui.graphics.Color(0xFFC9C9D2)
+        val tint = if (selected) accent else if (plain) androidx.compose.ui.graphics.Color(0xFFE6D6B5) else androidx.compose.ui.graphics.Color(0xFFC9C9D2)
         androidx.compose.foundation.layout.Column(
             Modifier
                 .weight(1f)
                 .height(56.dp)
                 .then(
-                    if (selected) {
+                    if (selected && !plain) {
                         Modifier
                             .drawBehind {
                                 drawRoundRect(
@@ -334,7 +374,7 @@ object HomeScreen : Screen() {
                         Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(28.dp))
                     },
                 )
-                .clickable {
+                .clickable(enabled = enabled) {
                     if (!selected) {
                         tabNavigator.current = tab
                     } else {

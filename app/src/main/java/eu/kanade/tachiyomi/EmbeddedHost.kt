@@ -73,6 +73,10 @@ object EmbeddedHost {
     /** The host's opening animation (shown once per app start, also when the app opens on Read). */
     var splash: (@androidx.compose.runtime.Composable () -> Unit)? = null
 
+    /** MugiVerse look on (compass bar on the Read side too). Set by the host app. */
+    var mugi: (() -> Boolean)? = null
+    val isMugi: Boolean get() = openWatch != null && mugi?.invoke() == true
+
     val isFenrirStyle: Boolean get() = openWatch != null && fenrirStyle?.invoke() == true
 
     /** Installed manga extensions (for the host's Settings → Sources). */
