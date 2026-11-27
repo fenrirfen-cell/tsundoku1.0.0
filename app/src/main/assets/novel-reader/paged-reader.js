@@ -131,9 +131,40 @@
         }
     }
 
+
+    // Fenrir: some sites start a chapter with the author's note from the previous one ("===",
+    // A/N, a patreon line, a ─── rule) and only then the chapter's own title. The title is moved
+    // to the very top of the first page; the rest stays in its order below it.
+    function titleFirst(el) {
+        if (el.dataset.tdTitleFirst) return;
+        el.dataset.tdTitleFirst = '1';
+        var norm = function (t) { return (t || '').replace(/[\s ​-‏﻿]+/g, ' ').trim().toLowerCase(); };
+        var want = norm(T.currentChapter && T.currentChapter.title);
+        var blocks = el.querySelectorAll('h1, h2, h3, h4, p, div, hr');
+        var seen = 0;
+        var first = null;
+        for (var i = 0; i < blocks.length && seen < 14; i++) {
+            var b = blocks[i];
+            if (b.style.display === 'none') continue;
+            if (b.nodeName !== 'HR' && b.querySelector('p, div, h1, h2, h3, h4, h5, h6')) continue;
+            var t = norm(b.textContent);
+            if (b.nodeName !== 'HR' && !t && !b.querySelector('img')) continue;
+            seen++;
+            if (!first) first = b;
+            var isTitle = /^H[1-4]$/.test(b.nodeName) ||
+                /^(chapter|ch\.?|episode|ep\.?)\s*\d+/.test(t) ||
+                (want && t.length < 200 && (t === want || (want.length > 6 && t.indexOf(want) !== -1)));
+            if (isTitle) {
+                if (b !== first && t.length < 200) el.insertBefore(b, el.firstChild);
+                return;
+            }
+        }
+    }
+
     function applyColumnLayout() {
         var el = container();
         tidyBlankSpace(el);
+        titleFirst(el);
         var w = pageWidth();
         el.style.columnWidth = w + 'px';
         el.style.MozColumnWidth = w + 'px';
