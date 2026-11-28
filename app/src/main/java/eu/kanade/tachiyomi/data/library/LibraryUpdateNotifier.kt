@@ -99,7 +99,7 @@ class LibraryUpdateNotifier(
                 ),
             )
 
-        if (!securityPreferences.hideNotificationContent.get()) {
+        if (!(securityPreferences.hideNotificationContent.get() || eu.kanade.tachiyomi.vault.Vault.hideReadInNotifications())) {
             val lines = buildList {
                 waitingMessage?.let { add(it) }
                 manga.filterNot { eu.kanade.tachiyomi.vault.Vault.isPrivate(it.id) }.mapTo(this) { it.title.chop(40) }
@@ -182,7 +182,7 @@ class LibraryUpdateNotifier(
         eu.kanade.tachiyomi.data.notification.SpokenChapterAlerts.announce(
             context,
             updates,
-            hideTitles = securityPreferences.hideNotificationContent.get(),
+            hideTitles = (securityPreferences.hideNotificationContent.get() || eu.kanade.tachiyomi.vault.Vault.hideReadInNotifications()),
         )
 
         // Parent group notification
@@ -191,7 +191,7 @@ class LibraryUpdateNotifier(
             Notifications.CHANNEL_NEW_CHAPTERS,
         ) {
             setContentTitle(context.stringResource(MR.strings.notification_new_chapters))
-            if (updates.size == 1 && !securityPreferences.hideNotificationContent.get()) {
+            if (updates.size == 1 && !(securityPreferences.hideNotificationContent.get() || eu.kanade.tachiyomi.vault.Vault.hideReadInNotifications())) {
                 setContentText(updates.first().first.title.chop(NOTIF_TITLE_MAX_LEN))
             } else {
                 setContentText(
@@ -202,7 +202,7 @@ class LibraryUpdateNotifier(
                     ),
                 )
 
-                if (!securityPreferences.hideNotificationContent.get()) {
+                if (!(securityPreferences.hideNotificationContent.get() || eu.kanade.tachiyomi.vault.Vault.hideReadInNotifications())) {
                     setStyle(
                         NotificationCompat.BigTextStyle().bigText(
                             updates.joinToString("\n") {
@@ -226,7 +226,7 @@ class LibraryUpdateNotifier(
         }
 
         // Per-manga notification
-        if (!securityPreferences.hideNotificationContent.get()) {
+        if (!(securityPreferences.hideNotificationContent.get() || eu.kanade.tachiyomi.vault.Vault.hideReadInNotifications())) {
             launchUI {
                 context.notify(
                     updates.map { (manga, chapters) ->

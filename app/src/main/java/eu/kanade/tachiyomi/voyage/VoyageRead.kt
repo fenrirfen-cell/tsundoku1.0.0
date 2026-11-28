@@ -57,8 +57,10 @@ object VoyageRead {
     suspend fun snapshot(): Snapshot {
         // MugiVerse Private Library: locked private books never leave the Read side
         val hidden = eu.kanade.tachiyomi.vault.Vault.hiddenIds()
-        val history = Injekt.get<GetHistory>().subscribe("", Long.MAX_VALUE).first().filter { it.mangaId !in hidden }
-        val library = runCatching { Injekt.get<GetLibraryManga>().await() }.getOrDefault(emptyList()).filter { it.manga.id !in hidden }
+        // Captain's Quarters: while Read is locked nothing from it reaches the Watch side
+        val readLocked = eu.kanade.tachiyomi.vault.Vault.readLocked()
+        val history = if (readLocked) emptyList() else Injekt.get<GetHistory>().subscribe("", Long.MAX_VALUE).first().filter { it.mangaId !in hidden }
+        val library = if (readLocked) emptyList() else runCatching { Injekt.get<GetLibraryManga>().await() }.getOrDefault(emptyList()).filter { it.manga.id !in hidden }
         val sources = Injekt.get<SourceManager>()
         val books = library.map { lm ->
             val m = lm.manga
@@ -130,7 +132,8 @@ object VoyageRead {
         return manager.queueState.map { list ->
             val running = manager.isRunning
             val hidden = eu.kanade.tachiyomi.vault.Vault.hiddenIds()
-            list.filter { it.mangaId !in hidden }.map { d ->
+            val readLocked = eu.kanade.tachiyomi.vault.Vault.readLocked()
+            list.filter { !readLocked && it.mangaId !in hidden }.map { d ->
                 val state = when (d.status) {
                     Download.State.DOWNLOADING -> DlState.DOWNLOADING
                     Download.State.DOWNLOADED -> DlState.COMPLETED

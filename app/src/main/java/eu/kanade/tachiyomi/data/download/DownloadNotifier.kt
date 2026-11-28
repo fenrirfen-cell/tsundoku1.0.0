@@ -99,7 +99,7 @@ internal class DownloadNotifier(private val context: Context) {
                 total,
             )
 
-            if (preferences.hideNotificationContent.get()) {
+            if ((preferences.hideNotificationContent.get() || eu.kanade.tachiyomi.vault.Vault.hideReadInNotifications())) {
                 setContentTitle(downloadingProgressText)
                 setContentText(null)
             } else {

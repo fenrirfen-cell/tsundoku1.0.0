@@ -250,26 +250,6 @@ object HomeScreen : Screen() {
                                 }
                             }
                         }
-                        // MugiVerse: "Lock entire Read mode" covers Read with the locked cabinet
-                        run {
-                            eu.kanade.tachiyomi.vault.Vault.ensureLoaded()
-                            val lockAll by eu.kanade.tachiyomi.vault.Vault.lockEntireRead.collectAsState()
-                            val open by eu.kanade.tachiyomi.vault.Vault.unlocked.collectAsState()
-                            if (mugi && lockAll && !open) {
-                                Box(
-                                    Modifier
-                                        .fillMaxSize()
-                                        .background(androidx.compose.ui.graphics.Color(0xFF170D08))
-                                        .clickable(
-                                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                                            indication = null,
-                                        ) { }
-                                        .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.statusBars),
-                                ) {
-                                    eu.kanade.presentation.vault.LockedCabinet(title = "MugiVerse Read")
-                                }
-                            }
-                        }
                     }
                 }
             }

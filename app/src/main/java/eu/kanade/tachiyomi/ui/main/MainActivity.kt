@@ -157,9 +157,11 @@ class MainActivity : BaseActivity() {
                 // Draw edge-to-edge and set system bars color to transparent
                 val lightStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.BLACK)
                 val darkStyle = SystemBarStyle.dark(Color.TRANSPARENT)
+                // MugiVerse Read is always dark wood: light status and navigation bar icons
+                val mugiDark = eu.kanade.tachiyomi.EmbeddedHost.isMugi
                 enableEdgeToEdge(
-                    statusBarStyle = if (statusBarBackgroundColor.luminance() > 0.5) lightStyle else darkStyle,
-                    navigationBarStyle = if (isSystemInDarkTheme) darkStyle else lightStyle,
+                    statusBarStyle = if (!mugiDark && statusBarBackgroundColor.luminance() > 0.5) lightStyle else darkStyle,
+                    navigationBarStyle = if (mugiDark || isSystemInDarkTheme) darkStyle else lightStyle,
                 )
             }
 
@@ -202,13 +204,18 @@ class MainActivity : BaseActivity() {
                 ) { contentPadding ->
                     // Consume insets already used by app state banners
                     Box {
+                        // MugiVerse Captain's Quarters: while Read is locked none of it is composed
+                        remember { eu.kanade.tachiyomi.vault.Vault.ensureLoaded() }
+                        val readLocked by eu.kanade.tachiyomi.vault.Vault.readLockedFlow.collectAsState()
                         // Shows current screen
-                        DefaultNavigatorScreenTransition(
-                            navigator = navigator,
-                            modifier = Modifier
-                                .padding(contentPadding)
-                                .consumeWindowInsets(contentPadding),
-                        )
+                        if (!readLocked) {
+                            DefaultNavigatorScreenTransition(
+                                navigator = navigator,
+                                modifier = Modifier
+                                    .padding(contentPadding)
+                                    .consumeWindowInsets(contentPadding),
+                            )
+                        }
 
                         // Draw navigation bar scrim when needed
                         if (remember { isNavigationBarNeedsScrim() }) {
@@ -226,6 +233,8 @@ class MainActivity : BaseActivity() {
                         eu.kanade.presentation.library.components.FenrirBookFlightOverlay()
                         // Fenrir Vault: the opening animation when the app starts on Read.
                         eu.kanade.tachiyomi.EmbeddedHost.splash?.invoke()
+                        // the arched cabin door over everything while Read is locked
+                        eu.kanade.presentation.vault.CaptainsQuartersGate()
                     }
                 }
 

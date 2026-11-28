@@ -361,10 +361,10 @@ fun MugiChestIcon(modifier: Modifier = Modifier, ship: Boolean = false) {
         )
         return
     }
-    Box(modifier, contentAlignment = Alignment.Center) {
-        Box(Modifier.fillMaxWidth().aspectRatio(1080f / 960f)) {
-            Image(androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.mugi_chest_base), null, contentScale = ContentScale.FillBounds, modifier = Modifier.matchParentSize())
-            Image(androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.mugi_chest_lid), null, contentScale = ContentScale.FillBounds, modifier = Modifier.matchParentSize())
-        }
-    }
+    Image(
+        androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.mugi_chest_icon),
+        null,
+        contentScale = ContentScale.Fit,
+        modifier = modifier,
+    )
 }

@@ -144,6 +144,31 @@ import androidx.compose.ui.graphics.Color as ComposeColor
 
 class ReaderActivity : BaseActivity() {
 
+    /**
+     * When Captain's Quarters is locked, or this book is private and Captain's Vault is locked,
+     * hands over to the main screen (which shows the door or the cabinet) and closes the reader.
+     */
+    private var closedByMugiPrivacy = false
+
+    private fun leaveIfLockedByMugiPrivacy(): Boolean {
+        val vault = eu.kanade.tachiyomi.vault.Vault
+        val mangaId = intent.extras?.getLong("manga", -1L)?.takeIf { it > 0 }
+        val blocked = vault.readLocked() || (mangaId != null && vault.isHidden(mangaId))
+        if (!blocked) return false
+        val main = Intent(this, MainActivity::class.java).apply {
+            if (mangaId != null) {
+                action = Constants.SHORTCUT_MANGA
+                putExtra(Constants.MANGA_EXTRA, mangaId)
+            } else {
+                action = Constants.SHORTCUT_LIBRARY
+            }
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        }
+        runCatching { startActivity(main) }
+        finish()
+        return true
+    }
+
     companion object {
         fun newIntent(context: Context, mangaId: Long?, chapterId: Long?): Intent {
             return Intent(context, ReaderActivity::class.java).apply {
@@ -261,6 +286,13 @@ class ReaderActivity : BaseActivity() {
         windowInsetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
 
         super.onCreate(savedInstanceState)
+
+        // MugiVerse privacy: a locked Read (Captain's Quarters) or a locked private book never
+        // opens straight into the reader, whatever link or notification led here.
+        if (leaveIfLockedByMugiPrivacy()) {
+            closedByMugiPrivacy = true
+            return
+        }
 
         binding = ReaderActivityBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -675,6 +707,11 @@ class ReaderActivity : BaseActivity() {
      * Called when the activity is destroyed. Cleans up the viewer, configuration and any view.
      */
     override fun onDestroy() {
+        if (closedByMugiPrivacy) {
+            // closed before anything was set up
+            super.onDestroy()
+            return
+        }
         stopBackgroundTtsIfRunning()
         ttsNotificationSyncJob?.cancel()
         unregisterReceiver(ttsNotificationControlReceiver)
@@ -710,6 +747,8 @@ class ReaderActivity : BaseActivity() {
      */
     override fun onResume() {
         super.onResume()
+        // Read was locked again (e.g. after going to the background): close the book
+        if (closedByMugiPrivacy || leaveIfLockedByMugiPrivacy()) return
         lifecycleScope.launch { viewModel.restartReadTimerSynced() }
         setMenuVisibility(viewModel.state.value.menuVisible)
         if (readerPreferences.novelTtsBackgroundPlayback.get() &&
@@ -747,7 +786,7 @@ class ReaderActivity : BaseActivity() {
      */
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) {
+        if (hasFocus && !closedByMugiPrivacy) {
             setMenuVisibility(viewModel.state.value.menuVisible)
         }
     }

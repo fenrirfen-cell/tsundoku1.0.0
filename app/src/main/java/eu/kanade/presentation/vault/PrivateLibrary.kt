@@ -7,6 +7,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.background
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -19,6 +20,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -222,10 +225,10 @@ private fun VaultCabinet(
     inside: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit = {},
     front: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit = {},
 ) {
-    val lock by animateFloatAsState(if (opened) 1f else 0f, tween(if (reduce) 0 else 200), label = "padlock")
+    val lock by animateFloatAsState(if (opened) 1f else 0f, tween(if (reduce) 0 else 100), label = "padlock")
     val doors by animateFloatAsState(
         if (opened) 1f else 0f,
-        tween(if (reduce) 0 else 500, delayMillis = if (opened && !reduce) 200 else 0, easing = FastOutSlowInEasing),
+        tween(if (reduce) 0 else 400, delayMillis = if (opened && !reduce) 100 else 0, easing = FastOutSlowInEasing),
         label = "doors",
     )
     BoxWithConstraints(modifier) {
@@ -327,7 +330,7 @@ fun LockedCabinet(title: String = "Private Library", onUnlocked: () -> Unit = {}
             Column(Modifier.align(Alignment.BottomCenter).padding(bottom = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Plaque(title)
                 Spacer(Modifier.height(10.dp))
-                GoldButton(if (busy) "Checking…" else "Unlock", filled = true, modifier = Modifier.widthIn(min = 170.dp)) {
+                GoldButton(if (busy) "Checking…" else if (title == "Private Library") "Unlock Vault" else "Unlock", filled = true, modifier = Modifier.widthIn(min = 170.dp)) {
                     val activity = context.findFragmentActivity() ?: return@GoldButton
                     if (busy) return@GoldButton
                     busy = true
@@ -396,7 +399,7 @@ private fun UnlockedLibrary(reduce: Boolean, onBack: () -> Unit) {
     // the doors: they were just opened, so swing them out
     var opened by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { opened = true }
-    val shelfAlpha by animateFloatAsState(if (opened) 1f else 0f, tween(if (reduce) 0 else 200, delayMillis = if (reduce) 0 else 700), label = "shelf")
+    val shelfAlpha by animateFloatAsState(if (opened) 1f else 0f, tween(if (reduce) 0 else 150, delayMillis = if (reduce) 0 else 500), label = "shelf")
 
     val books = remember(library, privateIds, query, kind, sort, filter) {
         library.orEmpty()
@@ -657,6 +660,7 @@ class ReadPrivacySettingsScreen : Screen() {
         val scope = rememberCoroutineScope()
         LaunchedEffect(Unit) { Vault.ensureLoaded() }
         val lockAll by Vault.lockEntireRead.collectAsState()
+        val protectVault by Vault.protectPrivateLibrary.collectAsState()
         val lockBg by Vault.lockOnBackground.collectAsState()
         val hideNotes by Vault.hideNotifications.collectAsState()
         val collector by Vault.collectorBooks.collectAsState()
@@ -673,7 +677,7 @@ class ReadPrivacySettingsScreen : Screen() {
             }
         }
         val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-        Column(Modifier.fillMaxSize().walnut().padding(top = top)) {
+        Column(Modifier.fillMaxSize().walnut().padding(top = top).verticalScroll(rememberScrollState())) {
             TitleBar("Read Privacy Settings", onBack = { navigator.pop() })
             Box(Modifier.padding(horizontal = 24.dp).fillMaxWidth().height(1.dp).background(Brush.horizontalGradient(listOf(Color.Transparent, VaultColors.Gold, Color.Transparent))))
             Spacer(Modifier.height(12.dp))
@@ -690,11 +694,19 @@ class ReadPrivacySettingsScreen : Screen() {
                     Text("›", color = VaultColors.Gold, fontSize = 24.sp)
                 }
                 Divider()
-                SettingRow("Lock entire Read mode", "Ask to unlock every time Read opens", lockAll) { on -> guarded(!on) { Vault.setLockEntireRead(on) } }
+                SettingRow("Captain's Quarters", "Lock all of Read: ask to unlock every time it opens", lockAll) { on -> guarded(!on) { Vault.setLockEntireRead(on) } }
                 Divider()
-                SettingRow("Lock when leaving app", "Close the cabinet whenever MugiVerse goes to the background", lockBg) { on -> guarded(!on) { Vault.setLockOnBackground(on) } }
+                SettingRow("Captain's Vault", "Ask to unlock the Private Library (unlocking Read doesn't open it)", protectVault) { on -> guarded(!on) { Vault.setProtectPrivateLibrary(on) } }
                 Divider()
-                SettingRow("Hide private notifications", "No titles from the Private Library in notifications", hideNotes) { on -> guarded(!on) { Vault.setHideNotifications(on) } }
+                SettingRow("Lock when leaving app", "Lock Read and the cabinet whenever MugiVerse goes to the background", lockBg) { on -> guarded(!on) { Vault.setLockOnBackground(on) } }
+                Divider()
+                SettingRow("Hide private notifications", "No private titles in notifications (no Read titles at all while Read is locked)", hideNotes) { on -> guarded(!on) { Vault.setHideNotifications(on) } }
+            }
+            if (lockAll) {
+                Spacer(Modifier.height(14.dp))
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    GoldButton("Lock Read now", Icons.Filled.Lock) { Vault.lockRead() }
+                }
             }
             Spacer(Modifier.height(14.dp))
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(RoundedCornerShape(14.dp)).background(Color(0x99241309)).border(1.dp, VaultColors.Gold, RoundedCornerShape(14.dp))) {
@@ -729,5 +741,242 @@ private fun SettingRow(title: String, subtitle: String, checked: Boolean, onChan
             onCheckedChange = onChange,
             colors = SwitchDefaults.colors(checkedThumbColor = VaultColors.Ivory, checkedTrackColor = VaultColors.Gold, uncheckedThumbColor = Color(0xFFB8A88C), uncheckedTrackColor = Color(0xFF3A2A1C)),
         )
+    }
+}
+
+/* ───────────── Captain's Quarters (level 1: the whole of Read) ───────────── */
+
+/**
+ * The arched cabin door from the approved artwork, laid out on the frame's 525 × 724 canvas. The
+ * door sits under the arch (its edges hidden by the frame) and swings open on its left hinges;
+ * warm light and [libraryPreview] show through the doorway once [unlocked].
+ */
+@Composable
+fun QuartersDoorAnimation(
+    unlocked: Boolean,
+    reduce: Boolean,
+    modifier: Modifier = Modifier,
+    onDoor: @Composable androidx.compose.foundation.layout.BoxScope.(doorWidth: androidx.compose.ui.unit.Dp) -> Unit = {},
+    libraryPreview: @Composable () -> Unit,
+) {
+    // 0–150 ms the lock lets go, 150–800 ms the door swings, light from 300 ms
+    val rotation by animateFloatAsState(
+        targetValue = if (unlocked) -85f else 0f,
+        animationSpec = tween(durationMillis = if (reduce) 0 else 650, delayMillis = if (unlocked && !reduce) 150 else 0, easing = FastOutSlowInEasing),
+        label = "Entrance door",
+    )
+    val lightAlpha by animateFloatAsState(
+        targetValue = if (unlocked) 0.45f else 0f,
+        animationSpec = tween(durationMillis = if (reduce) 0 else 500, delayMillis = if (unlocked && !reduce) 300 else 0),
+        label = "Cabin light",
+    )
+    BoxWithConstraints(modifier.aspectRatio(525f / 724f, matchHeightConstraintsFirst = true)) {
+        val w = maxWidth
+        val h = maxHeight
+        fun x(v: Float) = w * (v / 525f)
+        fun y(v: Float) = h * (v / 724f)
+        // the doorway (inside the arch)
+        Box(
+            Modifier
+                .offset(x(60f), y(48f))
+                .size(x(405f), y(672f))
+                .clip(RoundedCornerShape(topStart = x(202f), topEnd = x(202f)))
+                .background(Color(0xFF170D08)),
+        ) {
+            if (unlocked) libraryPreview()
+        }
+        if (unlocked) {
+            androidx.compose.foundation.Image(
+                androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.quarters_light),
+                contentDescription = null,
+                contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
+                modifier = Modifier.matchParentSize().graphicsLayer { alpha = lightAlpha },
+            )
+        }
+        // the door, hinged on its left edge
+        Box(
+            Modifier
+                .offset(x(62f), y(52f))
+                .size(x(401f), y(664f))
+                .graphicsLayer {
+                    rotationY = rotation
+                    transformOrigin = TransformOrigin(0f, 0.5f)
+                    cameraDistance = 24f * density
+                },
+        ) {
+            androidx.compose.foundation.Image(
+                androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.quarters_door),
+                contentDescription = "Captain's Quarters door",
+                contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
+                modifier = Modifier.fillMaxSize(),
+            )
+            // the brass plaque's title, as real text (plaque at 30.8–70.5 % across, 63.2–71.1 % down)
+            val dw = x(401f)
+            val dh = y(664f)
+            Box(
+                Modifier
+                    .offset(dw * 0.318f, dh * 0.634f)
+                    .size(dw * 0.377f, dh * 0.075f),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    "Captain's Quarters",
+                    color = Color(0xFF3A210E),
+                    fontFamily = Serif,
+                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = (dw.value * 0.377f / 9.6f).sp,
+                    maxLines = 1,
+                    softWrap = false,
+                )
+            }
+            onDoor(dw)
+        }
+        androidx.compose.foundation.Image(
+            androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.quarters_frame),
+            contentDescription = null,
+            contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
+            modifier = Modifier.matchParentSize(),
+        )
+    }
+}
+
+/** What shows through the doorway while it opens: the cabin shelves only, never real titles. */
+@Composable
+private fun QuartersPreview() {
+    Box(Modifier.fillMaxSize()) {
+        androidx.compose.foundation.Image(
+            androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.vault_shelf_background),
+            contentDescription = null,
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
+        Box(Modifier.fillMaxSize().vaultShelfLighting().background(Brush.verticalGradient(listOf(Color(0x33000000), Color(0x00000000), Color(0x55000000)))))
+    }
+}
+
+/**
+ * Captain's Quarters: covers all of Read while it's locked (MainActivity shows nothing else
+ * underneath). Unlock Read asks Android's own fingerprint / screen-lock prompt first; only after
+ * it succeeds does the door open. Unlocking here never opens Captain's Vault.
+ */
+@Composable
+fun CaptainsQuartersGate() {
+    remember { Vault.ensureLoaded() }
+    val locked by Vault.readLockedFlow.collectAsState()
+    var visible by remember { mutableStateOf(locked) }
+    var opening by remember { mutableStateOf(false) }
+    LaunchedEffect(locked) {
+        if (locked) {
+            opening = false
+            visible = true
+        }
+    }
+    if (!visible) return
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val reduce = remember { reduceMotion(context) }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val gateAlpha by animateFloatAsState(if (opening && !locked) 0f else 1f, tween(if (reduce) 0 else 150, delayMillis = if (reduce) 0 else 800), label = "gate")
+    LaunchedEffect(opening, locked) {
+        if (opening && !locked) {
+            kotlinx.coroutines.delay(if (reduce) 0L else 960L)
+            visible = false
+            opening = false
+        }
+    }
+    SecureWindow()
+    Box(
+        Modifier
+            .fillMaxSize()
+            .graphicsLayer { alpha = gateAlpha }
+            .background(Color(0xFF19120E))
+            .walnut()
+            // nothing underneath can be touched while the door is shut
+            .clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null) { }
+            .windowInsetsPadding(WindowInsets.systemBars),
+    ) {
+        Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+            // the MugiVerse logo with its gold READ ribbon (no library content here)
+            Box(Modifier.fillMaxWidth().padding(start = 14.dp, top = 6.dp).height(60.dp)) {
+                androidx.compose.foundation.Image(
+                    androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.mugi_logo),
+                    contentDescription = "MugiVerse",
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                    modifier = Modifier.width(168.dp).height(46.dp),
+                )
+                Text(
+                    "READ",
+                    color = Color(0xFF2E180A),
+                    fontFamily = Serif,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 10.sp,
+                    letterSpacing = 1.sp,
+                    maxLines = 1,
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .offset(x = 38.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(Brush.verticalGradient(listOf(Color(0xFFF3C75F), Color(0xFFB98222))))
+                        .padding(horizontal = 16.dp, vertical = 1.dp),
+                )
+                Icon(Icons.Filled.Lock, contentDescription = "Read is locked", tint = VaultColors.Gold, modifier = Modifier.align(Alignment.CenterEnd).padding(end = 18.dp).size(24.dp))
+            }
+            Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
+                QuartersDoorAnimation(
+                    unlocked = opening && !locked,
+                    reduce = reduce,
+                    modifier = Modifier.widthIn(max = 520.dp),
+                    onDoor = { _ ->
+                        if (!opening) {
+                            Column(
+                                Modifier.align(Alignment.BottomCenter).padding(bottom = 30.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                GoldButton(if (busy) "Checking…" else "Unlock Read", filled = true, modifier = Modifier.widthIn(min = 170.dp)) {
+                                    val activity = context.findFragmentActivity() ?: return@GoldButton
+                                    if (busy || opening) return@GoldButton
+                                    busy = true
+                                    error = null
+                                    scope.launch {
+                                        // authentication first; the door only opens after it succeeds
+                                        val err = Vault.unlockRead(activity)
+                                        busy = false
+                                        if (err == null && !Vault.readLocked()) opening = true else error = err
+                                    }
+                                }
+                                Spacer(Modifier.height(6.dp))
+                                Text(
+                                    "‹ Back to Watch",
+                                    color = Color(0xFFF2D592),
+                                    fontFamily = Serif,
+                                    fontSize = 15.sp,
+                                    textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable(onClickLabel = "Back to Watch") {
+                                            val activity = context.findFragmentActivity() ?: return@clickable
+                                            eu.kanade.tachiyomi.EmbeddedHost.openWatch?.invoke(activity)
+                                        }
+                                        .background(Color(0x99170D08))
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                )
+                            }
+                        }
+                    },
+                    libraryPreview = { QuartersPreview() },
+                )
+            }
+            error?.let {
+                Text(
+                    it,
+                    color = Color(0xFFF2B8A8),
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 12.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xCC1A0E06)).padding(8.dp),
+                )
+            }
+        }
     }
 }
