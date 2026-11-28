@@ -303,16 +303,27 @@ fun FenrirGlassIconButton(
     size: androidx.compose.ui.unit.Dp = 38.dp,
     content: @Composable () -> Unit,
 ) {
+    // MugiVerse: gold-outlined dark circles with gold icons, 44dp (48dp touch with the padding)
+    val mugi = eu.kanade.tachiyomi.EmbeddedHost.isMugi
     Box(
         modifier = Modifier
-            .padding(horizontal = 3.dp)
-            .size(size)
-            .fenrirReadGlass(CircleShape)
+            .padding(horizontal = if (mugi) 2.dp else 3.dp)
+            .size(if (mugi) 44.dp else size)
+            .then(
+                if (mugi) {
+                    Modifier
+                        .clip(CircleShape)
+                        .background(Color(0xCC1E150E))
+                        .border(1.dp, Color(0xFFD9AE62), CircleShape)
+                } else {
+                    Modifier.fenrirReadGlass(CircleShape)
+                },
+            )
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         androidx.compose.runtime.CompositionLocalProvider(
-            androidx.compose.material3.LocalContentColor provides Color(0xFFE4E4EA),
+            androidx.compose.material3.LocalContentColor provides if (mugi) Color(0xFFD9AE62) else Color(0xFFE4E4EA),
         ) {
             Box(Modifier.size(20.dp), contentAlignment = Alignment.Center) { content() }
         }

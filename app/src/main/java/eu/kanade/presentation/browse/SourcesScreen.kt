@@ -38,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import eu.kanade.presentation.browse.components.BaseSourceItem
 import eu.kanade.tachiyomi.source.model.FilterList
@@ -128,7 +129,45 @@ fun SourcesScreen(
                     FenrirCheckSourcesCard(allSources)
                 }
                 item(key = "fenrir-pinned", contentType = "pinned") {
-                    if (pinned.isNotEmpty()) {
+                    val mugi = eu.kanade.tachiyomi.EmbeddedHost.isMugi
+                    if (mugi && pinned.isNotEmpty()) {
+                        // MugiVerse: two-column walnut cards with the real logo, Latest and a chevron
+                        Column(Modifier.fillMaxWidth()) {
+                            Row(
+                                Modifier.fillMaxWidth().padding(start = 18.dp, end = 10.dp, bottom = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text("Pinned", color = eu.kanade.presentation.components.MugiBrowse.Secondary, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                                Text(
+                                    "Edit order",
+                                    color = eu.kanade.presentation.components.MugiBrowse.Gold,
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.clickable { editOrder = true }.padding(horizontal = 8.dp, vertical = 12.dp),
+                                )
+                                Text(
+                                    "+ Pin",
+                                    color = eu.kanade.presentation.components.MugiBrowse.Gold,
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.clickable { addPin = true }.padding(horizontal = 8.dp, vertical = 12.dp),
+                                )
+                            }
+                            eu.kanade.presentation.components.MugiSourceGrid(pinned) { source, m ->
+                                eu.kanade.presentation.components.MugiSourceCard(
+                                    name = source.name,
+                                    logo = { eu.kanade.presentation.browse.components.SourceIcon(source = source) },
+                                    onClick = { open(source, Listing.Popular) },
+                                    onLongClick = { onLongClickItem(source) },
+                                    onLatest = if (source.supportsLatest) {
+                                        { open(source, Listing.Latest) }
+                                    } else {
+                                        null
+                                    },
+                                    statusDot = fenrirReadHealthColor(source.id),
+                                    modifier = m,
+                                )
+                            }
+                        }
+                    } else if (pinned.isNotEmpty()) {
                         FenrirPinnedGrid(
                             sources = pinned,
                             onPopular = { open(it, Listing.Popular) },
@@ -140,7 +179,7 @@ fun SourcesScreen(
                     } else {
                         Text(
                             "+ Pin your favourite sources",
-                            color = MaterialTheme.colorScheme.primary,
+                            color = if (mugi) eu.kanade.presentation.components.MugiBrowse.Gold else MaterialTheme.colorScheme.primary,
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier
                                 .padding(horizontal = 18.dp, vertical = 6.dp)
@@ -165,14 +204,32 @@ fun SourcesScreen(
                     },
                 ) { model ->
                     when (model) {
-                        is SourceUiModel.Header -> {
+                        is SourceUiModel.Header -> if (eu.kanade.tachiyomi.EmbeddedHost.isMugi) {
+                            val context = LocalContext.current
+                            eu.kanade.presentation.components.MugiBrowseHeading(
+                                title = if (model.isGroup) model.language else LocaleHelper.getSourceDisplayName(model.language, context),
+                                modifier = Modifier.animateItem(),
+                            )
+                        } else {
                             SourceHeader(
                                 modifier = Modifier.animateItem(),
                                 language = model.language,
                                 isGroup = model.isGroup,
                             )
                         }
-                        is SourceUiModel.Item -> SourceItem(
+                        is SourceUiModel.Item -> if (eu.kanade.tachiyomi.EmbeddedHost.isMugi) {
+                            MugiSourceItem(
+                                modifier = Modifier.animateItem(),
+                                source = model.source,
+                                hasDefaultPreset = model.hasDefaultPreset,
+                                groupSection = model.sectionKey.ifEmpty { null },
+                                onClickItem = open,
+                                onLongClickItem = onLongClickItem,
+                                onClickPin = onClickPin,
+                                onLongClickPin = onLongClickPin,
+                                onRemoveFromGroup = onRemoveFromGroup,
+                            )
+                        } else SourceItem(
                             modifier = Modifier.animateItem(),
                             source = model.source,
                             hasDefaultPreset = model.hasDefaultPreset,
@@ -203,6 +260,49 @@ private fun SourceHeader(
             .padding(horizontal = MaterialTheme.padding.medium, vertical = MaterialTheme.padding.small),
         style = MaterialTheme.typography.header,
     )
+}
+
+@Composable
+private fun MugiSourceItem(
+    source: Source,
+    hasDefaultPreset: Boolean,
+    groupSection: String?,
+    onClickItem: (Source, Listing) -> Unit,
+    onLongClickItem: (Source) -> Unit,
+    onClickPin: (Source) -> Unit,
+    onLongClickPin: (Source) -> Unit,
+    onRemoveFromGroup: (Source, String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    eu.kanade.presentation.components.MugiSourceRow(
+        name = source.visualName,
+        logo = { eu.kanade.presentation.browse.components.SourceIcon(source = source) },
+        onClick = { onClickItem(source, Listing.Popular) },
+        onLongClick = { onLongClickItem(source) },
+        onLatest = if (source.supportsLatest) {
+            { onClickItem(source, Listing.Latest) }
+        } else {
+            null
+        },
+        modifier = modifier,
+    ) {
+        if (hasDefaultPreset) {
+            IconButton(onClick = { onClickItem(source, Listing.Search(query = null, filters = FilterList())) }) {
+                Icon(
+                    imageVector = Icons.Outlined.FilterList,
+                    tint = eu.kanade.presentation.components.MugiBrowse.Gold,
+                    contentDescription = stringResource(MR.strings.action_filter),
+                )
+            }
+        }
+        SourcePinButton(
+            source = source,
+            groupSection = groupSection,
+            onClickPin = onClickPin,
+            onLongClickPin = onLongClickPin,
+            onRemoveFromGroup = onRemoveFromGroup,
+        )
+    }
 }
 
 @Composable
@@ -270,9 +370,11 @@ private fun SourcePinButton(
         isPinned -> Icons.Filled.PushPin
         else -> Icons.Outlined.PushPin
     }
+    val mugi = eu.kanade.tachiyomi.EmbeddedHost.isMugi
     val tint = when {
-        showGroupIcon -> MaterialTheme.colorScheme.secondary
-        isPinned -> MaterialTheme.colorScheme.primary
+        showGroupIcon -> if (mugi) eu.kanade.presentation.components.MugiBrowse.GoldLight else MaterialTheme.colorScheme.secondary
+        isPinned -> if (mugi) eu.kanade.presentation.components.MugiBrowse.Gold else MaterialTheme.colorScheme.primary
+        mugi -> eu.kanade.presentation.components.MugiBrowse.Ivory.copy(alpha = 0.55f)
         else -> MaterialTheme.colorScheme.onBackground.copy(alpha = SECONDARY_ALPHA)
     }
     val description = when {

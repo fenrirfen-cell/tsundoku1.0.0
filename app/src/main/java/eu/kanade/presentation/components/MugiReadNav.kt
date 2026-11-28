@@ -92,8 +92,8 @@ fun MugiReadBar(
                     .padding(vertical = 6.dp)
                     .height(64.dp)
                     .clip(RoundedCornerShape(34.dp))
-                    .background(Color(0xFF19120E).copy(alpha = 0.96f))
-                    .border(1.dp, Color(0xFF9C7538), RoundedCornerShape(34.dp))
+                    .background(Color(0xFF1E150D).copy(alpha = 0.93f))
+                    .border(1.dp, Color(0xFFD9AE62).copy(alpha = 0.75f), RoundedCornerShape(34.dp))
                     .padding(horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {

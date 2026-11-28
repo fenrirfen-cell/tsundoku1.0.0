@@ -323,7 +323,7 @@ object HomeScreen : Screen() {
     // MugiVerse: Library · Updates · compass · History · Browse · More, gold rim, amber highlight.
     @Composable
     private fun MugiNavBar(tabs: List<eu.kanade.presentation.util.Tab>, menuOpen: Boolean, onCompass: () -> Unit) {
-        val amber = androidx.compose.ui.graphics.Color(0xFFFFD478)
+        val amber = androidx.compose.ui.graphics.Color(0xFFE4BC77) // MugiVerse antique gold
         eu.kanade.presentation.components.MugiReadBar(
             menuOpen = menuOpen,
             onCompass = onCompass,
