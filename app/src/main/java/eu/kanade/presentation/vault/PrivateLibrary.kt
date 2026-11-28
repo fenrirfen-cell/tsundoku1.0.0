@@ -748,40 +748,41 @@ private fun SettingRow(title: String, subtitle: String, checked: Boolean, onChan
 /* ───────────── Captain's Quarters (level 1: the whole of Read) ───────────── */
 
 /**
- * The arched cabin door from the approved artwork, laid out on the frame's 525 × 724 canvas. The
- * door sits under the arch (its edges hidden by the frame) and swings open on its left hinges;
- * warm light and [libraryPreview] show through the doorway once [unlocked].
+ * The complete cabin doorway from the approved artwork, every layer on one 600 × 844 canvas with
+ * one uniform scale (so nothing drifts apart on any screen):
+ * frame 525 × 724 at (37.5, 0); door 401 × 664 at (99.5, 52), hinged on its left edge; opening
+ * behind it at (97.5, 48); threshold 600 × 144 at (0, 700); lanterns at the top corners.
+ * The whole doorway shrinks to the space available (never cropped).
  */
 @Composable
 fun QuartersDoorAnimation(
     unlocked: Boolean,
     reduce: Boolean,
     modifier: Modifier = Modifier,
-    onDoor: @Composable androidx.compose.foundation.layout.BoxScope.(doorWidth: androidx.compose.ui.unit.Dp) -> Unit = {},
+    onDoor: @Composable androidx.compose.foundation.layout.BoxScope.(scale: (Float) -> androidx.compose.ui.unit.Dp) -> Unit = {},
+    onThreshold: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit = {},
     libraryPreview: @Composable () -> Unit,
 ) {
     // 0–150 ms the lock lets go, 150–800 ms the door swings, light from 300 ms
     val rotation by animateFloatAsState(
-        targetValue = if (unlocked) -85f else 0f,
+        targetValue = if (unlocked) -82f else 0f,
         animationSpec = tween(durationMillis = if (reduce) 0 else 650, delayMillis = if (unlocked && !reduce) 150 else 0, easing = FastOutSlowInEasing),
-        label = "Entrance door",
+        label = "Quarters entrance",
     )
     val lightAlpha by animateFloatAsState(
         targetValue = if (unlocked) 0.45f else 0f,
         animationSpec = tween(durationMillis = if (reduce) 0 else 500, delayMillis = if (unlocked && !reduce) 300 else 0),
         label = "Cabin light",
     )
-    BoxWithConstraints(modifier.aspectRatio(525f / 724f, matchHeightConstraintsFirst = true)) {
-        val w = maxWidth
-        val h = maxHeight
-        fun x(v: Float) = w * (v / 525f)
-        fun y(v: Float) = h * (v / 724f)
-        // the doorway (inside the arch)
+    BoxWithConstraints(modifier.aspectRatio(600f / 844f, matchHeightConstraintsFirst = true)) {
+        val unit = maxWidth / 600f
+        fun d(v: Float) = unit * v
+        // the doorway opening (inside the arch)
         Box(
             Modifier
-                .offset(x(60f), y(48f))
-                .size(x(405f), y(672f))
-                .clip(RoundedCornerShape(topStart = x(202f), topEnd = x(202f)))
+                .offset(d(97.5f), d(48f))
+                .size(d(405f), d(672f))
+                .clip(RoundedCornerShape(topStart = d(202f), topEnd = d(202f)))
                 .background(Color(0xFF170D08)),
         ) {
             if (unlocked) libraryPreview()
@@ -791,14 +792,14 @@ fun QuartersDoorAnimation(
                 androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.quarters_light),
                 contentDescription = null,
                 contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
-                modifier = Modifier.matchParentSize().graphicsLayer { alpha = lightAlpha },
+                modifier = Modifier.offset(d(37.5f), 0.dp).size(d(525f), d(724f)).graphicsLayer { alpha = lightAlpha },
             )
         }
         // the door, hinged on its left edge
         Box(
             Modifier
-                .offset(x(62f), y(52f))
-                .size(x(401f), y(664f))
+                .offset(d(99.5f), d(52f))
+                .size(d(401f), d(664f))
                 .graphicsLayer {
                     rotationY = rotation
                     transformOrigin = TransformOrigin(0f, 0.5f)
@@ -811,34 +812,63 @@ fun QuartersDoorAnimation(
                 contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
                 modifier = Modifier.fillMaxSize(),
             )
-            // the brass plaque's title, as real text (plaque at 30.8–70.5 % across, 63.2–71.1 % down)
-            val dw = x(401f)
-            val dh = y(664f)
-            Box(
-                Modifier
-                    .offset(dw * 0.318f, dh * 0.634f)
-                    .size(dw * 0.377f, dh * 0.075f),
-                contentAlignment = Alignment.Center,
-            ) {
+            // the large brass plaque over the door's small plate (door coordinates: 260 × 103 at 70.5, 418)
+            Box(Modifier.offset(d(70.5f), d(418f)).size(d(260f), d(103f)), contentAlignment = Alignment.Center) {
+                androidx.compose.foundation.Image(
+                    androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.quarters_plaque),
+                    contentDescription = null,
+                    contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
+                    modifier = Modifier.matchParentSize(),
+                )
                 Text(
-                    "Captain's Quarters",
-                    color = Color(0xFF3A210E),
-                    fontFamily = Serif,
-                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                    "CAPTAIN'S\nQUARTERS",
+                    color = Color(0xFFF2D592),
+                    fontFamily = eu.kanade.presentation.components.MugiCinzel,
                     fontWeight = FontWeight.Bold,
-                    fontSize = (dw.value * 0.377f / 11.5f).sp,
-                    maxLines = 1,
-                    softWrap = false,
+                    fontSize = (unit.value * 23f).sp,
+                    lineHeight = (unit.value * 27f).sp,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
                 )
             }
-            onDoor(dw)
+            Text(
+                "—  LOCKED  —",
+                color = Color(0xFFE9D3A0),
+                fontFamily = eu.kanade.presentation.components.MugiCinzel,
+                fontWeight = FontWeight.Bold,
+                fontSize = (unit.value * 17f).sp,
+                letterSpacing = (unit.value * 3f).sp,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                modifier = Modifier.fillMaxWidth().offset(y = d(528f)).graphicsLayer { alpha = if (unlocked) 0f else 1f },
+            )
+            onDoor { v -> d(v) }
         }
         androidx.compose.foundation.Image(
             androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.quarters_frame),
             contentDescription = null,
             contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
-            modifier = Modifier.matchParentSize(),
+            modifier = Modifier.offset(d(37.5f), 0.dp).size(d(525f), d(724f)),
         )
+        // the wooden step under the doorway
+        Box(Modifier.offset(0.dp, d(700f)).size(d(600f), d(144f)), contentAlignment = Alignment.Center) {
+            androidx.compose.foundation.Image(
+                androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.quarters_threshold),
+                contentDescription = null,
+                contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
+                modifier = Modifier.matchParentSize(),
+            )
+            onThreshold()
+        }
+        // the two lanterns at the top corners of the arch
+        listOf(0f, 544f).forEach { x ->
+            androidx.compose.foundation.Image(
+                androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.mugi_lantern),
+                contentDescription = null,
+                contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                modifier = Modifier.offset(d(x), d(70f)).size(d(56f), d(105f)),
+            )
+        }
     }
 }
 
@@ -893,11 +923,18 @@ fun CaptainsQuartersGate() {
             .fillMaxSize()
             .graphicsLayer { alpha = gateAlpha }
             .background(Color(0xFF19120E))
-            .walnut()
             // nothing underneath can be touched while the door is shut
             .clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null) { }
             .windowInsetsPadding(WindowInsets.systemBars),
     ) {
+        // the plank wall behind the whole doorway, darker towards the edges
+        androidx.compose.foundation.Image(
+            androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.quarters_plank_wall),
+            contentDescription = null,
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            modifier = Modifier.matchParentSize().graphicsLayer { alpha = 0.9f },
+        )
+        Box(Modifier.matchParentSize().background(Brush.radialGradient(listOf(Color.Transparent, Color(0xAA000000)), radius = 1400f)))
         Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
             // the MugiVerse logo with its gold READ ribbon (no library content here)
             Box(Modifier.fillMaxWidth().padding(start = 14.dp, top = 6.dp).height(60.dp)) {
@@ -928,14 +965,12 @@ fun CaptainsQuartersGate() {
                 QuartersDoorAnimation(
                     unlocked = opening && !locked,
                     reduce = reduce,
-                    modifier = Modifier.widthIn(max = 520.dp),
-                    onDoor = { _ ->
+                    modifier = Modifier.widthIn(max = 560.dp),
+                    onDoor = { d ->
                         if (!opening) {
-                            Column(
-                                Modifier.align(Alignment.BottomCenter).padding(bottom = 30.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                            ) {
-                                GoldButton(if (busy) "Checking…" else "Unlock Read", filled = true, modifier = Modifier.widthIn(min = 170.dp)) {
+                            // Unlock Read on the lower door (door coordinates: from y 566)
+                            Box(Modifier.fillMaxWidth().offset(y = d(566f)), contentAlignment = Alignment.TopCenter) {
+                                GoldButton(if (busy) "Checking…" else "Unlock Read", Icons.Filled.Lock, filled = true) {
                                     val activity = context.findFragmentActivity() ?: return@GoldButton
                                     if (busy || opening) return@GoldButton
                                     busy = true
@@ -947,23 +982,27 @@ fun CaptainsQuartersGate() {
                                         if (err == null && !Vault.readLocked()) opening = true else error = err
                                     }
                                 }
-                                Spacer(Modifier.height(6.dp))
-                                Text(
-                                    "‹ Back to Watch",
-                                    color = Color(0xFFF2D592),
-                                    fontFamily = Serif,
-                                    fontSize = 15.sp,
-                                    textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .clickable(onClickLabel = "Back to Watch") {
-                                            val activity = context.findFragmentActivity() ?: return@clickable
-                                            eu.kanade.tachiyomi.EmbeddedHost.openWatch?.invoke(activity)
-                                        }
-                                        .background(Color(0x99170D08))
-                                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                                )
                             }
+                        }
+                    },
+                    onThreshold = {
+                        if (!opening) {
+                            Text(
+                                "‹  Back to Watch",
+                                color = Color(0xFFF2D592),
+                                fontFamily = Serif,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                maxLines = 1,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color(0x99170D08))
+                                    .clickable(onClickLabel = "Back to Watch") {
+                                        val activity = context.findFragmentActivity() ?: return@clickable
+                                        eu.kanade.tachiyomi.EmbeddedHost.openWatch?.invoke(activity)
+                                    }
+                                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                            )
                         }
                     },
                     libraryPreview = { QuartersPreview() },

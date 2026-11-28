@@ -562,7 +562,9 @@ internal fun LuxGridItem(
                 ),
         ) {
             val unread = item.badges.unreadCount
-            if (unread > 0) {
+            if (unread > 0 && eu.kanade.tachiyomi.EmbeddedHost.isMugi) {
+                MugiChapterCountBadge(unread.toLong(), Modifier.align(Alignment.TopEnd).padding(top = 4.dp, end = 8.dp))
+            } else if (unread > 0) {
                 Text(
                     if (unread > 999) "999+" else "$unread",
                     color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold,

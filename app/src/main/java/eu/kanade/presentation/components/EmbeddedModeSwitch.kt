@@ -682,13 +682,13 @@ private fun MugiReadHeader(modifier: Modifier) {
                 Brush.verticalGradient(listOf(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.5f), androidx.compose.ui.graphics.Color.Transparent)),
             ),
         )
-        // the ship's wheel artwork, faint behind the header buttons (left out with fewer decorations)
+        // the rope rigging in the top-right corner, behind the header buttons (left out with fewer decorations)
         if (eu.kanade.tachiyomi.EmbeddedHost.showDecorations?.invoke() != false) Box(Modifier.matchParentSize().clipToBounds()) {
             androidx.compose.foundation.Image(
-                androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.mugi_ship_wheel),
+                androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.read_rigging_corner),
                 contentDescription = null,
-                alpha = 0.16f,
-                modifier = Modifier.align(Alignment.CenterEnd).offset(x = 34.dp, y = 10.dp).size(128.dp),
+                alpha = 0.55f,
+                modifier = Modifier.align(Alignment.TopEnd).size(width = 104.dp, height = 98.dp),
             )
         }
         Row(

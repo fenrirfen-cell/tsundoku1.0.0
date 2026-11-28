@@ -651,7 +651,9 @@ internal fun FenrirLibraryGridItem(
                 // Fenrir: unread count as a small tag on the top corner of the book (flat, not bent
                 // with the cover, and off the art)
                 val unread = item.badges.unreadCount
-                if (unread > 0) {
+                if (unread > 0 && eu.kanade.tachiyomi.EmbeddedHost.isMugi) {
+                    MugiChapterCountBadge(unread.toLong(), Modifier.align(Alignment.TopEnd).padding(top = 2.dp, end = 2.dp))
+                } else if (unread > 0) {
                     Text(
                         if (unread > 999) "999+" else "$unread",
                         color = Color.White,

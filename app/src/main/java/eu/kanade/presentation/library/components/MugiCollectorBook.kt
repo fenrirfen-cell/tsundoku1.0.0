@@ -216,3 +216,26 @@ fun MugiCollectorBook(
         badges()
     }
 }
+
+
+/**
+ * MugiVerse: the unread-chapter count as a small parchment tag (dark red numbers) for the top
+ * corner of a book. Unread chapters only, never total progress.
+ */
+@androidx.compose.runtime.Composable
+fun MugiChapterCountBadge(count: Long, modifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier) {
+    if (count <= 0) return
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(5.dp)
+    androidx.compose.material3.Text(
+        if (count > 999) "999+" else count.toString(),
+        color = androidx.compose.ui.graphics.Color(0xFF731C20),
+        fontWeight = androidx.compose.ui.text.font.FontWeight.ExtraBold,
+        fontSize = 11.sp,
+        maxLines = 1,
+        modifier = modifier
+            .clip(shape)
+            .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(androidx.compose.ui.graphics.Color(0xFFFFE8B5), androidx.compose.ui.graphics.Color(0xFFD3AB62))))
+            .border(1.dp, androidx.compose.ui.graphics.Color(0xFFAA7938), shape)
+            .padding(horizontal = 6.dp, vertical = 3.dp),
+    )
+}
