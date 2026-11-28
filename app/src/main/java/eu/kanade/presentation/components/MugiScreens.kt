@@ -77,9 +77,9 @@ fun MugiScreenTitle(title: String) {
         Text(
             title,
             color = Color(0xFFF2D592),
-            fontFamily = FontFamily.Serif,
+            fontFamily = MugiCinzel,
             fontWeight = FontWeight.Bold,
-            fontSize = 30.sp,
+            fontSize = 28.sp,
             maxLines = 1,
         )
         Box(
@@ -102,7 +102,7 @@ fun MugiSectionTitle(title: String, modifier: Modifier = Modifier) {
         Text(
             title,
             color = MugiScreenColors.Ivory,
-            fontFamily = FontFamily.Serif,
+            fontFamily = MugiPlayfair,
             fontWeight = FontWeight.SemiBold,
             fontStyle = FontStyle.Italic,
             fontSize = 19.sp,
@@ -153,7 +153,7 @@ fun MugiReadChip(label: String, selected: Boolean, onClick: () -> Unit) {
         Text(
             label,
             color = if (selected) MugiScreenColors.DarkBrown else MugiScreenColors.Ivory,
-            fontFamily = FontFamily.Serif,
+            fontFamily = MugiPlayfair,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             fontSize = 15.sp,
             maxLines = 1,
@@ -207,7 +207,7 @@ fun MugiReadSegmented(
                     Icon(it, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))
                 }
-                Text(label, color = tint, fontFamily = FontFamily.Serif, fontWeight = if (on) FontWeight.Bold else FontWeight.Medium, fontSize = 16.sp, maxLines = 1)
+                Text(label, color = tint, fontFamily = MugiPlayfair, fontWeight = if (on) FontWeight.Bold else FontWeight.Medium, fontSize = 16.sp, maxLines = 1)
             }
         }
     }
@@ -244,7 +244,7 @@ fun MugiParchmentDate(text: String, modifier: Modifier = Modifier) {
             Text(
                 text,
                 color = Color(0xFF38200F),
-                fontFamily = FontFamily.Serif,
+                fontFamily = MugiPlayfair,
                 fontWeight = FontWeight.Bold,
                 fontStyle = FontStyle.Italic,
                 fontSize = 16.sp,
@@ -298,11 +298,11 @@ fun MugiReadingStatsPanel(chapters: Int, titles: Int, readingTime: String, modif
         val stats = listOf(chapters.toString() to "chapters\nthis week", titles.toString() to "titles", readingTime to "reading")
         stats.forEachIndexed { i, (value, label) ->
             Column(Modifier.weight(1f).padding(horizontal = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(value, color = MugiScreenColors.BrightGold, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold, fontSize = 25.sp, maxLines = 1)
+                Text(value, color = MugiScreenColors.BrightGold, fontFamily = MugiPlayfair, fontWeight = FontWeight.Bold, fontSize = 25.sp, maxLines = 1)
                 Text(
                     label,
                     color = MugiScreenColors.Ivory,
-                    fontFamily = FontFamily.Serif,
+                    fontFamily = MugiPlayfair,
                     fontSize = 12.sp,
                     lineHeight = 14.sp,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -340,7 +340,7 @@ fun MugiVoyageMoreCard(onLog: () -> Unit, onOffline: () -> Unit, onVault: (() ->
                 MugiChestIcon(Modifier.size(34.dp), ship = i == 0)
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(title, color = Color(0xFFF2D592), fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                    Text(title, color = Color(0xFFF2D592), fontFamily = MugiPlayfair, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                     Text(sub, color = MugiScreenColors.Secondary, fontSize = 12.5.sp)
                 }
                 Text("›", color = MugiScreenColors.Gold, fontSize = 24.sp)
@@ -349,47 +349,22 @@ fun MugiVoyageMoreCard(onLog: () -> Unit, onOffline: () -> Unit, onVault: (() ->
     }
 }
 
-/** A small treasure chest (or ship) drawn in code, gold-banded. */
+/** A small treasure chest (or the sailing ship), from the approved artwork. */
 @Composable
 fun MugiChestIcon(modifier: Modifier = Modifier, ship: Boolean = false) {
-    if (!ship) {
-        // the approved chest artwork (base + lid on one canvas)
-        Box(modifier, contentAlignment = Alignment.Center) {
-            Box(Modifier.fillMaxWidth().aspectRatio(1080f / 960f)) {
-                Image(androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.mugi_chest_base), null, contentScale = ContentScale.FillBounds, modifier = Modifier.matchParentSize())
-                Image(androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.mugi_chest_lid), null, contentScale = ContentScale.FillBounds, modifier = Modifier.matchParentSize())
-            }
-        }
+    if (ship) {
+        Image(
+            androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.sailing_ship_small),
+            null,
+            contentScale = ContentScale.Fit,
+            modifier = modifier,
+        )
         return
     }
-    Box(
-        modifier.drawBehind {
-            val w = size.width
-            val h = size.height
-            val gold = MugiScreenColors.Gold
-            if (ship) {
-                val hull = androidx.compose.ui.graphics.Path().apply {
-                    moveTo(w * 0.05f, h * 0.70f); lineTo(w * 0.95f, h * 0.70f); lineTo(w * 0.80f, h * 0.92f); lineTo(w * 0.20f, h * 0.92f); close()
-                }
-                drawPath(hull, Color(0xFF6B3E1C))
-                drawLine(Color(0xFF4A2A12), androidx.compose.ui.geometry.Offset(w * 0.5f, h * 0.08f), androidx.compose.ui.geometry.Offset(w * 0.5f, h * 0.70f), w * 0.05f)
-                val sail = androidx.compose.ui.graphics.Path().apply {
-                    moveTo(w * 0.53f, h * 0.14f); quadraticTo(w * 0.88f, h * 0.36f, w * 0.53f, h * 0.62f); close()
-                }
-                drawPath(sail, Color(0xFFF2E6CC))
-                val sail2 = androidx.compose.ui.graphics.Path().apply {
-                    moveTo(w * 0.47f, h * 0.22f); quadraticTo(w * 0.18f, h * 0.42f, w * 0.47f, h * 0.62f); close()
-                }
-                drawPath(sail2, Color(0xFFE6D8B8))
-                drawLine(gold, androidx.compose.ui.geometry.Offset(w * 0.12f, h * 0.76f), androidx.compose.ui.geometry.Offset(w * 0.88f, h * 0.76f), h * 0.04f)
-            } else {
-                drawRoundRect(Color(0xFF6B3E1C), androidx.compose.ui.geometry.Offset(w * 0.1f, h * 0.45f), androidx.compose.ui.geometry.Size(w * 0.8f, h * 0.4f), CornerRadius(3f))
-                drawRoundRect(Color(0xFF8A5228), androidx.compose.ui.geometry.Offset(w * 0.1f, h * 0.22f), androidx.compose.ui.geometry.Size(w * 0.8f, h * 0.25f), CornerRadius(9f))
-                drawLine(gold, androidx.compose.ui.geometry.Offset(w * 0.1f, h * 0.46f), androidx.compose.ui.geometry.Offset(w * 0.9f, h * 0.46f), 2.5f)
-                drawLine(gold, androidx.compose.ui.geometry.Offset(w * 0.3f, h * 0.22f), androidx.compose.ui.geometry.Offset(w * 0.3f, h * 0.85f), 2f)
-                drawLine(gold, androidx.compose.ui.geometry.Offset(w * 0.7f, h * 0.22f), androidx.compose.ui.geometry.Offset(w * 0.7f, h * 0.85f), 2f)
-                drawRoundRect(gold, androidx.compose.ui.geometry.Offset(w * 0.43f, h * 0.4f), androidx.compose.ui.geometry.Size(w * 0.14f, h * 0.16f), CornerRadius(2f))
-            }
-        },
-    )
+    Box(modifier, contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxWidth().aspectRatio(1080f / 960f)) {
+            Image(androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.mugi_chest_base), null, contentScale = ContentScale.FillBounds, modifier = Modifier.matchParentSize())
+            Image(androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.mugi_chest_lid), null, contentScale = ContentScale.FillBounds, modifier = Modifier.matchParentSize())
+        }
+    }
 }

@@ -66,6 +66,7 @@ import androidx.compose.material.icons.outlined.Download
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -681,6 +682,15 @@ private fun MugiReadHeader(modifier: Modifier) {
                 Brush.verticalGradient(listOf(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.5f), androidx.compose.ui.graphics.Color.Transparent)),
             ),
         )
+        // the ship's wheel artwork, faint behind the header buttons
+        Box(Modifier.matchParentSize().clipToBounds()) {
+            androidx.compose.foundation.Image(
+                androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.mugi_ship_wheel),
+                contentDescription = null,
+                alpha = 0.16f,
+                modifier = Modifier.align(Alignment.CenterEnd).offset(x = 34.dp, y = 10.dp).size(128.dp),
+            )
+        }
         Row(
             Modifier
                 .windowInsetsPadding(WindowInsets.statusBars)
@@ -701,7 +711,7 @@ private fun MugiReadHeader(modifier: Modifier) {
                         Text(
                             "READ ▾",
                             color = androidx.compose.ui.graphics.Color(0xFF2E180A),
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
+                            fontFamily = MugiPlayfair,
                             fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                             fontSize = 10.sp,
                             letterSpacing = 1.sp,

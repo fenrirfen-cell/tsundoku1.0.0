@@ -70,7 +70,7 @@ object MugiBrowse {
     val GoldGradient = Brush.verticalGradient(listOf(Color(0xFFE4BC77), Color(0xFF956029), Color(0xFF694018)))
     val WarmGradient = Brush.verticalGradient(listOf(Color(0xFF5A3A1C), Color(0xFF34210F)))
     val CardGradient = Brush.verticalGradient(listOf(Color(0xFF2E2116), Color(0xFF1E150D)))
-    val Serif = FontFamily.Serif
+    val Serif = MugiPlayfair
 }
 
 /** Dark walnut with warm light at the top and faint sea-chart lines from two corners. */

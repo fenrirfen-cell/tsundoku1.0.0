@@ -393,7 +393,7 @@ private fun MugiHistoryRow(
                 Text(
                     entry.title,
                     color = eu.kanade.presentation.components.MugiScreenColors.Ivory,
-                    fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
+                    fontFamily = eu.kanade.presentation.components.MugiPlayfair,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 16.sp,
                     lineHeight = 20.sp,
@@ -404,7 +404,7 @@ private fun MugiHistoryRow(
                 Text(
                     listOf(chapter, time).filter { it.isNotBlank() }.joinToString(" · "),
                     color = eu.kanade.presentation.components.MugiScreenColors.Secondary,
-                    fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
+                    fontFamily = eu.kanade.presentation.components.MugiPlayfair,
                     fontSize = 13.sp,
                     maxLines = 1,
                 )

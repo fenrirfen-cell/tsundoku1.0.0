@@ -214,14 +214,14 @@ fun MugiReadModeMenu(expanded: Boolean, onDismiss: () -> Unit, onPick: (MugiRead
                                 Text(
                                     m.title,
                                     color = Color(0xFF2E180A),
-                                    fontFamily = FontFamily.Serif,
+                                    fontFamily = MugiPlayfair,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = if (menuWidth < 360.dp) 11.sp else 13.sp,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                 )
                             }
-                            Text(m.description, color = MugiRead.Ivory, fontFamily = FontFamily.Serif, fontSize = 10.sp, maxLines = 1, textAlign = TextAlign.Center)
+                            Text(m.description, color = MugiRead.Ivory, fontFamily = MugiPlayfair, fontSize = 10.sp, maxLines = 1, textAlign = TextAlign.Center)
                         }
                     }
                 }

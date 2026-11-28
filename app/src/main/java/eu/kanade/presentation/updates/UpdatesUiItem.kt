@@ -68,7 +68,7 @@ internal fun LazyListScope.updatesLastUpdatedItem(
             Text(
                 text = stringResource(MR.strings.updates_last_update_info, relativeTimeSpanString(lastUpdated)),
                 fontStyle = FontStyle.Italic,
-                fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
+                fontFamily = eu.kanade.presentation.components.MugiPlayfair,
                 fontSize = 15.sp,
                 color = eu.kanade.presentation.components.MugiScreenColors.Ivory,
                 modifier = Modifier
@@ -328,7 +328,7 @@ private fun MugiUpdateRow(
                 Text(
                     update.mangaTitle,
                     color = c.Ivory.copy(alpha = alpha),
-                    fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
+                    fontFamily = eu.kanade.presentation.components.MugiPlayfair,
                     fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                     fontSize = 15.sp,
                     lineHeight = 18.sp,
@@ -348,7 +348,7 @@ private fun MugiUpdateRow(
                     Text(
                         update.chapterName,
                         color = c.Secondary.copy(alpha = alpha),
-                        fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
+                        fontFamily = eu.kanade.presentation.components.MugiPlayfair,
                         fontSize = 13.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,

@@ -104,7 +104,7 @@ import tachiyomi.domain.manga.model.MangaCover
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
-private val Serif = FontFamily.Serif
+private val Serif = eu.kanade.presentation.components.MugiPlayfair
 
 private fun android.content.Context.findFragmentActivity(): FragmentActivity? =
     generateSequence(this) { (it as? android.content.ContextWrapper)?.baseContext }.filterIsInstance<FragmentActivity>().firstOrNull()
@@ -170,22 +170,38 @@ private fun GoldButton(text: String, icon: androidx.compose.ui.graphics.vector.I
     }
 }
 
+/** A small brass lantern (the lantern artwork) beside vault titles. */
+@Composable
+private fun VaultLantern() {
+    androidx.compose.foundation.Image(
+        androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.mugi_lantern),
+        contentDescription = null,
+        contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+        modifier = Modifier.width(15.dp).height(32.dp),
+    )
+}
+
 @Composable
 private fun TitleBar(title: String, onBack: () -> Unit, action: (@Composable () -> Unit)? = null) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(48.dp).clip(CircleShape).clickable(onClickLabel = "Back", onClick = onBack), contentAlignment = Alignment.Center) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = VaultColors.Gold)
         }
-        Text(
-            "〜  $title  〜",
-            color = Color(0xFFF2D592),
-            fontFamily = Serif,
-            fontWeight = FontWeight.Bold,
-            fontSize = 24.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.weight(1f),
-            maxLines = 1,
-        )
+        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+            VaultLantern()
+            Text(
+                title,
+                color = Color(0xFFF2D592),
+                fontFamily = eu.kanade.presentation.components.MugiCinzel,
+                fontWeight = FontWeight.Bold,
+                fontSize = 22.sp,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false).padding(horizontal = 8.dp),
+            )
+            VaultLantern()
+        }
         Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) { action?.invoke() }
     }
 }
@@ -269,7 +285,7 @@ private fun Plaque(text: String, modifier: Modifier = Modifier) {
             contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
             modifier = Modifier.matchParentSize(),
         )
-        Text(text, color = Color(0xFFF2D592), fontFamily = Serif, fontWeight = FontWeight.Bold, fontSize = 21.sp, maxLines = 1, modifier = Modifier.padding(horizontal = 28.dp))
+        Text(text, color = Color(0xFFF2D592), fontFamily = eu.kanade.presentation.components.MugiCinzel, fontWeight = FontWeight.Bold, fontSize = 21.sp, maxLines = 1, modifier = Modifier.padding(horizontal = 28.dp))
     }
 }
 
@@ -291,7 +307,7 @@ private fun TopShelf(title: String) {
         ) {
             Icon(Icons.Filled.Lock, contentDescription = null, tint = Color(0xFF2E180A), modifier = Modifier.size(15.dp))
             Spacer(Modifier.width(6.dp))
-            Text(title, color = Color(0xFF2E180A), fontFamily = Serif, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            Text(title, color = Color(0xFF2E180A), fontFamily = eu.kanade.presentation.components.MugiCinzel, fontWeight = FontWeight.Bold, fontSize = 15.sp)
         }
     }
 }
@@ -668,7 +684,7 @@ class ReadPrivacySettingsScreen : Screen() {
                     Icon(Icons.Filled.Lock, contentDescription = null, tint = VaultColors.Gold, modifier = Modifier.size(30.dp))
                     Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("Private Library", color = Color(0xFFF2D592), fontFamily = Serif, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                        Text("Private Library", color = Color(0xFFF2D592), fontFamily = eu.kanade.presentation.components.MugiCinzel, fontWeight = FontWeight.Bold, fontSize = 20.sp)
                         Text("Lock selected books and collections", color = Color(0xFFCBB892), fontSize = 13.sp)
                     }
                     Text("›", color = VaultColors.Gold, fontSize = 24.sp)
