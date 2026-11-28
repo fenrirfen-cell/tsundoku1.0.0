@@ -84,6 +84,16 @@ fun MoreScreen(
             is DownloadQueueState.Downloading -> downloadQueueState.pending
         }
         ScrollbarLazyColumn(contentPadding = contentPadding) {
+            // MugiVerse: Captain's Log and Offline Voyage (drawn by the Watch side, back comes here).
+            if (eu.kanade.tachiyomi.EmbeddedHost.isMugi && eu.kanade.tachiyomi.EmbeddedHost.openVoyage != null) {
+                item {
+                    val ctx = androidx.compose.ui.platform.LocalContext.current
+                    eu.kanade.presentation.components.MugiVoyageMoreCard(
+                        onLog = { eu.kanade.tachiyomi.EmbeddedHost.voyage(ctx, "LOG") },
+                        onOffline = { eu.kanade.tachiyomi.EmbeddedHost.voyage(ctx, "OFFLINE") },
+                    )
+                }
+            }
             // Fenrir: "Your reading" card with quick buttons.
             item {
                 Column(

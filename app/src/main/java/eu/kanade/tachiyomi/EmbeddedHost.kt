@@ -26,6 +26,19 @@ object EmbeddedHost {
     @Volatile
     var openAniDrama: ((Activity) -> Unit)? = null
 
+    /**
+     * MugiVerse voyage screens (drawn by the host): "CONTINUE", "LOG", "BOUNTIES", "OFFLINE" or
+     * "SURPRISE". Closing one comes back here.
+     */
+    @Volatile
+    var openVoyage: ((Activity, String) -> Unit)? = null
+
+    fun voyage(context: android.content.Context, screen: String) {
+        val activity = generateSequence(context) { (it as? android.content.ContextWrapper)?.baseContext }
+            .filterIsInstance<Activity>().firstOrNull() ?: return
+        openVoyage?.invoke(activity, screen)
+    }
+
     /** Label for the host side of the switch. */
     @Volatile
     var watchLabel: String = "Watch"

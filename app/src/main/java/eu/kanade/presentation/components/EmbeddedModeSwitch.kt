@@ -715,6 +715,19 @@ private fun MugiReadHeader(modifier: Modifier) {
                     }
                 })
             }
+            // Surprise Me: the little treasure chest next to the bell
+            if (eu.kanade.tachiyomi.EmbeddedHost.openVoyage != null) {
+                val voyageCtx = LocalContext.current
+                Box(
+                    Modifier
+                        .size(44.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .clickable(role = Role.Button, onClickLabel = "Surprise me") { eu.kanade.tachiyomi.EmbeddedHost.voyage(voyageCtx, "SURPRISE") },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    MugiChestIcon(Modifier.size(30.dp))
+                }
+            }
             Box {
                 Box(
                     Modifier

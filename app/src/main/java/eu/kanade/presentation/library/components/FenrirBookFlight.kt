@@ -828,5 +828,23 @@ internal fun MugiContinueReadingFrame(manga: LibraryManga, onOpen: () -> Unit) {
             )
             Text("Continue Reading", color = Color(0xFF2E180A), fontFamily = serif, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1)
         }
+        // MugiVerse Continue: everything unfinished from Watch, Ani-Drama and Read
+        if (eu.kanade.tachiyomi.EmbeddedHost.openVoyage != null) {
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            Text(
+                "See all ›",
+                color = Color(0xFFF3C75F),
+                fontFamily = serif,
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.sp,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = h * 0.2f, end = w * 0.05f)
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable { eu.kanade.tachiyomi.EmbeddedHost.voyage(ctx, "CONTINUE") }
+                    .background(Color(0xCC2A1709))
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+            )
+        }
     }
 }

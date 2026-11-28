@@ -267,10 +267,17 @@ private fun HistoryScreenContent(
             val minutes = thisWeek.sumOf { it.readDuration } / 60000
             val time = if (minutes >= 60) "${minutes / 60}h ${minutes % 60}m" else "${minutes}m"
             if (mugi) {
+                val ctx = androidx.compose.ui.platform.LocalContext.current
                 eu.kanade.presentation.components.MugiReadingStatsPanel(
                     chapters = thisWeek.size,
                     titles = thisWeek.map { it.mangaId }.distinct().size,
                     readingTime = time,
+                    // tap: Captain's Log (the full stats, streaks and bounties)
+                    modifier = if (eu.kanade.tachiyomi.EmbeddedHost.openVoyage != null) {
+                        Modifier.clickable(onClickLabel = "Open Captain's Log") { eu.kanade.tachiyomi.EmbeddedHost.voyage(ctx, "LOG") }
+                    } else {
+                        Modifier
+                    },
                 )
                 return@item
             }

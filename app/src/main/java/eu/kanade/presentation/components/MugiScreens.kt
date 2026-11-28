@@ -313,3 +313,70 @@ fun MugiReadingStatsPanel(chapters: Int, titles: Int, readingTime: String, modif
         }
     }
 }
+
+/** More → Captain's Log and Offline Voyage, as two wooden rows. */
+@Composable
+fun MugiVoyageMoreCard(onLog: () -> Unit, onOffline: () -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Brush.verticalGradient(listOf(Color(0xFF3A2412), MugiScreenColors.ReadSurface, Color(0xFF1C110A))))
+            .border(1.dp, MugiScreenColors.DarkGold, RoundedCornerShape(14.dp)),
+    ) {
+        listOf(
+            Triple("Captain's Log", "Your streaks, stats and bounties", onLog),
+            Triple("Offline Voyage", "Get the next chapters ready for a trip", onOffline),
+        ).forEachIndexed { i, (title, sub, click) ->
+            if (i > 0) Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp).height(1.dp).background(MugiScreenColors.Gold.copy(alpha = 0.25f)))
+            Row(
+                Modifier.fillMaxWidth().clickable(onClick = click).padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                MugiChestIcon(Modifier.size(34.dp), ship = i == 0)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(title, color = Color(0xFFF2D592), fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                    Text(sub, color = MugiScreenColors.Secondary, fontSize = 12.5.sp)
+                }
+                Text("›", color = MugiScreenColors.Gold, fontSize = 24.sp)
+            }
+        }
+    }
+}
+
+/** A small treasure chest (or ship) drawn in code, gold-banded. */
+@Composable
+fun MugiChestIcon(modifier: Modifier = Modifier, ship: Boolean = false) {
+    Box(
+        modifier.drawBehind {
+            val w = size.width
+            val h = size.height
+            val gold = MugiScreenColors.Gold
+            if (ship) {
+                val hull = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(w * 0.05f, h * 0.70f); lineTo(w * 0.95f, h * 0.70f); lineTo(w * 0.80f, h * 0.92f); lineTo(w * 0.20f, h * 0.92f); close()
+                }
+                drawPath(hull, Color(0xFF6B3E1C))
+                drawLine(Color(0xFF4A2A12), androidx.compose.ui.geometry.Offset(w * 0.5f, h * 0.08f), androidx.compose.ui.geometry.Offset(w * 0.5f, h * 0.70f), w * 0.05f)
+                val sail = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(w * 0.53f, h * 0.14f); quadraticTo(w * 0.88f, h * 0.36f, w * 0.53f, h * 0.62f); close()
+                }
+                drawPath(sail, Color(0xFFF2E6CC))
+                val sail2 = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(w * 0.47f, h * 0.22f); quadraticTo(w * 0.18f, h * 0.42f, w * 0.47f, h * 0.62f); close()
+                }
+                drawPath(sail2, Color(0xFFE6D8B8))
+                drawLine(gold, androidx.compose.ui.geometry.Offset(w * 0.12f, h * 0.76f), androidx.compose.ui.geometry.Offset(w * 0.88f, h * 0.76f), h * 0.04f)
+            } else {
+                drawRoundRect(Color(0xFF6B3E1C), androidx.compose.ui.geometry.Offset(w * 0.1f, h * 0.45f), androidx.compose.ui.geometry.Size(w * 0.8f, h * 0.4f), CornerRadius(3f))
+                drawRoundRect(Color(0xFF8A5228), androidx.compose.ui.geometry.Offset(w * 0.1f, h * 0.22f), androidx.compose.ui.geometry.Size(w * 0.8f, h * 0.25f), CornerRadius(9f))
+                drawLine(gold, androidx.compose.ui.geometry.Offset(w * 0.1f, h * 0.46f), androidx.compose.ui.geometry.Offset(w * 0.9f, h * 0.46f), 2.5f)
+                drawLine(gold, androidx.compose.ui.geometry.Offset(w * 0.3f, h * 0.22f), androidx.compose.ui.geometry.Offset(w * 0.3f, h * 0.85f), 2f)
+                drawLine(gold, androidx.compose.ui.geometry.Offset(w * 0.7f, h * 0.22f), androidx.compose.ui.geometry.Offset(w * 0.7f, h * 0.85f), 2f)
+                drawRoundRect(gold, androidx.compose.ui.geometry.Offset(w * 0.43f, h * 0.4f), androidx.compose.ui.geometry.Size(w * 0.14f, h * 0.16f), CornerRadius(2f))
+            }
+        },
+    )
+}
