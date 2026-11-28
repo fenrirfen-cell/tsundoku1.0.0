@@ -825,7 +825,7 @@ fun QuartersDoorAnimation(
                     fontFamily = Serif,
                     fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
                     fontWeight = FontWeight.Bold,
-                    fontSize = (dw.value * 0.377f / 9.6f).sp,
+                    fontSize = (dw.value * 0.377f / 11.5f).sp,
                     maxLines = 1,
                     softWrap = false,
                 )
