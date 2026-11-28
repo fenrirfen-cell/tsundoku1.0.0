@@ -324,11 +324,19 @@ object HomeScreen : Screen() {
     @Composable
     private fun MugiNavBar(tabs: List<eu.kanade.presentation.util.Tab>, menuOpen: Boolean, onCompass: () -> Unit) {
         val amber = androidx.compose.ui.graphics.Color(0xFFE4BC77) // MugiVerse antique gold
+        // MugiVerse: More lives in the header (⋯ More next to the bell); the bar keeps four tabs
+        val tabNavigator = LocalTabNavigator.current
+        val onMore = tabNavigator.current == MoreTab
+        androidx.compose.runtime.SideEffect {
+            eu.kanade.presentation.components.MugiReadMore.open = { tabNavigator.current = MoreTab }
+            eu.kanade.presentation.components.MugiReadMore.selected = onMore
+        }
+        val shown = tabs.filter { it != MoreTab }
         eu.kanade.presentation.components.MugiReadBar(
             menuOpen = menuOpen,
             onCompass = onCompass,
-            left = { tabs.take(2).fastForEach { GlassNavItem(it, amber, plain = true, enabled = !menuOpen) } },
-            right = { tabs.drop(2).fastForEach { GlassNavItem(it, amber, plain = true, enabled = !menuOpen) } },
+            left = { shown.take(2).fastForEach { GlassNavItem(it, amber, plain = true, enabled = !menuOpen) } },
+            right = { shown.drop(2).fastForEach { GlassNavItem(it, amber, plain = true, enabled = !menuOpen) } },
         )
     }
 

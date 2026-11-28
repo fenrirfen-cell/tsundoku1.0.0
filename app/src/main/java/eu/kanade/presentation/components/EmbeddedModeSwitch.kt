@@ -10,6 +10,7 @@ import androidx.compose.material.icons.outlined.Casino
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 
 import androidx.compose.ui.unit.sp
@@ -753,6 +754,20 @@ private fun MugiReadHeader(modifier: Modifier) {
                             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
                         )
                     }
+                }
+            }
+            MugiReadMore.open?.let { openMore ->
+                val tint = if (MugiReadMore.selected) gold else androidx.compose.ui.graphics.Color(0xFFF0E4CC)
+                androidx.compose.foundation.layout.Column(
+                    Modifier
+                        .size(width = 56.dp, height = 48.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .clickable(role = Role.Button, onClickLabel = "More") { openMore() },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+                ) {
+                    Icon(Icons.Filled.MoreHoriz, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
+                    Text("More", color = tint, fontSize = 12.sp, maxLines = 1)
                 }
             }
         }

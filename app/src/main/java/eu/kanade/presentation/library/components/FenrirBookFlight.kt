@@ -798,16 +798,16 @@ internal fun MugiContinueReadingFrame(manga: LibraryManga, onOpen: () -> Unit) {
             }
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
-                Text(manga.manga.title, color = ivory, fontFamily = serif, fontSize = 13.sp, lineHeight = 15.sp, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Text(manga.manga.title, color = ivory, fontFamily = serif, fontWeight = FontWeight.Bold, fontSize = 15.sp, lineHeight = 18.sp, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 Spacer(Modifier.height(3.dp))
-                Text(chapterLine, color = Color(0xFFCDBA92), fontFamily = serif, fontSize = 9.5.sp, maxLines = 1)
-                Spacer(Modifier.height(6.dp))
+                Text(chapterLine, color = Color(0xFFD3B477), fontFamily = serif, fontSize = 11.5.sp, maxLines = 1)
+                Spacer(Modifier.height(9.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.weight(1f).height(6.dp).clip(CircleShape).background(Color(0xFF3A2A18))) {
+                    Box(Modifier.weight(1f).height(7.dp).clip(CircleShape).background(Color(0xFF3A2A18))) {
                         Box(Modifier.fillMaxWidth(progress.coerceIn(0.02f, 1f)).fillMaxHeight().background(Brush.horizontalGradient(listOf(Color(0xFFF3C75F), Color(0xFFE2A43A)))))
                     }
                     Spacer(Modifier.width(6.dp))
-                    Text("${(progress * 100).toInt()}%", color = ivory, fontSize = 10.5.sp, maxLines = 1)
+                    Text("${(progress * 100).toInt()}%", color = ivory, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                 }
             }
         }
@@ -826,7 +826,7 @@ internal fun MugiContinueReadingFrame(manga: LibraryManga, onOpen: () -> Unit) {
                 contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
                 modifier = Modifier.fillMaxSize(),
             )
-            Text("Continue Reading", color = Color(0xFF2E180A), fontFamily = serif, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1)
+            Text("Continue Reading", color = Color(0xFF2E180A), fontFamily = serif, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1)
         }
     }
 }

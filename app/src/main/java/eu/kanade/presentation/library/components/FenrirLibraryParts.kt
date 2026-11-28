@@ -113,7 +113,7 @@ internal fun FenrirCategoryBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(if (mugi) 70.dp else 78.dp)
+            .height(if (mugi) 78.dp else 78.dp)
             .then(if (mugi) Modifier else Modifier.fenrirRail())
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -169,10 +169,10 @@ internal fun FenrirCategoryBar(
                 val books = countFor(category)
                 Spacer(Modifier.width(8.dp))
                 val countGold = if (mugi) Color(0xFFE2BA72) else FenrirBrassLight
-                Text(if (books == 1) "1 book" else "$books books", color = countGold, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                Text(if (books == 1) "1 book" else "$books books", color = countGold, fontSize = if (mugi) 12.5.sp else 10.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                 if (newCount > 0) {
-                    Text(" · ", color = countGold, fontSize = 10.5.sp, maxLines = 1)
-                    Text("$newCount new", color = if (mugi) Color(0xFFE67767) else Color(0xFFFF6B73), fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    Text(" · ", color = countGold, fontSize = if (mugi) 12.5.sp else 10.5.sp, maxLines = 1)
+                    Text("$newCount new", color = if (mugi) Color(0xFFE67767) else Color(0xFFFF6B73), fontSize = if (mugi) 12.5.sp else 10.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                 }
             }
         }
@@ -260,7 +260,7 @@ private fun FenrirCategoryButton(
         Box(
             Modifier
                 .widthIn(min = 176.dp, max = if (mugi) 272.dp else 250.dp)
-                .height(if (mugi) 46.dp else 32.dp)
+                .height(if (mugi) 50.dp else 32.dp)
                 .then(
                     if (mugi) {
                         Modifier.paint(parchment, contentScale = androidx.compose.ui.layout.ContentScale.FillBounds)
@@ -299,7 +299,7 @@ private fun FenrirCategoryButton(
                     c.visualName,
                     style = androidx.compose.ui.text.TextStyle(
                         color = if (mugi) Color(0xFF38200F) else FenrirBrassText,
-                        fontSize = if (mugi) 19.sp else 15.sp,
+                        fontSize = if (mugi) 22.sp else 15.sp,
                         fontWeight = FontWeight.ExtraBold,
                         fontFamily = if (mugi) androidx.compose.ui.text.font.FontFamily.Serif else null,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,

@@ -32,6 +32,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -256,4 +258,11 @@ fun Modifier.mugiCabin(header: Boolean): Modifier {
                 dstSize = androidx.compose.ui.unit.IntSize(w.toInt(), h.toInt()),
             )
         }
+}
+
+
+/** MugiVerse Read: the header's "⋯ More" opens the More tab (set by the home screen). */
+object MugiReadMore {
+    var open by androidx.compose.runtime.mutableStateOf<(() -> Unit)?>(null)
+    var selected by androidx.compose.runtime.mutableStateOf(false)
 }
