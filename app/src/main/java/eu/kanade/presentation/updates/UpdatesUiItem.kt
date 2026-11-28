@@ -2,6 +2,13 @@
 
 package eu.kanade.presentation.updates
 
+import eu.kanade.presentation.components.mugiCoverBorder
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,7 +61,23 @@ import tachiyomi.presentation.core.util.selectedBackground
 
 internal fun LazyListScope.updatesLastUpdatedItem(
     lastUpdated: Long,
+    mugi: Boolean = false,
 ) {
+    if (mugi) {
+        item(key = "updates-lastUpdated") {
+            Text(
+                text = stringResource(MR.strings.updates_last_update_info, relativeTimeSpanString(lastUpdated)),
+                fontStyle = FontStyle.Italic,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
+                fontSize = 15.sp,
+                color = eu.kanade.presentation.components.MugiScreenColors.Ivory,
+                modifier = Modifier
+                    .animateItem(fadeInSpec = null, fadeOutSpec = null)
+                    .padding(horizontal = 18.dp, vertical = 6.dp),
+            )
+        }
+        return
+    }
     item(key = "updates-lastUpdated") {
         Box(
             modifier = Modifier
@@ -76,6 +99,7 @@ internal fun LazyListScope.updatesUiItems(
     onClickCover: (UpdatesItem) -> Unit,
     onClickUpdate: (UpdatesItem) -> Unit,
     onDownloadChapter: (List<UpdatesItem>, ChapterDownloadAction) -> Unit,
+    mugi: Boolean = false,
 ) {
     items(
         items = uiModels,
@@ -93,7 +117,12 @@ internal fun LazyListScope.updatesUiItems(
         },
     ) { item ->
         when (item) {
-            is UpdatesUiModel.Header -> {
+            is UpdatesUiModel.Header -> if (mugi) {
+                eu.kanade.presentation.components.MugiParchmentDate(
+                    relativeDateText(item.date),
+                    Modifier.animateItem(),
+                )
+            } else {
                 ListGroupHeader(
                     modifier = Modifier.animateItem(),
                     text = relativeDateText(item.date),
@@ -102,6 +131,7 @@ internal fun LazyListScope.updatesUiItems(
             is UpdatesUiModel.Item -> {
                 val updatesItem = item.item
                 UpdatesUiItem(
+                    mugi = mugi,
                     modifier = Modifier.animateItem(),
                     update = updatesItem.update,
                     selected = updatesItem.selected,
@@ -155,9 +185,17 @@ private fun UpdatesUiItem(
     downloadStateProvider: () -> Download.State,
     downloadProgressProvider: () -> Int,
     modifier: Modifier = Modifier,
+    mugi: Boolean = false,
 ) {
     val haptic = LocalHapticFeedback.current
     val textAlpha = if (update.read) DISABLED_ALPHA else 1f
+    if (mugi) {
+        MugiUpdateRow(
+            update, selected, readProgress, onClick, onLongClick, onClickCover, onDownloadChapter,
+            downloadStateProvider, downloadProgressProvider, modifier,
+        )
+        return
+    }
 
     Row(
         modifier = modifier
@@ -247,6 +285,107 @@ private fun UpdatesUiItem(
         )
     }
 }
+
+/** MugiVerse: gold-framed cover, serif title, chapter line with NEW badge, gold download button, gold rule. */
+@Composable
+private fun MugiUpdateRow(
+    update: UpdatesWithRelations,
+    selected: Boolean,
+    readProgress: String?,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    onClickCover: (() -> Unit)?,
+    onDownloadChapter: ((ChapterDownloadAction) -> Unit)?,
+    downloadStateProvider: () -> Download.State,
+    downloadProgressProvider: () -> Int,
+    modifier: Modifier = Modifier,
+) {
+    val haptic = LocalHapticFeedback.current
+    val c = eu.kanade.presentation.components.MugiScreenColors
+    val alpha = if (update.read) 0.6f else 1f
+    val isNew = !update.read && System.currentTimeMillis() - update.dateFetch < 24L * 60 * 60 * 1000
+    Column(modifier.selectedBackground(selected)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = {
+                        onLongClick()
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    },
+                )
+                .padding(start = 16.dp, end = 8.dp, top = 9.dp, bottom = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            MangaCover.Book(
+                modifier = Modifier.width(54.dp).mugiCoverBorderCompat(),
+                data = update.coverData,
+                onClick = onClickCover,
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    update.mangaTitle,
+                    color = c.Ivory.copy(alpha = alpha),
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                    fontSize = 15.sp,
+                    lineHeight = 18.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (!update.read) {
+                        Box(Modifier.size(8.dp).clip(androidx.compose.foundation.shape.CircleShape).background(c.Red))
+                        Spacer(Modifier.width(6.dp))
+                    }
+                    if (update.bookmark) {
+                        Icon(Icons.Filled.Bookmark, contentDescription = stringResource(MR.strings.action_filter_bookmarked), tint = c.Gold, modifier = Modifier.size(13.dp))
+                        Spacer(Modifier.width(3.dp))
+                    }
+                    Text(
+                        update.chapterName,
+                        color = c.Secondary.copy(alpha = alpha),
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
+                        fontSize = 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    if (readProgress != null) {
+                        Text(" · $readProgress", color = c.Secondary.copy(alpha = 0.6f), fontSize = 12.sp, maxLines = 1)
+                    }
+                    if (isNew) {
+                        Spacer(Modifier.width(8.dp))
+                        eu.kanade.presentation.components.MugiNewBadge()
+                    }
+                }
+            }
+            Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                Box(
+                    Modifier
+                        .size(38.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .border(1.dp, c.Gold, androidx.compose.foundation.shape.CircleShape),
+                )
+                androidx.compose.runtime.CompositionLocalProvider(LocalContentColor provides c.Gold) {
+                    ChapterDownloadIndicator(
+                        enabled = onDownloadChapter != null,
+                        downloadStateProvider = downloadStateProvider,
+                        downloadProgressProvider = downloadProgressProvider,
+                        onClick = { onDownloadChapter?.invoke(it) },
+                    )
+                }
+            }
+        }
+        eu.kanade.presentation.components.MugiRowSeparator(start = 82.dp)
+    }
+}
+
+private fun Modifier.mugiCoverBorderCompat(): Modifier =
+    this.then(Modifier.mugiCoverBorder(radius = 7.dp))
 
 /**
  * Composable for showing updates grouped by novel.

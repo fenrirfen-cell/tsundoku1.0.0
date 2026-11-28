@@ -1,6 +1,8 @@
 package eu.kanade.presentation.updates
 
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import eu.kanade.presentation.components.mugiReadScreenBackground
 import androidx.compose.runtime.collectAsState
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
@@ -85,8 +87,14 @@ fun UpdateScreen(
     BackHandler(enabled = state.selectionMode) {
         onSelectAll(false)
     }
+    // MugiVerse: walnut log with gold title, buttons, segmented switch, chips and parchment dates
+    val mugi = eu.kanade.tachiyomi.EmbeddedHost.isMugi
 
+    androidx.compose.foundation.layout.Box(
+        if (mugi) Modifier.fillMaxSize().mugiReadScreenBackground() else Modifier.fillMaxSize(),
+    ) {
     Scaffold(
+        containerColor = if (mugi) androidx.compose.ui.graphics.Color.Transparent else MaterialTheme.colorScheme.background,
         topBar = { scrollBehavior ->
             val fenrirTopShown by eu.kanade.presentation.components.FenrirBars.shown.collectAsState()
             androidx.compose.animation.AnimatedVisibility(
@@ -106,6 +114,7 @@ fun UpdateScreen(
                 onInvertSelection = { onInvertSelection() },
                 onCancelActionMode = { onSelectAll(false) },
                 scrollBehavior = scrollBehavior,
+                mugi = mugi,
             )
             }
         },
@@ -167,6 +176,16 @@ fun UpdateScreen(
                         state = lazyListState,
                     ) {
                         // Fenrir: New chapters / Calendar switch (the calendar lives here now).
+                        if (mugi) {
+                            item(key = "fenrir_switch") {
+                                eu.kanade.presentation.components.MugiReadSegmented(
+                                    labels = listOf("New chapters", "Calendar"),
+                                    icons = listOf(Icons.Outlined.NewReleases, Icons.Outlined.CalendarMonth),
+                                    selected = 0,
+                                    onSelect = { if (it == 1) onCalendarClicked() },
+                                )
+                            }
+                        } else
                         item(key = "fenrir_switch") {
                             eu.kanade.presentation.components.FenrirSegmentSwitch(
                                 labels = listOf("New chapters", "Calendar"),
@@ -178,7 +197,19 @@ fun UpdateScreen(
                                 ),
                             )
                         }
-                        if (showFilterChips) {
+                        if (showFilterChips && mugi) {
+                            item(key = "filter_chips") {
+                                eu.kanade.presentation.components.MugiReadChipRow {
+                                    if (showAllFilter) {
+                                        eu.kanade.presentation.components.MugiReadChip(stringResource(MR.strings.all), state.filter == UpdatesFilter.ALL) { onFilterSelected(UpdatesFilter.ALL) }
+                                    }
+                                    if (showMangaFilter) {
+                                        eu.kanade.presentation.components.MugiReadChip(stringResource(TDMR.strings.label_manga), state.filter == UpdatesFilter.MANGA) { onFilterSelected(UpdatesFilter.MANGA) }
+                                    }
+                                    eu.kanade.presentation.components.MugiReadChip(stringResource(TDMR.strings.label_novels), state.filter == UpdatesFilter.NOVELS) { onFilterSelected(UpdatesFilter.NOVELS) }
+                                }
+                            }
+                        } else if (showFilterChips) {
                             item(key = "filter_chips") {
                                 Row(
                                     modifier = Modifier
@@ -209,7 +240,7 @@ fun UpdateScreen(
                             }
                         }
 
-                        updatesLastUpdatedItem(lastUpdated)
+                        updatesLastUpdatedItem(lastUpdated, mugi)
 
                         if (state.items.isEmpty()) {
                             item(key = "empty_state") {
@@ -242,7 +273,11 @@ fun UpdateScreen(
                                 onClickCover = onClickCover,
                                 onClickUpdate = onOpenChapter,
                                 onDownloadChapter = onDownloadChapter,
+                                mugi = mugi,
                             )
+                        }
+                        if (mugi) {
+                            item(key = "mugi-bottom-room") { androidx.compose.foundation.layout.Spacer(Modifier.height(112.dp)) }
                         }
                     }
                 }
@@ -255,6 +290,7 @@ fun UpdateScreen(
             actions = listOf(androidx.compose.material.icons.Icons.Outlined.CalendarMonth to { onCalendarClicked() }, androidx.compose.material.icons.Icons.Outlined.Refresh to { onUpdateLibrary(); Unit }),
         )
         }
+    }
     }
 }
 
@@ -273,10 +309,17 @@ private fun UpdatesAppBar(
     onCancelActionMode: () -> Unit,
     scrollBehavior: TopAppBarScrollBehavior,
     modifier: Modifier = Modifier,
+    mugi: Boolean = false,
 ) {
     AppBar(
         modifier = modifier,
         title = stringResource(MR.strings.label_recent_updates),
+        backgroundColor = if (mugi && actionModeCounter == 0) androidx.compose.ui.graphics.Color.Transparent else null,
+        titleContent = if (mugi) {
+            { eu.kanade.presentation.components.MugiScreenTitle("Updates") }
+        } else {
+            null
+        },
         actions = {
             AppBarActions(
                 listOf(

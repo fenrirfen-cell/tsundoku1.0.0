@@ -2,6 +2,10 @@ package eu.kanade.presentation.history
 
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.width
+import eu.kanade.presentation.components.mugiCoverBorder
+import eu.kanade.presentation.components.mugiReadScreenBackground
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.background
@@ -81,7 +85,17 @@ fun HistoryScreen(
     showAllFilter: Boolean = true,
     showMangaFilter: Boolean = true,
 ) {
+    // MugiVerse: the captain's reading log (walnut, gold title and buttons, stats panel, list rows)
+    val mugi = eu.kanade.tachiyomi.EmbeddedHost.isMugi
+    val mugiContext = androidx.compose.ui.platform.LocalContext.current
+    var mugiGrid by androidx.compose.runtime.saveable.rememberSaveable {
+        androidx.compose.runtime.mutableStateOf(
+            mugiContext.getSharedPreferences("fenrir_ui", android.content.Context.MODE_PRIVATE).getBoolean("mugi_history_grid", false),
+        )
+    }
+    Box(if (mugi) Modifier.fillMaxSize().then(Modifier.mugiReadScreenBackground()) else Modifier.fillMaxSize()) {
     Scaffold(
+        containerColor = if (mugi) Color.Transparent else androidx.compose.material3.MaterialTheme.colorScheme.background,
         topBar = { scrollBehavior ->
             val fenrirTopShown by eu.kanade.presentation.components.FenrirBars.shown.collectAsState()
             androidx.compose.animation.AnimatedVisibility(
@@ -90,12 +104,32 @@ fun HistoryScreen(
                 exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut(),
             ) {
             SearchToolbar(
-                titleContent = { AppBarTitle(stringResource(MR.strings.history)) },
+                titleContent = {
+                    if (mugi) {
+                        eu.kanade.presentation.components.MugiScreenTitle(stringResource(MR.strings.history))
+                    } else {
+                        AppBarTitle(stringResource(MR.strings.history))
+                    }
+                },
+                backgroundColor = if (mugi) Color.Transparent else null,
                 searchQuery = state.searchQuery,
                 onChangeSearchQuery = onSearchQueryChange,
                 actions = {
                     AppBarActions(
-                        listOf(
+                        listOfNotNull(
+                            if (mugi) {
+                                AppBar.Action(
+                                    title = if (mugiGrid) "Show as list" else "Show as grid",
+                                    icon = if (mugiGrid) Icons.Outlined.ViewList else Icons.Outlined.GridView,
+                                    onClick = {
+                                        mugiGrid = !mugiGrid
+                                        mugiContext.getSharedPreferences("fenrir_ui", android.content.Context.MODE_PRIVATE)
+                                            .edit().putBoolean("mugi_history_grid", mugiGrid).apply()
+                                    },
+                                )
+                            } else {
+                                null
+                            },
                             AppBar.Action(
                                 title = if (state.groupByNovel) "List View" else "Last only",
                                 icon = if (state.groupByNovel) Icons.Outlined.ViewList else Icons.Outlined.GridView,
@@ -122,7 +156,17 @@ fun HistoryScreen(
         Column(
             modifier = Modifier.padding(contentPadding),
         ) {
-            if (showFilterChips) {
+            if (showFilterChips && mugi) {
+                eu.kanade.presentation.components.MugiReadChipRow {
+                    if (showAllFilter) {
+                        eu.kanade.presentation.components.MugiReadChip(stringResource(MR.strings.all), state.filter == HistoryFilter.ALL) { onFilterSelected(HistoryFilter.ALL) }
+                    }
+                    if (showMangaFilter) {
+                        eu.kanade.presentation.components.MugiReadChip(stringResource(TDMR.strings.label_manga), state.filter == HistoryFilter.MANGA) { onFilterSelected(HistoryFilter.MANGA) }
+                    }
+                    eu.kanade.presentation.components.MugiReadChip(stringResource(TDMR.strings.label_novels), state.filter == HistoryFilter.NOVELS) { onFilterSelected(HistoryFilter.NOVELS) }
+                }
+            } else if (showFilterChips) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -171,6 +215,8 @@ fun HistoryScreen(
                         onClickDelete = { item -> onDialogChange(HistoryViewModel.Dialog.Delete(item)) },
                         onClickFavorite = { history -> onClickFavorite(history.mangaId) },
                         onLoadNextPage = onLoadNextPage,
+                        mugi = mugi,
+                        mugiGrid = mugiGrid,
                     )
                 }
             }
@@ -183,6 +229,7 @@ fun HistoryScreen(
         )
         }
     }
+    }
 }
 
 @Composable
@@ -193,6 +240,8 @@ private fun HistoryScreenContent(
     onClickDelete: (HistoryWithRelations) -> Unit,
     onClickFavorite: (HistoryWithRelations) -> Unit,
     onLoadNextPage: () -> Unit,
+    mugi: Boolean = false,
+    mugiGrid: Boolean = false,
 ) {
     // Fenrir: days as sections, each day a grid of covers (3 per row) with an open-book button.
     val sections = remember(history) {
@@ -217,6 +266,14 @@ private fun HistoryScreenContent(
         item(key = "fenrir-history-stats") {
             val minutes = thisWeek.sumOf { it.readDuration } / 60000
             val time = if (minutes >= 60) "${minutes / 60}h ${minutes % 60}m" else "${minutes}m"
+            if (mugi) {
+                eu.kanade.presentation.components.MugiReadingStatsPanel(
+                    chapters = thisWeek.size,
+                    titles = thisWeek.map { it.mangaId }.distinct().size,
+                    readingTime = time,
+                )
+                return@item
+            }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -241,7 +298,28 @@ private fun HistoryScreenContent(
         }
         sections.forEachIndexed { sectionIndex, (date, items) ->
             item(key = "fenrir-h-$sectionIndex-$date") {
-                FenrirSectionLabel(if (date != null) relativeDateText(date) else "Earlier")
+                if (mugi) {
+                    eu.kanade.presentation.components.MugiSectionTitle(
+                        if (date != null) relativeDateText(date) else "Earlier",
+                        Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 2.dp),
+                    )
+                } else {
+                    FenrirSectionLabel(if (date != null) relativeDateText(date) else "Earlier")
+                }
+            }
+            if (mugi && !mugiGrid) {
+                items.forEachIndexed { i, entry ->
+                    item(key = "mugi-h-$sectionIndex-$i-${entry.id}") {
+                        MugiHistoryRow(
+                            entry = entry,
+                            onResume = { onClickResume(entry) },
+                            onOpen = { onClickCover(entry) },
+                            onDelete = { onClickDelete(entry) },
+                            showSeparator = i < items.lastIndex,
+                        )
+                    }
+                }
+                return@forEachIndexed
             }
             items.chunked(3).forEachIndexed { rowIndex, row ->
                 item(key = "fenrir-h-$sectionIndex-$rowIndex") {
@@ -268,6 +346,70 @@ private fun HistoryScreenContent(
                 onLoadNextPage()
             }
         }
+    }
+}
+
+/** MugiVerse: a reading-log row (gold-framed cover, serif title, "Ch. 265 · 8:14 PM", gold resume button). */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun MugiHistoryRow(
+    entry: HistoryWithRelations,
+    onResume: () -> Unit,
+    onOpen: () -> Unit,
+    onDelete: () -> Unit,
+    showSeparator: Boolean,
+) {
+    val time = remember(entry.readAt) {
+        entry.readAt?.let { java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(it) }.orEmpty()
+    }
+    val chapter = if (entry.chapterNumber >= 0) {
+        val n = entry.chapterNumber
+        "Ch. " + if (n % 1.0 == 0.0) n.toLong().toString() else n.toString()
+    } else {
+        ""
+    }
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .combinedClickable(onClick = onResume, onLongClick = onDelete)
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            eu.kanade.presentation.manga.components.MangaCover.Book(
+                modifier = Modifier.width(86.dp).then(Modifier.mugiCoverBorder()),
+                data = entry.coverData,
+                onClick = onOpen,
+            )
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    entry.title,
+                    color = eu.kanade.presentation.components.MugiScreenColors.Ivory,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 16.sp,
+                    lineHeight = 20.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(5.dp))
+                Text(
+                    listOf(chapter, time).filter { it.isNotBlank() }.joinToString(" · "),
+                    color = eu.kanade.presentation.components.MugiScreenColors.Secondary,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                )
+            }
+            eu.kanade.presentation.components.MugiHeaderAction(
+                icon = androidx.compose.material.icons.Icons.AutoMirrored.Outlined.MenuBook,
+                description = "Resume reading",
+                filled = true,
+                onClick = onResume,
+            )
+        }
+        if (showSeparator) eu.kanade.presentation.components.MugiRowSeparator(start = 116.dp)
     }
 }
 

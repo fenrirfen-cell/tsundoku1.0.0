@@ -80,6 +80,7 @@ fun AppBar(
     actionModeActions: @Composable RowScope.() -> Unit = {},
 
     scrollBehavior: TopAppBarScrollBehavior? = null,
+    titleContent: (@Composable () -> Unit)? = null,
 ) {
     val isActionMode by remember(actionModeCounter) {
         derivedStateOf { actionModeCounter > 0 }
@@ -91,6 +92,8 @@ fun AppBar(
         titleContent = {
             if (isActionMode) {
                 AppBarTitle(actionModeCounter.toString())
+            } else if (titleContent != null) {
+                titleContent()
             } else {
                 AppBarTitle(title, subtitle = subtitle)
             }
