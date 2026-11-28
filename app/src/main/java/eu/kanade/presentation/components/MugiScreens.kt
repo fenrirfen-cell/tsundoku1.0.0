@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -351,6 +352,16 @@ fun MugiVoyageMoreCard(onLog: () -> Unit, onOffline: () -> Unit, onVault: (() ->
 /** A small treasure chest (or ship) drawn in code, gold-banded. */
 @Composable
 fun MugiChestIcon(modifier: Modifier = Modifier, ship: Boolean = false) {
+    if (!ship) {
+        // the approved chest artwork (base + lid on one canvas)
+        Box(modifier, contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxWidth().aspectRatio(1080f / 960f)) {
+                Image(androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.mugi_chest_base), null, contentScale = ContentScale.FillBounds, modifier = Modifier.matchParentSize())
+                Image(androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.mugi_chest_lid), null, contentScale = ContentScale.FillBounds, modifier = Modifier.matchParentSize())
+            }
+        }
+        return
+    }
     Box(
         modifier.drawBehind {
             val w = size.width

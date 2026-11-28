@@ -64,6 +64,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -190,93 +192,111 @@ private fun TitleBar(title: String, onBack: () -> Unit, action: (@Composable () 
 
 /* ───────────── the cabinet (locked, opening) ───────────── */
 
-private fun DrawScope.drawDoor(left: Boolean) {
-    val w = size.width
-    val h = size.height
-    drawRect(Brush.horizontalGradient(listOf(Color(0xFF5A3218), Color(0xFF6E3E1E), Color(0xFF4E2A13))))
-    // grain
-    var x = 6f
-    while (x < w) { drawLine(Color(0x16000000), Offset(x, 0f), Offset(x + 4f, h), 1.5f); x += 11f }
-    // raised panels
-    val pad = w * 0.12f
-    listOf(Pair(h * 0.06f, h * 0.36f), Pair(h * 0.44f, h * 0.94f)).forEach { (t, b) ->
-        drawRoundRect(Color(0x33000000), Offset(pad, t), Size(w - pad * 2, b - t), CornerRadius(10f))
-        drawRoundRect(Color(0x22FFD9A0), Offset(pad, t), Size(w - pad * 2, b - t), CornerRadius(10f), style = Stroke(2f))
-    }
-    drawRect(Color(0xFF2E180A), style = Stroke(3f))
-    // brass hinges on the outer edge
-    val hx = if (left) 0f else w - 14f
-    listOf(0.14f, 0.5f, 0.86f).forEach { f ->
-        drawRoundRect(Brush.verticalGradient(listOf(Color(0xFFF6D88E), Color(0xFFA87832))), Offset(hx, h * f - 16f), Size(14f, 32f), CornerRadius(3f))
-        drawCircle(Color(0xFF5A3A14), 2.5f, Offset(hx + 7f, h * f - 8f))
-        drawCircle(Color(0xFF5A3A14), 2.5f, Offset(hx + 7f, h * f + 8f))
-    }
-}
-
-private fun DrawScope.drawPadlock() {
-    val w = size.width
-    val h = size.height
-    drawArc(Color(0xFFC9A257), 180f, 180f, false, Offset(w * 0.22f, h * 0.05f), Size(w * 0.56f, h * 0.6f), style = Stroke(w * 0.11f))
-    drawRoundRect(Brush.verticalGradient(listOf(Color(0xFFF6D88E), Color(0xFFD4AF65), Color(0xFF8C602B))), Offset(0f, h * 0.38f), Size(w, h * 0.62f), CornerRadius(w * 0.12f))
-    drawCircle(Color(0xFF2E180A), w * 0.1f, Offset(w / 2, h * 0.62f))
-    drawRect(Color(0xFF2E180A), Offset(w * 0.47f, h * 0.64f), Size(w * 0.06f, h * 0.18f))
-}
-
 /**
- * Two walnut doors with brass hinges and a padlock. [opened] swings them out on their hinges
- * (they stay as slim edges); the padlock lets go first.
+ * The cabinet from the approved artwork, laid out on its 1080 × 1280 reference canvas: back wall
+ * and doors at (134, 134), padlock in a 180 × 180 box at (450, 600), the frame over the door
+ * edges. [opened] releases the padlock (0–200 ms) and swings the doors out on their hinges
+ * (200–700 ms); they stay visible as slim edges.
  */
 @Composable
-private fun CabinetDoors(opened: Boolean, reduce: Boolean, modifier: Modifier = Modifier) {
+private fun VaultCabinet(
+    opened: Boolean,
+    reduce: Boolean,
+    modifier: Modifier = Modifier,
+    inside: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit = {},
+    front: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit = {},
+) {
     val lock by animateFloatAsState(if (opened) 1f else 0f, tween(if (reduce) 0 else 200), label = "padlock")
     val doors by animateFloatAsState(
         if (opened) 1f else 0f,
         tween(if (reduce) 0 else 500, delayMillis = if (opened && !reduce) 200 else 0, easing = FastOutSlowInEasing),
         label = "doors",
     )
-    Row(modifier) {
-        listOf(true, false).forEach { leftDoor ->
-            Box(
-                Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
+    BoxWithConstraints(modifier) {
+        val w = maxWidth
+        val h = maxHeight
+        fun x(v: Float) = w * (v / 1080f)
+        fun y(v: Float) = h * (v / 1280f)
+        val res = androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.vault_shelf_background)
+        androidx.compose.foundation.Image(res, null, contentScale = androidx.compose.ui.layout.ContentScale.FillBounds, modifier = Modifier.offset(x(134f), y(134f)).size(x(836f), y(1060f)))
+        Box(Modifier.offset(x(134f), y(134f)).size(x(836f), y(1060f)).androidxClip(), content = inside)
+        listOf(true, false).forEach { left ->
+            androidx.compose.foundation.Image(
+                androidx.compose.ui.res.painterResource(if (left) eu.kanade.tachiyomi.R.drawable.vault_door_left else eu.kanade.tachiyomi.R.drawable.vault_door_right),
+                contentDescription = null,
+                contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
+                modifier = Modifier
+                    .offset(if (left) x(134f) else x(552f), y(134f))
+                    .size(x(418f), y(1060f))
                     .graphicsLayer {
-                        rotationY = (if (leftDoor) 82f else -82f) * doors
-                        transformOrigin = TransformOrigin(if (leftDoor) 0f else 1f, 0.5f)
+                        rotationY = (if (left) 82f else -82f) * doors
+                        transformOrigin = TransformOrigin(if (left) 0f else 1f, 0.5f)
                         cameraDistance = 24f * density
-                    }
-                    .drawBehind { drawDoor(leftDoor) },
+                    },
             )
         }
-    }
-    if (lock < 1f) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Box(
-                Modifier
-                    .offset(y = (-30).dp + 24.dp * lock)
-                    .size(width = 46.dp, height = 58.dp)
-                    .graphicsLayer { alpha = 1f - lock; rotationZ = 18f * lock }
-                    .drawBehind { drawPadlock() },
+        if (lock < 1f) {
+            val side = minOf(x(180f), y(180f))
+            androidx.compose.foundation.Image(
+                androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.vault_padlock),
+                contentDescription = if (opened) null else "Locked",
+                contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                modifier = Modifier
+                    .offset(x(540f) - side / 2, y(690f) - side / 2 + 26.dp * lock)
+                    .size(side)
+                    .graphicsLayer { alpha = 1f - lock; rotationZ = 14f * lock },
             )
+        }
+        androidx.compose.foundation.Image(
+            androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.vault_cabinet_frame),
+            contentDescription = null,
+            contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
+            modifier = Modifier.fillMaxSize(),
+        )
+        front()
+    }
+}
+
+private fun Modifier.androidxClip(): Modifier = this.clipToBounds()
+
+/** The plaque artwork with its title written on it. */
+@Composable
+private fun Plaque(text: String, modifier: Modifier = Modifier) {
+    Box(modifier.height(64.dp).aspectRatio900(), contentAlignment = Alignment.Center) {
+        androidx.compose.foundation.Image(
+            androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.vault_plaque),
+            contentDescription = null,
+            contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
+            modifier = Modifier.matchParentSize(),
+        )
+        Text(text, color = Color(0xFFF2D592), fontFamily = Serif, fontWeight = FontWeight.Bold, fontSize = 21.sp, maxLines = 1, modifier = Modifier.padding(horizontal = 28.dp))
+    }
+}
+
+private fun Modifier.aspectRatio900(): Modifier = this.then(Modifier.aspectRatio(900f / 445f))
+
+/** The decorated top shelf (books, globe, ship) with a small title. */
+@Composable
+private fun TopShelf(title: String) {
+    Box(Modifier.fillMaxWidth().aspectRatioTop(), contentAlignment = Alignment.TopCenter) {
+        androidx.compose.foundation.Image(
+            androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.vault_top_shelf),
+            contentDescription = null,
+            contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
+            modifier = Modifier.matchParentSize(),
+        )
+        Row(
+            Modifier.padding(top = 2.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xE6EAD7A8)).border(1.dp, VaultColors.Gold, RoundedCornerShape(8.dp)).padding(horizontal = 12.dp, vertical = 3.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Filled.Lock, contentDescription = null, tint = Color(0xFF2E180A), modifier = Modifier.size(15.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(title, color = Color(0xFF2E180A), fontFamily = Serif, fontWeight = FontWeight.Bold, fontSize = 15.sp)
         }
     }
 }
 
-@Composable
-private fun Plaque(text: String) {
-    Box(
-        Modifier
-            .widthIn(min = 220.dp)
-            .height(52.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(Brush.verticalGradient(listOf(Color(0xFF4A2C14), Color(0xFF2E180A))))
-            .border(2.dp, VaultColors.Gold, RoundedCornerShape(14.dp))
-            .padding(horizontal = 22.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(text, color = Color(0xFFF2D592), fontFamily = Serif, fontWeight = FontWeight.Bold, fontSize = 22.sp)
-    }
-}
+private fun Modifier.aspectRatioTop(): Modifier = this.then(Modifier.aspectRatio(1080f / 378f))
 
 /** The locked cabinet with Unlock; used by the Private Library and by "Lock entire Read mode". */
 @Composable
@@ -285,46 +305,12 @@ fun LockedCabinet(title: String = "Private Library", onUnlocked: () -> Unit = {}
     val scope = rememberCoroutineScope()
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        // top shelf: a row of closed spines (no private books shown)
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(90.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(Color(0xFF241309))
-                .vaultShelfLighting()
-                .drawBehind {
-                    val colors = VaultColors.Leathers
-                    var x = size.width * 0.12f
-                    var i = 0
-                    while (x < size.width * 0.88f) {
-                        val bw = 12f + (i % 3) * 4f
-                        val bh = size.height * (0.62f + (i % 4) * 0.06f)
-                        drawRect(colors[i % colors.size], Offset(x, size.height - bh - 8f), Size(bw, bh))
-                        drawLine(VaultColors.Gold.copy(alpha = 0.6f), Offset(x, size.height - bh * 0.7f - 8f), Offset(x + bw, size.height - bh * 0.7f - 8f), 1.5f)
-                        x += bw + 2f
-                        i++
-                    }
-                    drawRect(Color(0xFF5A3218), Offset(0f, size.height - 8f), Size(size.width, 8f))
-                },
-            contentAlignment = Alignment.TopCenter,
-        ) {
-            Row(
-                Modifier.padding(top = 8.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xE6EAD7A8)).border(1.dp, VaultColors.Gold, RoundedCornerShape(8.dp)).padding(horizontal = 12.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(Icons.Filled.Lock, contentDescription = null, tint = Color(0xFF2E180A), modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(6.dp))
-                Text(title, color = Color(0xFF2E180A), fontFamily = Serif, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            }
-        }
-        Spacer(Modifier.height(10.dp))
-        Box(Modifier.fillMaxWidth().weight(1f).border(3.dp, Color(0xFF3A2010)), contentAlignment = Alignment.Center) {
-            CabinetDoors(opened = false, reduce = true, modifier = Modifier.fillMaxSize())
-            Column(Modifier.align(Alignment.BottomCenter).padding(bottom = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        TopShelf(title)
+        VaultCabinet(opened = false, reduce = true, modifier = Modifier.fillMaxWidth().weight(1f)) {
+            Column(Modifier.align(Alignment.BottomCenter).padding(bottom = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Plaque(title)
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(10.dp))
                 GoldButton(if (busy) "Checking…" else "Unlock", filled = true, modifier = Modifier.widthIn(min = 170.dp)) {
                     val activity = context.findFragmentActivity() ?: return@GoldButton
                     if (busy) return@GoldButton
@@ -336,7 +322,13 @@ fun LockedCabinet(title: String = "Private Library", onUnlocked: () -> Unit = {}
                     }
                 }
                 error?.let {
-                    Text(it, color = Color(0xFFF2B8A8), fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp, start = 24.dp, end = 24.dp))
+                    Text(
+                        it,
+                        color = Color(0xFFF2B8A8),
+                        fontSize = 13.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 8.dp, start = 24.dp, end = 24.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xCC1A0E06)).padding(8.dp),
+                    )
                 }
             }
         }
@@ -469,42 +461,44 @@ private fun UnlockedLibrary(reduce: Boolean, onBack: () -> Unit) {
         }
         Spacer(Modifier.height(8.dp))
         // the cabinet: doors swung open at the sides, shelves inside
-        BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
-            val edge = 14.dp
-            val columns = ((maxWidth - edge * 2).value / 112f).toInt().coerceIn(2, 8).let { if (maxWidth < 420.dp) 3 else it }
-            Box(Modifier.fillMaxSize().padding(horizontal = edge).graphicsLayer { alpha = shelfAlpha }) {
+        VaultCabinet(opened = opened, reduce = reduce, modifier = Modifier.fillMaxWidth().weight(1f), inside = {
+            BoxWithConstraints(Modifier.fillMaxSize().graphicsLayer { alpha = shelfAlpha }) {
+                val columns = (maxWidth.value / 112f).toInt().coerceIn(2, 8).let { if (maxWidth < 360.dp) 3.coerceAtMost(it.coerceAtLeast(3)) else it }
                 if (library == null) {
                     Text("Opening…", color = VaultColors.Ivory, modifier = Modifier.align(Alignment.Center))
                 } else if (books.isEmpty()) {
-                    Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(if (privateIds.isEmpty()) "The cabinet is empty" else "No books match", color = Color(0xFFF2D592), fontFamily = Serif, fontSize = 20.sp)
+                    Column(Modifier.align(Alignment.Center).padding(20.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xB31A0E06)).padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(if (privateIds.isEmpty()) "The cabinet is empty" else "No books match", color = Color(0xFFF2D592), fontFamily = Serif, fontSize = 19.sp)
                         Text(
                             if (privateIds.isEmpty()) "Use Add Books to move books here. They keep their progress and downloads." else "Try another search or filter.",
-                            color = Color(0xFFB8A88C),
+                            color = Color(0xFFE0D0B0),
                             fontSize = 13.sp,
                             textAlign = TextAlign.Center,
                         )
                     }
                 } else {
                     val rows = remember(books, columns) { books.chunked(columns) }
-                    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = bottom + 110.dp)) {
+                    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 6.dp, bottom = 24.dp)) {
                         items(rows, key = { row -> row.joinToString("|") { it.manga.id.toString() } }) { row ->
                             Column(Modifier.fillMaxWidth().vaultShelfLighting()) {
-                                Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
+                                Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp).padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Bottom) {
                                     row.forEach { lm -> VaultBookCell(lm, Modifier.weight(1f)) { navigator.push(MangaScreen(lm.manga.id)) } }
                                     repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                                 }
-                                // the plank
-                                Box(Modifier.fillMaxWidth().height(10.dp).background(Brush.verticalGradient(listOf(Color(0xFF7A4A24), Color(0xFF4A2A12)))).border(0.5.dp, Color(0x55D4AF65)))
-                                Spacer(Modifier.height(6.dp))
+                                // the shelf plank from the artwork, repeated for every row
+                                androidx.compose.foundation.Image(
+                                    androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.vault_shelf_row),
+                                    contentDescription = null,
+                                    contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
+                                    modifier = Modifier.fillMaxWidth().height(22.dp).offset(y = (-8).dp),
+                                )
                             }
                         }
                     }
                 }
             }
-            // the doors, swung open: slim decorative edges at each side
-            CabinetDoors(opened = opened, reduce = reduce, modifier = Modifier.fillMaxSize())
-        }
+        })
+        Spacer(Modifier.height(bottom + 8.dp))
     }
 }
 
