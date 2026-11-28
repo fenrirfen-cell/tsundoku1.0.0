@@ -28,7 +28,8 @@ internal fun rememberFenrirContinueBook(fallback: LibraryManga?, kinds: Set<Bool
     val recent by history.collectAsState(initial = null)
     val libraryFlow = remember { Injekt.get<GetLibraryManga>().subscribe() }
     val library by libraryFlow.collectAsState(initial = emptyList())
-    val picked by produceState<LibraryManga?>(null, recent, library, kinds) {
+    val vaultHidden by eu.kanade.tachiyomi.vault.Vault.hiddenFlow.collectAsState(initial = eu.kanade.tachiyomi.vault.Vault.hiddenIds())
+    val picked by produceState<LibraryManga?>(null, recent, library, kinds, vaultHidden) {
         val list = recent ?: return@produceState
         value = runCatching {
             withContext(Dispatchers.IO) {
@@ -38,6 +39,7 @@ internal fun rememberFenrirContinueBook(fallback: LibraryManga?, kinds: Set<Bool
                 val seen = HashSet<Long>()
                 for (h in list.sortedByDescending { it.readAt?.time ?: 0L }) {
                     if (!seen.add(h.mangaId)) continue
+                    if (h.mangaId in vaultHidden) continue // MugiVerse Private Library (locked)
                     val book = byId[h.mangaId] ?: continue
                     if (kinds != null && book.manga.isNovel !in kinds) continue
                     if (++checked > 12) break

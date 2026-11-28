@@ -316,7 +316,7 @@ fun MugiReadingStatsPanel(chapters: Int, titles: Int, readingTime: String, modif
 
 /** More → Captain's Log and Offline Voyage, as two wooden rows. */
 @Composable
-fun MugiVoyageMoreCard(onLog: () -> Unit, onOffline: () -> Unit) {
+fun MugiVoyageMoreCard(onLog: () -> Unit, onOffline: () -> Unit, onVault: (() -> Unit)? = null, onPrivacy: (() -> Unit)? = null) {
     Column(
         Modifier
             .fillMaxWidth()
@@ -325,9 +325,11 @@ fun MugiVoyageMoreCard(onLog: () -> Unit, onOffline: () -> Unit) {
             .background(Brush.verticalGradient(listOf(Color(0xFF3A2412), MugiScreenColors.ReadSurface, Color(0xFF1C110A))))
             .border(1.dp, MugiScreenColors.DarkGold, RoundedCornerShape(14.dp)),
     ) {
-        listOf(
+        listOfNotNull(
             Triple("Captain's Log", "Your streaks, stats and bounties", onLog),
             Triple("Offline Voyage", "Get the next chapters ready for a trip", onOffline),
+            onVault?.let { Triple("Private Library", "Books only you can open", it) },
+            onPrivacy?.let { Triple("Read privacy settings", "Locks, notifications, incognito", it) },
         ).forEachIndexed { i, (title, sub, click) ->
             if (i > 0) Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp).height(1.dp).background(MugiScreenColors.Gold.copy(alpha = 0.25f)))
             Row(

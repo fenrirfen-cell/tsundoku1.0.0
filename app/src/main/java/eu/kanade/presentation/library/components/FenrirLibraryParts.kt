@@ -31,6 +31,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.paint
 import androidx.compose.runtime.collectAsState
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.layout.aspectRatio
@@ -618,8 +619,29 @@ internal fun FenrirLibraryGridItem(
             ),
     ) {
         // Fenrir: the book as an ornate tome standing on the shelf; the cover follows its angle.
-        FenrirTomeBook(
-            cover = coverData,
+        // MugiVerse: a collector's-edition book instead (slim spine, page edges, bookmark), unless
+        // switched off in Read privacy settings.
+        eu.kanade.tachiyomi.vault.Vault.ensureLoaded()
+        val collector by eu.kanade.tachiyomi.vault.Vault.collectorBooks.collectAsState()
+        val bookComposable: @Composable (Modifier, ((androidx.compose.ui.geometry.Rect) -> Unit)?, @Composable BoxScope.() -> Unit, @Composable BoxScope.() -> Unit) -> Unit =
+            if (eu.kanade.tachiyomi.EmbeddedHost.isMugi && collector) {
+                { m, bounds, b, o ->
+                    MugiCollectorBook(
+                        cover = coverData,
+                        status = bookStatusOf(read.toLong(), total.toLong(), manga.status),
+                        readCount = read.toLong(),
+                        totalChapters = total.toLong(),
+                        modifier = m,
+                        onFrameBounds = bounds,
+                        badges = b,
+                        overlay = o,
+                    )
+                }
+            } else {
+                { m, bounds, b, o -> FenrirTomeBook(cover = coverData, modifier = m, onFrameBounds = bounds, badges = b, overlay = o) }
+            }
+        FenrirTomeBookSlot(
+            book = bookComposable,
             modifier = Modifier
                 .fillMaxWidth()
                 .fenrirTomeShadow()
@@ -1498,3 +1520,14 @@ private fun FenrirRegularGridItem(
         )
     }
 }
+
+
+/** Lets the bookcase cell pick the ornate tome or the collector's book with the same arguments. */
+@Composable
+internal fun FenrirTomeBookSlot(
+    book: @Composable (Modifier, ((androidx.compose.ui.geometry.Rect) -> Unit)?, @Composable BoxScope.() -> Unit, @Composable BoxScope.() -> Unit) -> Unit,
+    modifier: Modifier = Modifier,
+    onFrameBounds: ((androidx.compose.ui.geometry.Rect) -> Unit)? = null,
+    badges: @Composable BoxScope.() -> Unit = {},
+    overlay: @Composable BoxScope.() -> Unit = {},
+) = book(modifier, onFrameBounds, badges, overlay)

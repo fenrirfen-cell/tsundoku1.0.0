@@ -406,6 +406,7 @@ private fun MangaScreenSmallImpl(
             )
             MangaToolbar(
                 title = state.manga.title,
+                vaultMangaId = state.manga.id.takeIf { state.manga.favorite },
                 hasFilters = state.filterActive,
                 navigateUp = navigateUp,
                 onClickFilter = onFilterClicked,

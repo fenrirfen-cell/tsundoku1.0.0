@@ -11,6 +11,7 @@ import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 
 import androidx.compose.ui.unit.sp
@@ -714,6 +715,21 @@ private fun MugiReadHeader(modifier: Modifier) {
                         )
                     }
                 })
+            }
+            // MugiVerse Private Library (Captain's Vault): the little lock
+            run {
+                val vaultNav = cafe.adriel.voyager.navigator.LocalNavigator.current
+                Box(
+                    Modifier
+                        .size(44.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .clickable(role = Role.Button, onClickLabel = "Private Library") {
+                            vaultNav?.push(eu.kanade.presentation.vault.PrivateLibraryScreen())
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Filled.Lock, contentDescription = "Private Library", tint = gold, modifier = Modifier.size(22.dp))
+                }
             }
             // Surprise Me: the little treasure chest next to the bell
             if (eu.kanade.tachiyomi.EmbeddedHost.openVoyage != null) {

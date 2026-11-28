@@ -539,7 +539,13 @@ class MainActivity : BaseActivity() {
             Constants.SHORTCUT_MANGA -> {
                 val idToOpen = intent.extras?.getLong(Constants.MANGA_EXTRA) ?: return false
                 navigator.popUntilRoot()
-                HomeScreen.Tab.Library(idToOpen)
+                // MugiVerse Private Library: a locked private book opens the cabinet, not the book
+                if (eu.kanade.tachiyomi.vault.Vault.isHidden(idToOpen)) {
+                    navigator.push(eu.kanade.presentation.vault.PrivateLibraryScreen())
+                    HomeScreen.Tab.Library()
+                } else {
+                    HomeScreen.Tab.Library(idToOpen)
+                }
             }
             Constants.SHORTCUT_UPDATES -> HomeScreen.Tab.Updates
             Constants.SHORTCUT_HISTORY -> HomeScreen.Tab.History

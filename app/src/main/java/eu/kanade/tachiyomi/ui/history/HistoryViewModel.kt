@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.ui.history
 
+import kotlinx.coroutines.flow.combine
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.viewModelScope
@@ -85,8 +86,10 @@ class HistoryViewModel(
                     } else {
                         getHistory.subscribe(params.query ?: "", params.limit)
                     }
-                    historyFlow
-                        .distinctUntilChanged()
+                    // MugiVerse: private books stay out of history while the Private Library is locked
+                    combine(historyFlow.distinctUntilChanged(), eu.kanade.tachiyomi.vault.Vault.hiddenFlow) { list, hidden ->
+                        if (hidden.isEmpty()) list else list.filter { it.mangaId !in hidden }
+                    }
                         .catch { error ->
                             logcat(LogPriority.ERROR, error)
                             _events.send(Event.InternalError)

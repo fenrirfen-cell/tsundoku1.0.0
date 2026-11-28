@@ -102,7 +102,7 @@ class LibraryUpdateNotifier(
         if (!securityPreferences.hideNotificationContent.get()) {
             val lines = buildList {
                 waitingMessage?.let { add(it) }
-                manga.mapTo(this) { it.title.chop(40) }
+                manga.filterNot { eu.kanade.tachiyomi.vault.Vault.isPrivate(it.id) }.mapTo(this) { it.title.chop(40) }
             }
             progressNotificationBuilder.setStyle(NotificationCompat.BigTextStyle().bigText(lines.joinToString("\n")))
         }
@@ -170,7 +170,14 @@ class LibraryUpdateNotifier(
      *
      * @param updates a list of manga with new updates.
      */
-    fun showUpdateNotifications(updates: List<Pair<Manga, Array<Chapter>>>) {
+    fun showUpdateNotifications(allUpdates: List<Pair<Manga, Array<Chapter>>>) {
+        // MugiVerse Private Library: private books never show in notifications (when chosen)
+        val updates = if (eu.kanade.tachiyomi.vault.Vault.run { ensureLoaded(); hideNotifications.value }) {
+            allUpdates.filterNot { eu.kanade.tachiyomi.vault.Vault.isPrivate(it.first.id) }
+        } else {
+            allUpdates
+        }
+        if (updates.isEmpty()) return
         // Fenrir Read: optionally say the new chapters out loud.
         eu.kanade.tachiyomi.data.notification.SpokenChapterAlerts.announce(
             context,

@@ -147,13 +147,16 @@ class UpdatesViewModel(
                         ).distinctUntilChanged()
                     },
                 downloadCache.changes,
-                downloadManager.queueState,
+                // MugiVerse: re-filter when the Private Library locks or unlocks
+                combine(downloadManager.queueState, eu.kanade.tachiyomi.vault.Vault.hiddenFlow) { q, _ -> q },
                 libraryPreferences.lastUpdatesClearedTimestamp.changes(),
                 // needed for Kotlin filters (downloaded)
                 getUpdatesItemPreferenceFlow().distinctUntilChanged { old, new ->
                     old.filterDownloaded == new.filterDownloaded
                 },
-            ) { updates, _, _, clearedAt, itemPreferences ->
+            ) { allUpdates, _, _, clearedAt, itemPreferences ->
+                val hidden = eu.kanade.tachiyomi.vault.Vault.hiddenIds()
+                val updates = if (hidden.isEmpty()) allUpdates else allUpdates.filter { it.mangaId !in hidden }
                 val filteredUpdates = if (clearedAt > 0L) {
                     updates.filter { it.dateFetch > clearedAt }
                 } else {

@@ -30,6 +30,7 @@ import tachiyomi.i18n.novel.TDMR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.theme.active
 import tachiyomi.presentation.core.util.collectAsState
+import kotlinx.coroutines.launch
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
@@ -57,6 +58,8 @@ fun MangaToolbar(
     onClickScrollToTop: (() -> Unit)? = null,
     onClickScrollToLastRead: (() -> Unit)? = null,
     onClickScrollToBottom: (() -> Unit)? = null,
+    // MugiVerse: "Move to Private Library" / "Move to regular library" for a book in the library
+    vaultMangaId: Long? = null,
 
     // For action mode
     actionModeCounter: Int,
@@ -68,6 +71,8 @@ fun MangaToolbar(
     backgroundAlphaProvider: () -> Float,
     modifier: Modifier = Modifier,
 ) {
+    val vaultContext = androidx.compose.ui.platform.LocalContext.current
+    val vaultScope = androidx.compose.runtime.rememberCoroutineScope()
     val isActionMode = actionModeCounter > 0
     val scrollActionsInOverflow by remember { Injekt.get<UiPreferences>().mangaScrollActionsInOverflow }
         .collectAsState()
@@ -214,6 +219,29 @@ fun MangaToolbar(
                             AppBar.OverflowAction(
                                 title = "Find Duplicates",
                                 onClick = onClickFindDuplicates,
+                            ),
+                        )
+                    }
+                    if (vaultMangaId != null && eu.kanade.tachiyomi.EmbeddedHost.isMugi) {
+                        val isPrivate = eu.kanade.tachiyomi.vault.Vault.isPrivate(vaultMangaId)
+                        add(
+                            AppBar.OverflowAction(
+                                title = if (isPrivate) "Move to regular library" else "Move to Private Library",
+                                onClick = {
+                                    if (!isPrivate) {
+                                        eu.kanade.tachiyomi.vault.Vault.add(listOf(vaultMangaId))
+                                    } else {
+                                        val act = generateSequence(vaultContext) { (it as? android.content.ContextWrapper)?.baseContext }
+                                            .filterIsInstance<androidx.fragment.app.FragmentActivity>().firstOrNull()
+                                        if (act != null) {
+                                            vaultScope.launch {
+                                                if (eu.kanade.tachiyomi.vault.Vault.authenticate(act, "Remove from Private Library") == null) {
+                                                    eu.kanade.tachiyomi.vault.Vault.remove(listOf(vaultMangaId))
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
                             ),
                         )
                     }

@@ -751,7 +751,10 @@ class LibraryViewModel(
 
     private fun getFavoritesFlow(displayPreferencesFlow: Flow<DisplayPreferences>): Flow<List<LibraryItem>> {
         return combine(
-            getLibraryManga.subscribe(),
+            // MugiVerse: books in the Private Library live there, not on the regular shelves
+            combine(getLibraryManga.subscribe(), eu.kanade.tachiyomi.vault.Vault.privateIds) { list, privateIds ->
+                if (privateIds.isEmpty()) list else list.filter { it.manga.id !in privateIds }
+            },
             displayPreferencesFlow,
             downloadCache.changes.onStart { emit(Unit) },
         ) { libraryManga, preferences, _ ->

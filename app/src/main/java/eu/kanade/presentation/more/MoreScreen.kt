@@ -88,9 +88,12 @@ fun MoreScreen(
             if (eu.kanade.tachiyomi.EmbeddedHost.isMugi && eu.kanade.tachiyomi.EmbeddedHost.openVoyage != null) {
                 item {
                     val ctx = androidx.compose.ui.platform.LocalContext.current
+                    val vaultNav = cafe.adriel.voyager.navigator.LocalNavigator.current
                     eu.kanade.presentation.components.MugiVoyageMoreCard(
                         onLog = { eu.kanade.tachiyomi.EmbeddedHost.voyage(ctx, "LOG") },
                         onOffline = { eu.kanade.tachiyomi.EmbeddedHost.voyage(ctx, "OFFLINE") },
+                        onVault = { vaultNav?.push(eu.kanade.presentation.vault.PrivateLibraryScreen()) },
+                        onPrivacy = { vaultNav?.push(eu.kanade.presentation.vault.ReadPrivacySettingsScreen()) },
                     )
                 }
             }
