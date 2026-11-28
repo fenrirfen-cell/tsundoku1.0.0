@@ -4,6 +4,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -75,6 +77,20 @@ internal fun decorFor(index: Int, novel: Boolean): Int? {
 /** A shelf spot the size of one tome, with [content] standing on the shelf line. */
 @Composable
 private fun ShelfSpot(titleMaxLines: Int, label: String? = null, onClick: (() -> Unit)? = null, content: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit) {
+    // MugiVerse collector's shelves: the same shelf-row slice and plank line as the books
+    eu.kanade.tachiyomi.vault.Vault.ensureLoaded()
+    val collectorShelf by eu.kanade.tachiyomi.vault.Vault.collectorBooks.collectAsState()
+    if (eu.kanade.tachiyomi.EmbeddedHost.isMugi && collectorShelf) {
+        Box(
+            Modifier
+                .mugiShelfRow()
+                .mugiShelfPadding()
+                .then(if (onClick != null) Modifier.clip(RoundedCornerShape(6.dp)).clickable(onClickLabel = label, onClick = onClick) else Modifier),
+        ) {
+            Box(Modifier.fillMaxWidth().aspectRatio(FenrirTomeRatio), content = content)
+        }
+        return
+    }
     Column(
         Modifier
             .fenrirPlank(5.dp, FenrirTomePlankRatio, 0.dp, bookShadow = false)
@@ -117,7 +133,8 @@ internal fun FenrirAddBookCell(titleMaxLines: Int = 2) {
         },
     ) {
         Image(
-            painter = painterResource(R.drawable.fenrir_tome_add),
+            // MugiVerse: the supplied red leather book with the gold plus
+            painter = painterResource(if (eu.kanade.tachiyomi.EmbeddedHost.isMugi) R.drawable.library_add_book else R.drawable.fenrir_tome_add),
             contentDescription = "Add a book",
             contentScale = ContentScale.Fit,
             alignment = Alignment.BottomCenter,

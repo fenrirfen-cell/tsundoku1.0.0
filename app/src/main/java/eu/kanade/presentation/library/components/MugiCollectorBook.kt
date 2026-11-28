@@ -124,98 +124,87 @@ fun MugiCollectorBook(
     badges: @Composable BoxScope.() -> Unit = {},
     overlay: @Composable BoxScope.() -> Unit = {},
 ) {
-    val leather = VaultColors.Leathers[(cover.mangaId % VaultColors.Leathers.size).toInt().let { if (it < 0) -it else it }]
+    // one of the five supplied leather frames, always the same one for a given book
+    val frame = (cover.mangaId % CollectorFrames.size).toInt().let { if (it < 0) -it else it }
+    val opening = CollectorOpenings[frame]
     BoxWithConstraints(
         modifier
             .aspectRatio(FenrirTomeRatio)
             .then(if (onFrameBounds != null) Modifier.onGloballyPositioned { onFrameBounds(it.boundsInRoot()) } else Modifier),
     ) {
-        val bookH = maxHeight * 0.84f
-        val coverW = bookH * (2f / 3f)
-        val spineW = coverW * 0.09f
-        val pagesW = coverW * 0.035f
-        val bookW = spineW + coverW + pagesW
-        val left = (maxWidth - bookW) / 2
+        // the frame artwork is 402 × 560; it stands on the bottom of the slot
+        val fh = maxHeight * 0.97f
+        val fw = fh * (402f / 560f)
+        val left = (maxWidth - fw) / 2
+        val top = maxHeight - fh
         // contact shadow on the shelf
         Box(
             Modifier
                 .fillMaxSize()
                 .drawBehind {
-                    val y = bookH.toPx() + 1.dp.toPx()
+                    val y = size.height - 1.dp.toPx()
                     drawOval(
-                        Brush.radialGradient(listOf(Color.Black.copy(alpha = 0.6f), Color.Transparent), center = Offset(size.width / 2, y), radius = bookW.toPx() * 0.7f),
-                        topLeft = Offset(left.toPx() - 4.dp.toPx(), y - 5.dp.toPx()),
-                        size = Size(bookW.toPx() + 8.dp.toPx(), 10.dp.toPx()),
+                        Brush.radialGradient(listOf(Color.Black.copy(alpha = 0.55f), Color.Transparent), center = Offset(size.width / 2, y), radius = fw.toPx() * 0.7f),
+                        topLeft = Offset(left.toPx() - 2.dp.toPx(), y - 5.dp.toPx()),
+                        size = Size(fw.toPx() + 4.dp.toPx(), 9.dp.toPx()),
                     )
                 },
         )
-        // spine (leather, two raised bands)
+        // the real cover, seen through the frame's opening (a hair larger so no gap shows)
         Box(
             Modifier
-                .offset(x = left)
-                .size(spineW, bookH)
-                .drawBehind {
-                    drawRoundRect(
-                        Brush.horizontalGradient(listOf(leather.copy(red = leather.red * 0.6f, green = leather.green * 0.6f, blue = leather.blue * 0.6f), leather, leather.copy(red = leather.red * 0.75f, green = leather.green * 0.75f, blue = leather.blue * 0.75f))),
-                        cornerRadius = CornerRadius(2.dp.toPx()),
-                    )
-                    // leather grain
-                    var y = 3f
-                    while (y < size.height) { drawLine(Color.Black.copy(alpha = 0.08f), Offset(0f, y), Offset(size.width, y + 2f), 1f); y += 5f }
-                    listOf(0.2f, 0.8f).forEach { f ->
-                        drawRect(Color.Black.copy(alpha = 0.35f), Offset(0f, size.height * f), Size(size.width, 2.5.dp.toPx()))
-                        drawRect(VaultColors.Gold.copy(alpha = 0.7f), Offset(0f, size.height * f - 1.dp.toPx()), Size(size.width, 1.dp.toPx()))
-                    }
-                },
-        )
-        // cream page edges (right side and a sliver at the bottom)
-        Box(
-            Modifier
-                .offset(x = left + spineW + coverW - 1.dp, y = 2.dp)
-                .size(pagesW + 1.dp, bookH - 3.dp)
-                .drawBehind {
-                    drawRect(Color(0xFFEDE0C4))
-                    var x = 1f
-                    while (x < size.width) { drawLine(Color(0x33806A48), Offset(x, 0f), Offset(x, size.height), 0.7f); x += 2f }
-                },
-        )
-        // the cover itself (flat, never distorted)
-        Box(
-            Modifier
-                .offset(x = left + spineW)
-                .size(coverW, bookH)
-                .clip(RoundedCornerShape(topEnd = 3.dp, bottomEnd = 3.dp)),
+                .offset(x = left + fw * opening[0] - 1.dp, y = top + fh * opening[1] - 1.dp)
+                .size(fw * (opening[2] - opening[0]) + 2.dp, fh * (opening[3] - opening[1]) + 2.dp)
+                .clip(RectangleShape),
         ) {
             MangaCover.Book(data = cover, modifier = Modifier.fillMaxSize(), shape = RectangleShape)
-            // a little light from above, and the hinge shadow by the spine
-            Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(Color.Black.copy(alpha = 0.35f), Color.Transparent), endX = 40f)))
-            // thin gold corner protectors
-            Box(
-                Modifier.fillMaxSize().drawBehind {
-                    val c = 7.dp.toPx()
-                    val g = VaultColors.Gold
-                    val w = size.width
-                    val h = size.height
-                    listOf(
-                        listOf(Offset(w - c, 0f), Offset(w, 0f), Offset(w, c)),
-                        listOf(Offset(w - c, h), Offset(w, h), Offset(w, h - c)),
-                    ).forEach { pts ->
-                        val p = Path().apply { moveTo(pts[0].x, pts[0].y); lineTo(pts[1].x, pts[1].y); lineTo(pts[2].x, pts[2].y); close() }
-                        drawPath(p, g)
-                    }
-                    drawRect(g.copy(alpha = 0.55f), style = androidx.compose.ui.graphics.drawscope.Stroke(1f))
-                },
-            )
             overlay()
             if (showProgress && (readCount > 0 || totalChapters > 0)) {
                 VaultBookProgress(readCount, totalChapters, Modifier.align(Alignment.BottomEnd).padding(3.dp))
             }
         }
-        // fabric bookmark hanging from the page edge
-        BookStatusRibbon(status, Modifier.offset(x = left + spineW + coverW * 0.72f, y = bookH - 1.dp))
+        // the leather frame overlay (spine, page edges, gold corners)
+        androidx.compose.foundation.Image(
+            androidx.compose.ui.res.painterResource(CollectorFrames[frame]),
+            contentDescription = null,
+            contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
+            modifier = Modifier.offset(x = left, y = top).size(fw, fh),
+        )
+        // the reading-status bookmark hanging below the book (supplied fabric bookmarks)
+        val markW = fw * 0.11f
+        androidx.compose.foundation.Image(
+            androidx.compose.ui.res.painterResource(
+                when (status) {
+                    BookReadingStatus.UNREAD -> eu.kanade.tachiyomi.R.drawable.book_bookmark_blue
+                    BookReadingStatus.READING -> eu.kanade.tachiyomi.R.drawable.book_bookmark_red
+                    BookReadingStatus.COMPLETED -> eu.kanade.tachiyomi.R.drawable.book_bookmark_yellow
+                },
+            ),
+            contentDescription = null,
+            contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
+            modifier = Modifier.offset(x = left + fw * 0.70f, y = top + fh * 0.90f).size(markW, markW * (133f / 69f)),
+        )
         badges()
     }
 }
+
+/** The five supplied collector's-edition frames. */
+private val CollectorFrames = listOf(
+    eu.kanade.tachiyomi.R.drawable.collector_book_red,
+    eu.kanade.tachiyomi.R.drawable.collector_book_blue,
+    eu.kanade.tachiyomi.R.drawable.collector_book_green,
+    eu.kanade.tachiyomi.R.drawable.collector_book_purple,
+    eu.kanade.tachiyomi.R.drawable.collector_book_brown,
+)
+
+/** Each frame's transparent cover opening (left, top, right, bottom as shares), measured from the artwork. */
+private val CollectorOpenings = listOf(
+    floatArrayOf(0.1965f, 0.1250f, 0.9129f, 0.9393f),
+    floatArrayOf(0.2040f, 0.1250f, 0.9179f, 0.9393f),
+    floatArrayOf(0.2040f, 0.1250f, 0.9179f, 0.9393f),
+    floatArrayOf(0.2090f, 0.1250f, 0.9204f, 0.9393f),
+    floatArrayOf(0.2090f, 0.1250f, 0.9229f, 0.9393f),
+)
 
 
 /**

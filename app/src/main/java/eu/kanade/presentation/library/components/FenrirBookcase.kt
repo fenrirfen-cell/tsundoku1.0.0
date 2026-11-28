@@ -343,3 +343,79 @@ internal fun Modifier.fenrirHardcover(): Modifier = drawWithContent {
         Brush.verticalGradient(0.8f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.3f)),
     )
 }
+
+/* ───────────── MugiVerse: the supplied shelf-row artwork ───────────── */
+
+/**
+ * MugiVerse: draws this cell's slice of the shelf row (back wall, side posts, plank) from the
+ * supplied artwork. The picture is scaled to the row's height only (never stretched up or down);
+ * across wide screens its middle is repeated between the two side posts, so a row of any width
+ * reads as one shelf. Cells sit edge to edge, each drawing the part under it.
+ */
+internal fun Modifier.mugiShelfRow(): Modifier = composed {
+    val img = androidx.compose.ui.graphics.ImageBitmap.imageResource(R.drawable.library_shelf_row)
+    val screenW = with(LocalDensity.current) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
+    val xState = remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    this
+        .onGloballyPositioned {
+            val raw = it.positionInRoot().x
+            xState.floatValue = ((raw % screenW) + screenW) % screenW
+        }
+        .drawBehind { drawMugiShelfSlice(img, xState.floatValue, screenW) }
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawMugiShelfSlice(img: androidx.compose.ui.graphics.ImageBitmap, x: Float, stripW: Float) {
+    val iw = img.width
+    val ih = img.height
+    if (iw <= 0 || ih <= 0 || size.height <= 0f) return
+    val s = size.height / ih
+    val postL = (iw * 0.049f).toInt()
+    val postR = (iw * 0.0505f).toInt()
+    val midSrc = iw - postL - postR
+    val lw = postL * s
+    val rw = postR * s
+    val midDst = (stripW - lw - rw).coerceAtLeast(1f)
+    val n = maxOf(1, kotlin.math.round(midDst / (midSrc * s)).toInt())
+    val tw = midDst / n
+    // (destination start, destination width, source start, source width) along the whole row
+    val segments = buildList {
+        add(floatArrayOf(0f, lw, 0f, postL.toFloat()))
+        for (k in 0 until n) add(floatArrayOf(lw + k * tw, tw, postL.toFloat(), midSrc.toFloat()))
+        add(floatArrayOf(stripW - rw, rw, (iw - postR).toFloat(), postR.toFloat()))
+    }
+    val cellEnd = x + size.width
+    segments.forEach { (d0, dw, s0, sw) ->
+        val a = maxOf(d0, x)
+        val b = minOf(d0 + dw, cellEnd)
+        if (b <= a || dw <= 0f) return@forEach
+        val srcA = (s0 + (a - d0) / dw * sw).toInt().coerceIn(0, iw - 1)
+        val srcB = (s0 + (b - d0) / dw * sw).toInt().coerceIn(srcA + 1, iw)
+        val dstA = kotlin.math.floor(a - x).toInt()
+        val dstB = kotlin.math.ceil(b - x).toInt()
+        drawImage(
+            img,
+            srcOffset = IntOffset(srcA, 0),
+            srcSize = IntSize(srcB - srcA, ih),
+            dstOffset = IntOffset(dstA, 0),
+            dstSize = IntSize((dstB - dstA).coerceAtLeast(1), size.height.toInt() + 1),
+            filterQuality = FilterQuality.Medium,
+        )
+    }
+}
+
+/**
+ * MugiVerse: places a book slot on the shelf row: the slot is as wide as the cell (less a little
+ * room each side) and its bottom lands on the plank (91.5 % down the row picture).
+ */
+internal fun Modifier.mugiShelfPadding(): Modifier = this.then(
+    Modifier.layout { measurable, constraints ->
+        val side = 6.dp.roundToPx()
+        val w = constraints.maxWidth
+        val inner = (w - side * 2).coerceAtLeast(1)
+        val slotH = inner / FenrirTomeRatio
+        val top = (slotH * 0.0702f).toInt()
+        val bottom = (slotH * 0.0994f).toInt()
+        val p = measurable.measure(androidx.compose.ui.unit.Constraints.fixedWidth(inner))
+        layout(w, top + p.height + bottom) { p.place(side, top) }
+    },
+)

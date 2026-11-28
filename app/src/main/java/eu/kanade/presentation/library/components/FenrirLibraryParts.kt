@@ -61,6 +61,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.layout.layout
@@ -622,10 +624,14 @@ internal fun FenrirLibraryGridItem(
             lastModified = manga.coverLastModified,
         )
     }
+    // MugiVerse collector's shelves: each cell is a slice of the supplied shelf-row artwork and the
+    // book stands on its plank (the title lives on the cover; screen readers still get it)
+    eu.kanade.tachiyomi.vault.Vault.ensureLoaded()
+    val collectorShelf by eu.kanade.tachiyomi.vault.Vault.collectorBooks.collectAsState()
+    val mugiShelf = eu.kanade.tachiyomi.EmbeddedHost.isMugi && collectorShelf
     Column(
-        Modifier
-            .fenrirPlank(5.dp, FenrirTomePlankRatio, 0.dp, bookShadow = false)
-            .padding(5.dp)
+        (if (mugiShelf) Modifier.mugiShelfRow().mugiShelfPadding() else Modifier.fenrirPlank(5.dp, FenrirTomePlankRatio, 0.dp, bookShadow = false).padding(5.dp))
+            .then(if (mugiShelf) Modifier.semantics { contentDescription = manga.title } else Modifier)
             .clip(RoundedCornerShape(6.dp))
             .combinedClickable(
                 onClick = {
@@ -710,6 +716,7 @@ internal fun FenrirLibraryGridItem(
                 Box(Modifier.fillMaxSize().border(4.dp, FenrirRed))
             }
         }
+        if (!mugiShelf) {
         Text(
             manga.title,
             color = Color.White,
@@ -736,6 +743,7 @@ internal fun FenrirLibraryGridItem(
             )
             Spacer(Modifier.width(6.dp))
             FenrirRatingBadge(title = manga.title, novel = manga.isNovel)
+        }
         }
     }
 }

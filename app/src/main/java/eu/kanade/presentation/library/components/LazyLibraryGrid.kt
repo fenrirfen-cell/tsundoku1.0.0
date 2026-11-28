@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -30,8 +31,14 @@ internal fun LazyLibraryGrid(
 ) {
     androidx.compose.foundation.layout.BoxWithConstraints(modifier) {
         // Fenrir: how many books fit on one shelf (same rule the grid uses below).
+        eu.kanade.tachiyomi.vault.Vault.ensureLoaded()
+        val mugiShelfCols = FenrirLibraryLook.current.value == FenrirLibraryLook.Look.Bookshelf && eu.kanade.tachiyomi.EmbeddedHost.isMugi &&
+            eu.kanade.tachiyomi.vault.Vault.collectorBooks.collectAsState().value
         val perRow = if (columns > 0) {
             columns
+        } else if (mugiShelfCols) {
+            // MugiVerse shelves: 120 dp spots edge to edge (so every row can be filled out)
+            (maxWidth / 120.dp).toInt().coerceAtLeast(1)
         } else {
             ((maxWidth - 16.dp + CommonMangaItemDefaults.GridHorizontalSpacer) / (128.dp + CommonMangaItemDefaults.GridHorizontalSpacer)).toInt().coerceAtLeast(1)
         }
@@ -71,6 +78,9 @@ internal fun LazyLibraryGrid(
         }
         val look = FenrirLibraryLook.current.value
         val lux = look == FenrirLibraryLook.Look.Luxury
+        eu.kanade.tachiyomi.vault.Vault.ensureLoaded()
+        val collectorShelves by eu.kanade.tachiyomi.vault.Vault.collectorBooks.collectAsState()
+        val mugiShelves = look == FenrirLibraryLook.Look.Bookshelf && eu.kanade.tachiyomi.EmbeddedHost.isMugi && collectorShelves
         val geom = LocalLuxGeom.current
         // Fenrir (Luxury): shelf spots touch each other so the glass and the lights run on; the
         // collection sits inside the case frame (and between the towers on wide screens).
@@ -97,16 +107,19 @@ internal fun LazyLibraryGrid(
         }
         androidx.compose.runtime.CompositionLocalProvider(LocalLuxCells provides luxCells) {
         FastScrollLazyVerticalGrid(
-            columns = if (lux) GridCells.Fixed(luxCols) else if (columns == 0) GridCells.Adaptive(if (look == FenrirLibraryLook.Look.Regular) 104.dp else 128.dp) else GridCells.Fixed(columns),
+            columns = if (lux) GridCells.Fixed(luxCols) else if (columns == 0) GridCells.Adaptive(if (look == FenrirLibraryLook.Look.Regular) 104.dp else if (mugiShelves) 120.dp else 128.dp) else GridCells.Fixed(columns),
             state = gridState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = if (lux) {
                 contentPadding + PaddingValues(start = geom.side, end = geom.side, top = 0.dp, bottom = 8.dp) + PaddingValues(bottom = islandPad + 24.dp)
+            } else if (mugiShelves) {
+                // MugiVerse: shelf rows run edge to edge and stack with no gaps
+                contentPadding + PaddingValues(top = 8.dp) + PaddingValues(bottom = islandPad + 16.dp)
             } else {
                 contentPadding + PaddingValues(8.dp) + PaddingValues(bottom = islandPad)
             },
-            verticalArrangement = Arrangement.spacedBy(if (lux) 0.dp else CommonMangaItemDefaults.GridVerticalSpacer),
-            horizontalArrangement = Arrangement.spacedBy(if (lux) 0.dp else CommonMangaItemDefaults.GridHorizontalSpacer),
+            verticalArrangement = Arrangement.spacedBy(if (lux || mugiShelves) 0.dp else CommonMangaItemDefaults.GridVerticalSpacer),
+            horizontalArrangement = Arrangement.spacedBy(if (lux || mugiShelves) 0.dp else CommonMangaItemDefaults.GridHorizontalSpacer),
         ) {
             // Fenrir: room for the glass case + rail, which scroll along with this spot.
             if (header != null) {
