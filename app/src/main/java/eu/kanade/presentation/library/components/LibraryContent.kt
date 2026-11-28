@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.LinearProgressIndicator
@@ -179,6 +180,15 @@ fun LibraryContent(
                     LuxTower(true, Modifier.align(androidx.compose.ui.Alignment.TopStart).padding(start = 3.dp).wrapContentHeight(androidx.compose.ui.Alignment.Top, unbounded = true).width(geom.tower))
                     LuxTower(false, Modifier.align(androidx.compose.ui.Alignment.TopEnd).padding(end = 3.dp).wrapContentHeight(androidx.compose.ui.Alignment.Top, unbounded = true).width(geom.tower))
                 }
+            }
+            // MugiVerse: the carved wooden header trim (supplied artwork) above Continue Reading
+            if (mugiRead && look == FenrirLibraryLook.Look.Bookshelf && eu.kanade.tachiyomi.EmbeddedHost.showDecorations?.invoke() != false) {
+                androidx.compose.foundation.Image(
+                    androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.library_header_trim),
+                    contentDescription = null,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp).aspectRatio(1100f / 164f),
+                )
             }
             // Fenrir: "Continue reading" glass display case for the most recently read book.
             if (searchQuery.isNullOrEmpty() && selection.isEmpty()) {

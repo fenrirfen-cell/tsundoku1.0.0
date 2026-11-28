@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -752,99 +753,67 @@ internal fun MugiContinueReadingFrame(manga: LibraryManga, onOpen: () -> Unit) {
             FenrirBookFlight.start(manga.manga.id, cover, bookRect, onOpen, FenrirFirstPage.prefetch(manga.manga))
         }
     }
-    val ivory = Color(0xFFF4E3C1)
-    val serif = androidx.compose.ui.text.font.FontFamily.Serif
-    BoxWithConstraints(
+    val ink = Color(0xFF38200F)
+    val serif = eu.kanade.presentation.components.MugiPlayfair
+    // the rectangular parchment panel (supplied artwork): small cover left, details right
+    Box(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 4.dp)
-            .aspectRatio(682f / 410f)
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .heightIn(min = 120.dp)
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = tapped),
     ) {
-        val w = maxWidth
-        val h = maxHeight
-        // dark inside, then the frame over it
-        Box(
-            Modifier
-                .padding(start = w * 0.085f, end = w * 0.085f, top = h * 0.29f, bottom = h * 0.12f)
-                .fillMaxSize()
-                .clip(RoundedCornerShape(10.dp))
-                .background(Color(0xD928170F)),
-        )
         androidx.compose.foundation.Image(
-            androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.mugi_reading_frame),
+            androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.continue_reading_parchment),
             contentDescription = null,
             contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.matchParentSize(),
         )
         Row(
-            Modifier
-                .fillMaxSize()
-                .padding(start = w * 0.13f, end = w * 0.14f, top = h * 0.36f, bottom = h * 0.17f),
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            val bookH = h * 0.46f
-            Box(Modifier.width(bookH * FenrirTomeRatio).height(bookH)) {
-                FenrirTomeBook(
-                    cover = cover,
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .wrapContentSize(Alignment.Center, unbounded = true)
-                        .height(bookH)
-                        .fenrirTomeShadow()
-                        .alpha(if (flying) 0f else 1f),
-                    onFrameBounds = { bookRect = fenrirTomeCoverRect(it) },
-                )
-            }
-            Spacer(Modifier.width(10.dp))
+            eu.kanade.presentation.manga.components.MangaCover.Book(
+                modifier = Modifier
+                    .width(64.dp)
+                    .border(1.dp, Color(0xFFD4AF65), RoundedCornerShape(4.dp))
+                    .onGloballyPositioned { bookRect = it.boundsInRoot() }
+                    .alpha(if (flying) 0f else 1f),
+                data = cover,
+                onClick = tapped,
+            )
+            Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Text(manga.manga.title, color = ivory, fontFamily = serif, fontWeight = FontWeight.Bold, fontSize = 15.sp, lineHeight = 18.sp, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                Spacer(Modifier.height(3.dp))
-                Text(chapterLine, color = Color(0xFFD3B477), fontFamily = serif, fontSize = 11.5.sp, maxLines = 1)
-                Spacer(Modifier.height(9.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.weight(1f).height(7.dp).clip(CircleShape).background(Color(0xFF3A2A18))) {
-                        Box(Modifier.fillMaxWidth(progress.coerceIn(0.02f, 1f)).fillMaxHeight().background(Brush.horizontalGradient(listOf(Color(0xFFF3C75F), Color(0xFFE2A43A)))))
+                    Text("Continue Reading", color = ink, fontFamily = serif, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic, fontWeight = FontWeight.Bold, fontSize = 19.sp, maxLines = 1, modifier = Modifier.weight(1f))
+                    // MugiVerse Continue: everything unfinished from Watch, Ani-Drama and Read
+                    if (eu.kanade.tachiyomi.EmbeddedHost.openVoyage != null) {
+                        val ctx = androidx.compose.ui.platform.LocalContext.current
+                        Text(
+                            "See all ›",
+                            color = Color(0xFF7A2A16),
+                            fontFamily = serif,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable { eu.kanade.tachiyomi.EmbeddedHost.voyage(ctx, "CONTINUE") }
+                                .padding(horizontal = 8.dp, vertical = 8.dp),
+                        )
                     }
-                    Spacer(Modifier.width(6.dp))
-                    Text("${(progress * 100).toInt()}%", color = ivory, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                }
+                Text(manga.manga.title, color = ink, fontFamily = serif, fontWeight = FontWeight.Bold, fontSize = 15.sp, lineHeight = 18.sp, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Text(chapterLine, color = ink.copy(alpha = 0.8f), fontFamily = serif, fontSize = 12.sp, maxLines = 1)
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f).height(7.dp).clip(CircleShape).background(Color(0xFF9C8460))) {
+                        Box(Modifier.fillMaxWidth(progress.coerceIn(0.02f, 1f)).fillMaxHeight().background(Brush.horizontalGradient(listOf(Color(0xFFC9323A), Color(0xFF8E1C22)))))
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text("${(progress * 100).toInt()}%", color = ink, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                 }
             }
-        }
-        // the parchment title across the top of the frame
-        Box(
-            Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = h * 0.2f)
-                .width(w * 0.42f)
-                .height(h * 0.13f),
-            contentAlignment = Alignment.Center,
-        ) {
-            androidx.compose.foundation.Image(
-                androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.mugi_parchment),
-                contentDescription = null,
-                contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
-                modifier = Modifier.fillMaxSize(),
-            )
-            Text("Continue Reading", color = Color(0xFF2E180A), fontFamily = serif, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1)
-        }
-        // MugiVerse Continue: everything unfinished from Watch, Ani-Drama and Read
-        if (eu.kanade.tachiyomi.EmbeddedHost.openVoyage != null) {
-            val ctx = androidx.compose.ui.platform.LocalContext.current
-            Text(
-                "See all ›",
-                color = Color(0xFFF3C75F),
-                fontFamily = serif,
-                fontWeight = FontWeight.Bold,
-                fontSize = 12.sp,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = h * 0.2f, end = w * 0.05f)
-                    .clip(RoundedCornerShape(10.dp))
-                    .clickable { eu.kanade.tachiyomi.EmbeddedHost.voyage(ctx, "CONTINUE") }
-                    .background(Color(0xCC2A1709))
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
-            )
         }
     }
 }

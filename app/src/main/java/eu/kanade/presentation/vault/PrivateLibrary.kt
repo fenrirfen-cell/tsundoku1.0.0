@@ -748,10 +748,10 @@ private fun SettingRow(title: String, subtitle: String, checked: Boolean, onChan
 /* ───────────── Captain's Quarters (level 1: the whole of Read) ───────────── */
 
 /**
- * The complete cabin doorway from the approved artwork, every layer on one 600 × 844 canvas with
+ * The complete cabin doorway from the approved artwork, every layer on one 600 × 954 canvas with
  * one uniform scale (so nothing drifts apart on any screen):
  * frame 525 × 724 at (37.5, 0); door 401 × 664 at (99.5, 52), hinged on its left edge; opening
- * behind it at (97.5, 48); threshold 600 × 144 at (0, 700); lanterns at the top corners.
+ * behind it at (97.5, 48); wooden stairs 525 × 249 at (37.5, 705); lanterns at the top corners.
  * The whole doorway shrinks to the space available (never cropped).
  */
 @Composable
@@ -774,7 +774,7 @@ fun QuartersDoorAnimation(
         animationSpec = tween(durationMillis = if (reduce) 0 else 500, delayMillis = if (unlocked && !reduce) 300 else 0),
         label = "Cabin light",
     )
-    BoxWithConstraints(modifier.aspectRatio(600f / 844f, matchHeightConstraintsFirst = true)) {
+    BoxWithConstraints(modifier.aspectRatio(600f / 954f, matchHeightConstraintsFirst = true)) {
         val unit = maxWidth / 600f
         fun d(v: Float) = unit * v
         // the doorway opening (inside the arch)
@@ -850,10 +850,10 @@ fun QuartersDoorAnimation(
             contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
             modifier = Modifier.offset(d(37.5f), 0.dp).size(d(525f), d(724f)),
         )
-        // the wooden step under the doorway
-        Box(Modifier.offset(0.dp, d(700f)).size(d(600f), d(144f)), contentAlignment = Alignment.Center) {
+        // the wooden stairs up to the doorway
+        Box(Modifier.offset(d(37.5f), d(705f)).size(d(525f), d(249f)), contentAlignment = Alignment.Center) {
             androidx.compose.foundation.Image(
-                androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.quarters_threshold),
+                androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.quarters_stairs),
                 contentDescription = null,
                 contentScale = androidx.compose.ui.layout.ContentScale.FillBounds,
                 modifier = Modifier.matchParentSize(),
@@ -863,7 +863,7 @@ fun QuartersDoorAnimation(
         // the two lanterns at the top corners of the arch
         listOf(0f, 544f).forEach { x ->
             androidx.compose.foundation.Image(
-                androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.mugi_lantern),
+                androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.quarters_lantern),
                 contentDescription = null,
                 contentScale = androidx.compose.ui.layout.ContentScale.Fit,
                 modifier = Modifier.offset(d(x), d(70f)).size(d(56f), d(105f)),

@@ -144,12 +144,34 @@ internal fun FenrirCategoryBar(
             if (manage) {
                 FenrirCategoriesDialog(categories = categories, current = category, onDismiss = { manage = false }, startNew = startNew)
             }
-            FenrirCategoryButton(
-                categories = categories,
-                current = current,
-                newCountFor = newCountFor,
-            )
-            Spacer(Modifier.height(5.dp))
+            if (mugi) {
+                // MugiVerse: the category name on the supplied parchment scroll (tap for every category)
+                Box(Modifier.height(50.dp).aspectRatio(945f / 272f), contentAlignment = Alignment.Center) {
+                    androidx.compose.foundation.Image(
+                        androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.library_category_plaque),
+                        contentDescription = null,
+                        contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                        modifier = Modifier.matchParentSize(),
+                    )
+                    Text(
+                        category.visualName,
+                        color = Color(0xFF38200F),
+                        fontFamily = eu.kanade.presentation.components.MugiCinzel,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 30.dp),
+                    )
+                }
+            } else {
+                FenrirCategoryButton(
+                    categories = categories,
+                    current = current,
+                    newCountFor = newCountFor,
+                )
+            }
+            Spacer(Modifier.height(if (mugi) 2.dp else 5.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (categories.size <= 8) {
                     Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
