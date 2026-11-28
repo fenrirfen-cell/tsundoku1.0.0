@@ -1,6 +1,7 @@
 package eu.kanade.presentation.library.components
 
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
@@ -180,6 +181,18 @@ fun LibraryContent(
                     LuxTower(true, Modifier.align(androidx.compose.ui.Alignment.TopStart).padding(start = 3.dp).wrapContentHeight(androidx.compose.ui.Alignment.Top, unbounded = true).width(geom.tower))
                     LuxTower(false, Modifier.align(androidx.compose.ui.Alignment.TopEnd).padding(end = 3.dp).wrapContentHeight(androidx.compose.ui.Alignment.Top, unbounded = true).width(geom.tower))
                 }
+            }
+            // MugiVerse: the large "Read" page title under the logo, above Continue Reading
+            if (mugiRead && look == FenrirLibraryLook.Look.Bookshelf) {
+                androidx.compose.material3.Text(
+                    "Read",
+                    color = androidx.compose.ui.graphics.Color(0xFFF2D592),
+                    fontFamily = eu.kanade.presentation.components.MugiCinzel,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    fontSize = 32.sp,
+                    maxLines = 1,
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 4.dp),
+                )
             }
             // MugiVerse: the carved wooden header trim (supplied artwork) above Continue Reading
             if (mugiRead && look == FenrirLibraryLook.Look.Bookshelf && eu.kanade.tachiyomi.EmbeddedHost.showDecorations?.invoke() != false) {
