@@ -405,7 +405,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawMugiShelfSlice(
 
 /**
  * MugiVerse: places a book slot on the shelf row: the slot is as wide as the cell (less a little
- * room each side) and its bottom lands on the plank (91.5 % down the row picture).
+ * room each side) and its bottom lands on the plank surface (93 % down the row picture).
  */
 internal fun Modifier.mugiShelfPadding(): Modifier = this.then(
     Modifier.layout { measurable, constraints ->
@@ -413,8 +413,9 @@ internal fun Modifier.mugiShelfPadding(): Modifier = this.then(
         val w = constraints.maxWidth
         val inner = (w - side * 2).coerceAtLeast(1)
         val slotH = inner / FenrirTomeRatio
-        val top = (slotH * 0.0702f).toInt()
-        val bottom = (slotH * 0.0994f).toInt()
+        // row = slot / 0.87: top trim 6 %, book bottom on the plank surface at 93 %
+        val top = (slotH * 0.069f).toInt()
+        val bottom = (slotH * 0.0805f).toInt()
         val p = measurable.measure(androidx.compose.ui.unit.Constraints.fixedWidth(inner))
         layout(w, top + p.height + bottom) { p.place(side, top) }
     },

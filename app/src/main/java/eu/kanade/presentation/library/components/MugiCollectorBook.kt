@@ -94,15 +94,18 @@ fun BookStatusRibbon(status: BookReadingStatus, modifier: Modifier = Modifier) {
 fun VaultBookProgress(completed: Long, total: Long?, modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(6.dp)
     Text(
-        if (total != null && total > 0) "$completed/$total" else "$completed",
+        // read / total chapters, on one line (a long count used to wrap and read as "1163/157 1")
+        if (total != null && total > 0) "${completed.coerceAtMost(total)}/$total" else "$completed",
         color = VaultColors.Ivory,
-        fontSize = 10.sp,
+        fontSize = 9.sp,
         fontWeight = FontWeight.SemiBold,
+        maxLines = 1,
+        softWrap = false,
         modifier = modifier
             .clip(shape)
             .background(Color.Black.copy(alpha = 0.88f))
             .border(1.dp, VaultColors.Gold, shape)
-            .padding(horizontal = 5.dp, vertical = 3.dp),
+            .padding(horizontal = 4.dp, vertical = 2.dp),
     )
 }
 
@@ -219,12 +222,12 @@ fun MugiChapterCountBadge(count: Long, modifier: androidx.compose.ui.Modifier = 
         if (count > 999) "999+" else count.toString(),
         color = androidx.compose.ui.graphics.Color(0xFF731C20),
         fontWeight = androidx.compose.ui.text.font.FontWeight.ExtraBold,
-        fontSize = 11.sp,
+        fontSize = 9.sp,
         maxLines = 1,
         modifier = modifier
             .clip(shape)
             .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(androidx.compose.ui.graphics.Color(0xFFFFE8B5), androidx.compose.ui.graphics.Color(0xFFD3AB62))))
             .border(1.dp, androidx.compose.ui.graphics.Color(0xFFAA7938), shape)
-            .padding(horizontal = 6.dp, vertical = 3.dp),
+            .padding(horizontal = 4.dp, vertical = 1.dp),
     )
 }

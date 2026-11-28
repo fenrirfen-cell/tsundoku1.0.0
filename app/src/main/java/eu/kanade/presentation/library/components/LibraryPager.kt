@@ -1,5 +1,11 @@
 package eu.kanade.presentation.library.components
 
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import android.content.res.Configuration
 import androidx.compose.foundation.layout.Box
@@ -228,9 +234,47 @@ private fun LibraryPagerEmptyScreen(
             )
         }
 
-        EmptyScreen(
-            stringRes = msg,
-            modifier = Modifier.weight(1f),
-        )
+        if (eu.kanade.tachiyomi.EmbeddedHost.isMugi && searchQuery.isNullOrEmpty() && !hasActiveFilters) {
+            // MugiVerse: an empty category shows the red Add a book (supplied artwork), which opens Browse
+            val scope = androidx.compose.runtime.rememberCoroutineScope()
+            val openBrowse: () -> Unit = {
+                scope.launch { eu.kanade.tachiyomi.ui.home.HomeScreen.openTab(eu.kanade.tachiyomi.ui.home.HomeScreen.Tab.Browse()) }
+            }
+            Column(
+                Modifier.weight(1f).fillMaxWidth().padding(top = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                androidx.compose.foundation.Image(
+                    androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.library_add_book),
+                    contentDescription = "Add a book",
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                    modifier = Modifier
+                        .width(120.dp)
+                        .aspectRatio(298f / 346f)
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
+                        .clickable(onClickLabel = "Add a book", onClick = openBrowse),
+                )
+                androidx.compose.material3.Text(
+                    "No books in this category yet",
+                    color = androidx.compose.ui.graphics.Color(0xFFF2D592),
+                    fontFamily = eu.kanade.presentation.components.MugiPlayfair,
+                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    fontSize = 18.sp,
+                    modifier = Modifier.padding(top = 14.dp),
+                )
+                androidx.compose.material3.Text(
+                    "Tap the book to find something in Browse.",
+                    color = androidx.compose.ui.graphics.Color(0xFFD9CDB6),
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+        } else {
+            EmptyScreen(
+                stringRes = msg,
+                modifier = Modifier.weight(1f),
+            )
+        }
     }
 }
