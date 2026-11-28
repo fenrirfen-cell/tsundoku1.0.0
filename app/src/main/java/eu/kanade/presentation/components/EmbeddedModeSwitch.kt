@@ -682,8 +682,8 @@ private fun MugiReadHeader(modifier: Modifier) {
                 Brush.verticalGradient(listOf(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.5f), androidx.compose.ui.graphics.Color.Transparent)),
             ),
         )
-        // the ship's wheel artwork, faint behind the header buttons
-        Box(Modifier.matchParentSize().clipToBounds()) {
+        // the ship's wheel artwork, faint behind the header buttons (left out with fewer decorations)
+        if (eu.kanade.tachiyomi.EmbeddedHost.showDecorations?.invoke() != false) Box(Modifier.matchParentSize().clipToBounds()) {
             androidx.compose.foundation.Image(
                 androidx.compose.ui.res.painterResource(eu.kanade.tachiyomi.R.drawable.mugi_ship_wheel),
                 contentDescription = null,

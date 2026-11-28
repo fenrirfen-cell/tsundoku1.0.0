@@ -242,6 +242,18 @@ data object NovelsTab : Tab {
                 state.isLoading -> {
                     LoadingScreen(Modifier.padding(contentPadding))
                 }
+                state.searchQuery.isNullOrEmpty() && !state.hasActiveFilters && state.isLibraryEmpty && eu.kanade.tachiyomi.EmbeddedHost.isMugi -> {
+                    // MugiVerse: the themed empty shelf, with a way to find books
+                    val emptyScope = androidx.compose.runtime.rememberCoroutineScope()
+                    eu.kanade.presentation.components.MugiReadEmpty(
+                        title = "Your library awaits",
+                        message = "Find manga and novels in Browse and add them to your shelves.",
+                        modifier = Modifier.padding(contentPadding),
+                        actionLabel = "Add a book",
+                        showBookTile = true,
+                        onAction = { emptyScope.launch { eu.kanade.tachiyomi.ui.home.HomeScreen.openTab(eu.kanade.tachiyomi.ui.home.HomeScreen.Tab.Browse()) } },
+                    )
+                }
                 state.searchQuery.isNullOrEmpty() && !state.hasActiveFilters && state.isLibraryEmpty -> {
                     val handler = LocalUriHandler.current
                     EmptyScreen(

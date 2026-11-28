@@ -204,9 +204,16 @@ fun HistoryScreen(
                     } else {
                         MR.strings.information_no_recent_manga
                     }
-                    EmptyScreen(
-                        stringRes = msg,
-                    )
+                    if (eu.kanade.tachiyomi.EmbeddedHost.isMugi && state.searchQuery.isNullOrEmpty()) {
+                        eu.kanade.presentation.components.MugiReadEmpty(
+                            title = "No voyages logged yet",
+                            message = "Chapters you read show up here, newest first.",
+                        )
+                    } else {
+                        EmptyScreen(
+                            stringRes = msg,
+                        )
+                    }
                 } else {
                     HistoryScreenContent(
                         history = it,

@@ -88,6 +88,10 @@ object EmbeddedHost {
 
     /** MugiVerse look on (compass bar on the Read side too). Set by the host app. */
     var mugi: (() -> Boolean)? = null
+
+    /** MugiVerse Appearance & Motion (set by the host): skip motion / leave out decorations. */
+    var reduceMotion: (() -> Boolean)? = null
+    var showDecorations: (() -> Boolean)? = null
     val isMugi: Boolean get() = openWatch != null && mugi?.invoke() == true
 
     val isFenrirStyle: Boolean get() = openWatch != null && fenrirStyle?.invoke() == true

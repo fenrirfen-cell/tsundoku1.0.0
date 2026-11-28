@@ -139,6 +139,10 @@ class MainActivity : BaseActivity() {
             return
         }
 
+        // MugiVerse: the compass instead of the generic spinner on Read's loading screens
+        tachiyomi.presentation.core.screens.LoadingScreenStyle.enabled = { eu.kanade.tachiyomi.EmbeddedHost.isMugi }
+        tachiyomi.presentation.core.screens.LoadingScreenStyle.indicator = { eu.kanade.presentation.components.MugiCompassLoading() }
+
         setComposeContent {
             val context = LocalContext.current
 

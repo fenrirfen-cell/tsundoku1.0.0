@@ -145,6 +145,15 @@ object VoyageRead {
         }
     }
 
+    /** MugiVerse "Download over Wi-Fi only" (the Read side's own setting, shared with Watch). */
+    fun wifiOnly(): Boolean = runCatching {
+        Injekt.get<tachiyomi.domain.download.service.DownloadPreferences>().downloadOnlyOverWifi.get()
+    }.getOrDefault(true)
+
+    fun setWifiOnly(on: Boolean) {
+        runCatching { Injekt.get<tachiyomi.domain.download.service.DownloadPreferences>().downloadOnlyOverWifi.set(on) }
+    }
+
     fun pause() = Injekt.get<DownloadManager>().pauseDownloads()
 
     fun resume() = Injekt.get<DownloadManager>().startDownloads()

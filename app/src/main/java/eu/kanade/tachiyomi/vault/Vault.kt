@@ -83,9 +83,14 @@ object Vault {
     }
 
     /** Recomputes the derived states from the settings and the two in-memory grants. */
+    /** Set by the host app: told whenever Read becomes locked or unlocked (to drop or reload reading elsewhere). */
+    var onReadLockChanged: ((locked: Boolean) -> Unit)? = null
+
     private fun refresh() {
         val quartersLocked = lockEntireRead.value && !_quartersGrant.value
+        val changed = _readLocked.value != quartersLocked
         _readLocked.value = quartersLocked
+        if (changed) runCatching { onReadLockChanged?.invoke(quartersLocked) }
         _unlocked.value = !quartersLocked && (_vaultGrant.value || !protectPrivateLibrary.value)
     }
 

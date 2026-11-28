@@ -251,11 +251,19 @@ fun UpdateScreen(
                                         .padding(vertical = 64.dp),
                                     contentAlignment = androidx.compose.ui.Alignment.Center,
                                 ) {
-                                    Text(
-                                        text = stringResource(MR.strings.information_no_recent),
-                                        style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                    )
+                                    if (eu.kanade.tachiyomi.EmbeddedHost.isMugi) {
+                                        eu.kanade.presentation.components.MugiReadEmpty(
+                                            title = "Calm seas",
+                                            message = "No new chapters yet. Pull down to check your library for updates.",
+                                            scrollable = false,
+                                        )
+                                    } else {
+                                        Text(
+                                            text = stringResource(MR.strings.information_no_recent),
+                                            style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                        )
+                                    }
                                 }
                             }
                         } else if (state.groupByNovel) {

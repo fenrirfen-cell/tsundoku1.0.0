@@ -112,9 +112,10 @@ private val Serif = eu.kanade.presentation.components.MugiPlayfair
 private fun android.content.Context.findFragmentActivity(): FragmentActivity? =
     generateSequence(this) { (it as? android.content.ContextWrapper)?.baseContext }.filterIsInstance<FragmentActivity>().firstOrNull()
 
-private fun reduceMotion(context: android.content.Context): Boolean = runCatching {
-    android.provider.Settings.Global.getFloat(context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
-}.getOrDefault(false)
+private fun reduceMotion(context: android.content.Context): Boolean =
+    eu.kanade.tachiyomi.EmbeddedHost.reduceMotion?.invoke() == true || runCatching {
+        android.provider.Settings.Global.getFloat(context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
+    }.getOrDefault(false)
 
 /** Keeps private screens out of screenshots and the recent-apps preview. */
 @Composable
